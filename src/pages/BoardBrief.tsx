@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useSEO } from "@/hooks/use-seo";
 
 const BoardBrief = () => {
   const printRef = useRef<HTMLPreElement>(null);
 
-  useEffect(() => { document.title = "Board Brief – Reggio"; }, []);
+  useSEO({ title: "Board Brief – Reggio", description: "Generate a concise compliance update for your board." });
 
   // For MVP: pull latest 100 clauses regardless of regulation and group by risk_area
   // In future, accept a regulationId filter

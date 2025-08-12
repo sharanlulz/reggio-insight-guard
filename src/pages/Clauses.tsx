@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import { useSEO } from "@/hooks/use-seo";
 
 interface Clause {
   id: string;
@@ -27,8 +28,10 @@ const Clauses = () => {
   const [clauses, setClauses] = useState<Clause[]>([]);
   const [regs, setRegs] = useState<{ id: string; title: string }[]>([]);
 
+  useSEO({ title: "Clauses – Reggio", description: "Browse and filter regulatory clauses." });
+
   useEffect(() => {
-    document.title = "Clauses – Reggio";
+    
     (async () => {
       const { data: regsData } = await (supabase as any).from("reggio.regulations").select("id,title").order("title");
       setRegs(regsData || []);

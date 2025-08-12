@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { useSEO } from "@/hooks/use-seo";
 import { FileText, Upload } from "lucide-react";
 
 interface Regulation { id: string; title: string; short_code: string; jurisdiction: string | null; regulator: string | null; }
@@ -18,8 +20,10 @@ const Dashboard = () => {
   const [sourceUrl, setSourceUrl] = useState("");
   const [version, setVersion] = useState("v1");
 
+  useSEO({ title: "Dashboard – Reggio", description: "Manage and ingest regulations in Reggio." });
+
   useEffect(() => {
-    document.title = "Dashboard – Reggio";
+    
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -114,7 +118,7 @@ const Dashboard = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>{r.title}</span>
-                  <a className="text-sm text-primary underline" href={`/clauses?reg=${r.id}`}>Browse clauses</a>
+                  <Link className="text-sm text-primary underline" to={`/clauses?reg=${r.id}`}>Browse clauses</Link>
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
