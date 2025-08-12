@@ -1,0 +1,1 @@
+ALTER TYPE reggio.member_role ADD VALUE 'owner';
