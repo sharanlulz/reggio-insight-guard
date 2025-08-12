@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Clauses from "./pages/Clauses";
 import BoardBrief from "./pages/BoardBrief";
+import Debug from "@/pages/Debug";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/clauses" element={<Clauses />} />
           <Route path="/brief" element={<BoardBrief />} />
+          <Route path="/debug" element={<Debug />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
