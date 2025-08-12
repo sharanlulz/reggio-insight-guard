@@ -12,8 +12,8 @@ export default function Dashboard() {
       setLoading(true);
       // Force-load all regs in DB for MVP — skip org/user filters
       const { data, error } = await supabase
-        .from("public.regulations") // Use public view
-        .select("id, title, short_code, jurisdiction, regulator")
+        .from("regulations") // no "public." prefix
+        .select("id, title, short_code, jurisdiction, regulator, org_id")
         .order("title");
 
       if (error) {
