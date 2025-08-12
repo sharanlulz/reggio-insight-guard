@@ -7,18 +7,13 @@ export default function Dashboard() {
   const [regs, setRegs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Always use the demo org for MVP so any login works
-  const DEMO_ORG_ID =
-    import.meta.env.VITE_REGGIO_ORG_ID ||
-    "d3546758-a241-4546-aff7-fa600731502a";
-
   useEffect(() => {
     const fetchRegs = async () => {
       setLoading(true);
+      // Force-load all regs in DB for MVP — skip org/user filters
       const { data, error } = await supabase
-        .from("reggio.regulations")
+        .from("public.regulations") // Use public view
         .select("id, title, short_code, jurisdiction, regulator")
-        .eq("org_id", DEMO_ORG_ID)
         .order("title");
 
       if (error) {
@@ -31,7 +26,7 @@ export default function Dashboard() {
     };
 
     fetchRegs();
-  }, [DEMO_ORG_ID]);
+  }, []);
 
   return (
     <div className="p-6 space-y-6">
@@ -41,7 +36,7 @@ export default function Dashboard() {
 
       {!loading && regs.length === 0 && (
         <p className="text-muted-foreground">
-          No regulations found for demo org.
+          No regulations found in the database.
         </p>
       )}
 
@@ -58,7 +53,6 @@ export default function Dashboard() {
               <Button
                 className="mt-4"
                 onClick={() => {
-                  // Trigger your ingest modal here
                   const evt = new CustomEvent("open-ingest", {
                     detail: { regulationId: r.id },
                   });
