@@ -9,20 +9,19 @@ export default function Debug() {
   const [error, setError] = useState<any>(null);
 
   useEffect(() => {
-    // Show the envs the app is ACTUALLY using at runtime
     setEnvs({
       url: (import.meta as any).env?.VITE_SUPABASE_URL,
       anon: ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY || "").slice(0, 8) + "…",
     });
 
     (async () => {
-      // Try both names the app might be using
-      const tries = ["public.regulations", "reggio.regulations", "regulations"];
-      for (const name of tries) {
+      const tables = ["public.regulations", "reggio.regulations", "regulations"];
+      for (const name of tables) {
         const { data, error } = await supabase
           .from(name)
           .select("id, title, short_code, org_id")
           .limit(10);
+
         if (error) {
           setError({ tableTried: name, message: error.message, details: (error as any).details });
         } else if (data && data.length) {
@@ -63,7 +62,7 @@ export default function Debug() {
         )}
       </div>
       <p style={{ marginTop: 16, color: "#6b7280" }}>
-        Tip: after committing this file, open <code>/debug</code> in your Lovable preview.
+        After committing, open <code>/debug</code> in your preview.
       </p>
     </div>
   );
