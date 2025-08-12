@@ -2,7 +2,7 @@
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/1e93690c-29bf-4dec-bce8-d2b50437fb8b
+**URL**: https://lovable.dev/projects/1e93690c-29bf-4dec-bce8-d2b50437fb8d2b50437fb8b
 
 ## How can I edit this code?
 
@@ -71,3 +71,47 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+---
+
+## Dev & Deploy (Reggio MVP)
+
+1) Create a local env file for local testing (Lovable uses Supabase Secrets in deploys):
+
+```
+# .env.local (local only)
+NEXT_PUBLIC_SUPABASE_URL=<project url>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+SUPABASE_SERVICE_ROLE_KEY=<service role>  # Edge functions only
+GROQ_API_KEY=<groq key>
+GROQ_MODEL=llama-3.1-70b-versatile
+```
+
+2) Seed database (org + regulation):
+
+```
+# Already automated by migrations, but if needed:
+supabase db remote commit --file supabase/seed/reggio_seed.sql
+```
+
+3) Deploy Edge Function (JWT disabled in dev):
+
+```
+supabase functions deploy reggio-ingest --no-verify-jwt
+```
+
+4) Test ingestion in Postman:
+
+```
+POST https://<PROJECT_REF>.functions.supabase.co/reggio-ingest
+Authorization: Bearer <ANON_KEY>
+Content-Type: application/json
+{
+  "regulationId": "<UUID>",
+  "source_url": "https://...",
+  "document": { "versionLabel": "v1", "docType": "Regulation", "language": "en", "source_url": "https://...", "published_at": "2024-01-01T00:00:00Z" }
+}
+```
+
+Edge Function logs:
+- https://supabase.com/dashboard/project/plktjrbfnzyelwkyyssz/functions/reggio-ingest/logs

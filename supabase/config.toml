@@ -1,1 +1,4 @@
 project_id = "plktjrbfnzyelwkyyssz"
+
+[functions.reggio-ingest]
+verify_jwt = false
