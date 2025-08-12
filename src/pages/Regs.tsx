@@ -17,8 +17,8 @@ export default function Regs() {
     (async () => {
       // Try public view first to avoid schema issues
       const { data, error } = await supabase
-        .from("public.regulations")
-        .select("id, title, short_code, org_id")
+        .from("regulations") // no "public." prefix
+        .select("id, title, short_code, jurisdiction, regulator, org_id")
         .order("title");
 
       if (error) setError(error.message);
