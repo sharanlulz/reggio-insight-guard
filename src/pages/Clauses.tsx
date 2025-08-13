@@ -1,55 +1,72 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
-type Regulation = {
-  id: string;
-  title: string;
-  short_code: string;
-};
-
+type Regulation = { id: string; title: string; short_code: string };
 type Clause = {
   id: string;
   regulation_id: string | null;
   document_id: string | null;
-  path_hierarchy: string | null;
+  path_hierarchy: string;
   number_label: string | null;
-  text_raw: string | null;
+  text_raw: string;
   summary_plain: string | null;
   obligation_type: string | null;
   risk_area: string | null;
-  risk_area_text?: string | null;
-  themes?: string[] | null;
-  industries?: string[] | null;
+  themes: string[] | null;
+  industries: string[] | null;
+  created_at: string;
 };
 
-const PAGE_SIZE = 30;
-
-const RISK_AREAS = [
-  "LIQUIDITY","CAPITAL","MARKET","CREDIT","OPERATIONAL","CONDUCT",
-  "AML_CFT","DATA_PRIVACY","TECH_RISK","OUTSOURCING","IRRBB","RRP","RISK_MANAGEMENT",
-];
-
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 50];
 const OBLIGATION_TYPES = [
-  "MANDATORY","RECOMMENDED","REPORTING","DISCLOSURE",
-  "RESTRICTION","GOVERNANCE","RISK_MANAGEMENT","RECORD_KEEPING",
+  "MANDATORY",
+  "RECOMMENDED",
+  "REPORTING",
+  "DISCLOSURE",
+  "RESTRICTION",
+  "GOVERNANCE",
+  "RISK_MANAGEMENT",
+  "RECORD_KEEPING",
+];
+const RISK_AREAS = [
+  "LIQUIDITY",
+  "CAPITAL",
+  "MARKET",
+  "CREDIT",
+  "OPERATIONAL",
+  "CONDUCT",
+  "AML_CFT",
+  "DATA_PRIVACY",
+  "TECH_RISK",
+  "OUTSOURCING",
+  "IRRBB",
+  "RRP",
+  "RISK_MANAGEMENT",
 ];
 
-function highlight(text: string | null | undefined, term: string) {
-  if (!text) return null;
-  if (!term.trim()) return text;
+function useDebounced<T>(value: T, delay = 400) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return v;
+}
+
+function highlight(text: string, q: string) {
+  if (!q || !text) return text;
   try {
-    const safe = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const rx = new RegExp(`(${safe})`, "ig");
-    const parts = text.split(rx);
-    return parts.map((p, i) =>
-      rx.test(p) ? (
-        <mark key={i} className="px-0.5 rounded bg-yellow-200">
-          {p}
+    const esc = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(${esc})`, "ig");
+    return text.split(re).map((part, i) =>
+      re.test(part) ? (
+        <mark key={i} className="bg-yellow-200 px-0.5 rounded">
+          {part}
         </mark>
       ) : (
-        <span key={i}>{p}</span>
+        <span key={i}>{part}</span>
       )
     );
   } catch {
@@ -58,137 +75,112 @@ function highlight(text: string | null | undefined, term: string) {
 }
 
 export default function ClausesPage() {
-  // Regulations (for filter)
+  // Filters
   const [regs, setRegs] = useState<Regulation[]>([]);
   const [regId, setRegId] = useState<string>("");
+  const [risk, setRisk] = useState<string>("");
+  const [obType, setObType] = useState<string>("");
+  const [search, setSearch] = useState<string>("");
+  const [searchIn, setSearchIn] = useState<"both" | "summary" | "text">("both");
 
-  // Filters
-  const [riskSel, setRiskSel] = useState<string[]>([]);
-  const [oblSel, setOblSel] = useState<string[]>([]);
-  const [q, setQ] = useState<string>("");
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(30);
+  const [total, setTotal] = useState(0);
 
-  // Results
+  // Data
   const [rows, setRows] = useState<Clause[]>([]);
-  const [page, setPage] = useState<number>(0);
-  const [total, setTotal] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
 
-  // Preload regulations
+  const debouncedQ = useDebounced(search, 400);
+
+  // Load regulations for filter
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
         .from("regulations")
         .select("id, title, short_code")
         .order("title");
-      if (!error) setRegs((data || []) as Regulation[]);
+      if (!error && data) setRegs(data as Regulation[]);
     })();
   }, []);
 
-  const orSearch = useMemo(() => {
-    if (!q.trim()) return null;
-    const like = `%${q.trim()}%`;
-    // PostgREST OR across columns (NULL-safe: ilike handles non-null rows)
-    return `summary_plain.ilike.${like},text_raw.ilike.${like}`;
-  }, [q]);
+  // Build the query based on filters (count + page fetch)
+  const fetchData = useCallback(async () => {
+    setLoading(true);
 
-  const runQuery = useCallback(
-    async (pageIndex: number) => {
-      setLoading(true);
+    // ---- COUNT (no aggregates in select) ----
+    let countQ = supabase.from("clauses").select("*", { count: "exact", head: true });
 
-      // Base query on public.clauses
-      let query = supabase.from("clauses").select("*", {
-        count: "exact",
-      });
-
-      // Regulation
-      if (regId) query = query.eq("regulation_id", regId);
-
-      // Risk filter (multi)
-      if (riskSel.length > 0) query = query.in("risk_area", riskSel);
-
-      // Obligation type (multi)
-      if (oblSel.length > 0) query = query.in("obligation_type", oblSel);
-
-      // Search across summary OR raw text
-      if (orSearch) {
-        query = query.or(orSearch);
-      }
-
-      // Order by most recently created (or path)
-      query = query.order("created_at", { ascending: false });
-
-      // Pagination
-      const from = pageIndex * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      query = query.range(from, to);
-
-      const { data, error, count } = await query;
-
-      if (error) {
-        console.error("Query error", error);
-        setRows([]);
-        setTotal(0);
+    if (regId) countQ = countQ.eq("regulation_id", regId);
+    if (risk) countQ = countQ.eq("risk_area", risk);
+    if (obType) countQ = countQ.eq("obligation_type", obType);
+    if (debouncedQ) {
+      const like = `%${debouncedQ}%`;
+      if (searchIn === "both") {
+        countQ = countQ.or(`summary_plain.ilike.${like},text_raw.ilike.${like}`);
+      } else if (searchIn === "summary") {
+        countQ = countQ.ilike("summary_plain", like);
       } else {
-        setRows((data || []) as Clause[]);
-        setTotal(Number(count || 0));
+        countQ = countQ.ilike("text_raw", like);
       }
-      setLoading(false);
-    },
-    [regId, riskSel, oblSel, orSearch]
-  );
-
-  // Run on initial & whenever filters/page change
-  useEffect(() => {
-    runQuery(page);
-  }, [runQuery, page]);
-
-  // Reset to page 0 if filters/search change
-  useEffect(() => {
-    setPage(0);
-  }, [regId, riskSel, oblSel, q]);
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  const onToggleMulti = (sel: string[], setSel: (v: string[]) => void, val: string) => {
-    setSel(sel.includes(val) ? sel.filter((x) => x !== val) : [...sel, val]);
-  };
-
-  const copy = async (txt?: string | null) => {
-    if (!txt) return;
-    try {
-      await navigator.clipboard.writeText(txt);
-      alert("Copied to clipboard");
-    } catch {
-      alert("Could not copy");
     }
-  };
+
+    const { count, error: countErr } = await countQ;
+    if (!countErr) setTotal(Number(count || 0));
+    else setTotal(0);
+
+    // ---- PAGE FETCH ----
+    let q = supabase
+      .from("clauses")
+      .select(
+        "id, regulation_id, document_id, path_hierarchy, number_label, text_raw, summary_plain, obligation_type, risk_area, themes, industries, created_at"
+      )
+      .order("created_at", { ascending: false });
+
+    if (regId) q = q.eq("regulation_id", regId);
+    if (risk) q = q.eq("risk_area", risk);
+    if (obType) q = q.eq("obligation_type", obType);
+    if (debouncedQ) {
+      const like = `%${debouncedQ}%`;
+      if (searchIn === "both") {
+        q = q.or(`summary_plain.ilike.${like},text_raw.ilike.${like}`);
+      } else if (searchIn === "summary") {
+        q = q.ilike("summary_plain", like);
+      } else {
+        q = q.ilike("text_raw", like);
+      }
+    }
+
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    q = q.range(from, to);
+
+    const { data, error } = await q;
+    if (!error && data) setRows(data as Clause[]);
+    else setRows([]);
+
+    setLoading(false);
+  }, [regId, risk, obType, debouncedQ, searchIn, page, pageSize]);
+
+  // Refetch when filters/pagination change
+  useEffect(() => {
+    setPage(1); // reset page on filter/search change
+  }, [regId, risk, obType, debouncedQ, searchIn]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData, page, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold">Clauses</h1>
-          <p className="text-sm text-muted-foreground">
-            Search and filter AI-tagged clauses across your regulations.
-          </p>
-        </div>
-
-        <div className="flex gap-2">
-          <input
-            className="border rounded-md px-3 py-2 bg-background min-w-[260px]"
-            placeholder="Search summary or full text…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <Button variant="outline" onClick={() => setQ("")}>
-            Clear
-          </Button>
-        </div>
-      </div>
+    <div className="p-6 space-y-4">
+      <h1 className="text-2xl font-bold">Clauses</h1>
 
       {/* Filters */}
-      <Card className="p-4 space-y-4">
-        <div className="grid md:grid-cols-3 gap-4">
+      <Card className="p-4 space-y-3">
+        <div className="grid gap-3 md:grid-cols-4">
           <div>
             <label className="block text-sm font-medium">Regulation</label>
             <select
@@ -206,146 +198,191 @@ export default function ClausesPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Risk area</label>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {RISK_AREAS.map((r) => (
-                <button
-                  key={r}
-                  onClick={() => onToggleMulti(riskSel, setRiskSel, r)}
-                  className={`text-xs px-2 py-1 rounded border ${
-                    riskSel.includes(r) ? "bg-primary text-white" : "bg-background"
-                  }`}
-                >
-                  {r}
-                </button>
+            <label className="block text-sm font-medium">Risk Area</label>
+            <select
+              className="w-full border rounded-md px-3 py-2 bg-background"
+              value={risk}
+              onChange={(e) => setRisk(e.target.value)}
+            >
+              <option value="">All</option>
+              {RISK_AREAS.map((ra) => (
+                <option key={ra} value={ra}>
+                  {ra}
+                </option>
               ))}
-              {riskSel.length > 0 && (
-                <Button
-                  variant="outline"
-                  className="ml-2"
-                  onClick={() => setRiskSel([])}
-                >
-                  Clear
-                </Button>
-              )}
-            </div>
+            </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Obligation type</label>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {OBLIGATION_TYPES.map((o) => (
-                <button
-                  key={o}
-                  onClick={() => onToggleMulti(oblSel, setOblSel, o)}
-                  className={`text-xs px-2 py-1 rounded border ${
-                    oblSel.includes(o) ? "bg-primary text-white" : "bg-background"
-                  }`}
-                >
-                  {o}
-                </button>
+            <label className="block text-sm font-medium">Obligation Type</label>
+            <select
+              className="w-full border rounded-md px-3 py-2 bg-background"
+              value={obType}
+              onChange={(e) => setObType(e.target.value)}
+            >
+              <option value="">All</option>
+              {OBLIGATION_TYPES.map((ob) => (
+                <option key={ob} value={ob}>
+                  {ob}
+                </option>
               ))}
-              {oblSel.length > 0 && (
-                <Button
-                  variant="outline"
-                  className="ml-2"
-                  onClick={() => setOblSel([])}
-                >
-                  Clear
-                </Button>
-              )}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">Search</label>
+            <input
+              className="w-full border rounded-md px-3 py-2 bg-background"
+              placeholder="Search summary and/or text…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <div className="mt-2 text-xs flex gap-3 items-center">
+              <label className="inline-flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="searchIn"
+                  value="both"
+                  checked={searchIn === "both"}
+                  onChange={() => setSearchIn("both")}
+                />
+                both
+              </label>
+              <label className="inline-flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="searchIn"
+                  value="summary"
+                  checked={searchIn === "summary"}
+                  onChange={() => setSearchIn("summary")}
+                />
+                summary only
+              </label>
+              <label className="inline-flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="searchIn"
+                  value="text"
+                  checked={searchIn === "text"}
+                  onChange={() => setSearchIn("text")}
+                />
+                text only
+              </label>
             </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <div className="text-sm text-muted-foreground">
+            {loading ? "Loading…" : `${total} result${total === 1 ? "" : "s"}`}
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm">Page size</label>
+            <select
+              className="border rounded-md px-2 py-1 bg-background"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </Card>
 
       {/* Results */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          {loading ? "Loading…" : `${total} result${total === 1 ? "" : "s"}`}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={page <= 0 || loading}
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-          >
-            Prev
-          </Button>
-          <span className="text-sm">
-            Page {page + 1} / {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            disabled={page >= totalPages - 1 || loading}
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-          >
-            Next
-          </Button>
-        </div>
+      <div className="space-y-3">
+        {rows.map((cl) => {
+          const showText = searchIn !== "summary";
+          const showSummary = searchIn !== "text";
+          return (
+            <Card key={cl.id} className="p-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
+                <span className="px-2 py-1 rounded bg-muted">
+                  {cl.path_hierarchy}
+                </span>
+                {cl.risk_area && (
+                  <span className="px-2 py-1 rounded bg-muted">{cl.risk_area}</span>
+                )}
+                {cl.obligation_type && (
+                  <span className="px-2 py-1 rounded bg-muted">
+                    {cl.obligation_type}
+                  </span>
+                )}
+                {cl.themes?.slice(0, 3).map((t) => (
+                  <span key={t} className="px-2 py-1 rounded bg-muted">
+                    #{t}
+                  </span>
+                ))}
+                <span className="ml-auto">{new Date(cl.created_at).toLocaleString()}</span>
+              </div>
+
+              {showSummary && cl.summary_plain && (
+                <div className="mb-2">
+                  <div className="text-xs font-medium text-muted-foreground mb-1">
+                    Summary
+                  </div>
+                  <div className="leading-relaxed">
+                    {highlight(cl.summary_plain, debouncedQ)}
+                  </div>
+                </div>
+              )}
+
+              {showText && (
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">
+                    Clause text
+                  </div>
+                  <div className="leading-relaxed line-clamp-6">
+                    {highlight(cl.text_raw, debouncedQ)}
+                  </div>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+
+        {!loading && rows.length === 0 && (
+          <Card className="p-6 text-sm text-muted-foreground">
+            No results. Try widening filters or search terms.
+          </Card>
+        )}
       </div>
 
-      {rows.length === 0 && !loading && (
-        <p className="text-muted-foreground">No clauses match your filters.</p>
-      )}
-
-      <div className="grid gap-4">
-        {rows.map((c) => (
-          <Card key={c.id} className="p-4 space-y-2">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="text-sm text-muted-foreground">
-                <span className="mr-2">{c.path_hierarchy || "—"}</span>
-                {c.number_label && <span>• {c.number_label}</span>}
-              </div>
-              <div className="text-xs flex items-center gap-2">
-                {c.risk_area && (
-                  <span className="px-2 py-1 rounded bg-muted">{c.risk_area}</span>
-                )}
-                {c.obligation_type && (
-                  <span className="px-2 py-1 rounded bg-muted">{c.obligation_type}</span>
-                )}
-              </div>
-            </div>
-
-            <div className="text-sm">
-              <div className="font-medium mb-1">Summary</div>
-              <div className="prose prose-sm max-w-none">
-                {highlight(c.summary_plain || "", q)}
-              </div>
-            </div>
-
-            <details className="text-sm">
-              <summary className="cursor-pointer text-muted-foreground">
-                Show source text
-              </summary>
-              <div className="mt-2 prose prose-sm max-w-none">
-                {highlight(c.text_raw || "", q)}
-              </div>
-            </details>
-
-            <div className="flex items-center gap-2 pt-1">
-              <Button
-                variant="outline"
-                onClick={() => copy(c.summary_plain)}
-                className="text-xs"
-              >
-                Copy summary
-              </Button>
-              {c.document_id && (
-                <a
-                  className="text-xs underline text-primary"
-                  href={`#/documents/${c.document_id}`}
-                  onClick={(e) => {
-                    // if you have a Documents route, this will work; otherwise ignore.
-                    e.stopPropagation();
-                  }}
-                >
-                  Open document
-                </a>
-              )}
-            </div>
-          </Card>
-        ))}
+      {/* Pager */}
+      <div className="flex items-center justify-between pt-2">
+        <div className="text-sm text-muted-foreground">
+          Page {page} / {totalPages}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setPage(1)} disabled={page <= 1}>
+            « First
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+          >
+            ‹ Prev
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+          >
+            Next ›
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPage(totalPages)}
+            disabled={page >= totalPages}
+          >
+            Last »
+          </Button>
+        </div>
       </div>
     </div>
   );
