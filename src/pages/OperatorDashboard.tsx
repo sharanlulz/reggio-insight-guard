@@ -36,7 +36,9 @@ type IngestionRow = {
   finished_at: string | null;
 };
 
-const DEMO_ORG_ID = (import.meta as any).env?.VITE_REGGIO_ORG_ID || "d3546758-a241-4546-aff7-fa600731502a";
+const DEMO_ORG_ID =
+  (import.meta as any).env?.VITE_REGGIO_ORG_ID ||
+  "d3546758-a241-4546-aff7-fa600731502a";
 
 function timeAgo(iso?: string | null) {
   if (!iso) return "—";
@@ -58,6 +60,21 @@ function StatusChip({ status }: { status: string }) {
   return <span className={`text-xs px-2 py-0.5 rounded ${c}`}>{status}</span>;
 }
 
+// Suggest a new version label (safe default)
+function suggestNextVersion(current?: string) {
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+  if (!current) return `v1-${stamp}`;
+  const m = current.match(/^v(\d+)([\w-]*)/i);
+  if (m) {
+    const n = Number(m[1]) + 1;
+    return `v${n}-${stamp}`;
+  }
+  return `${current}-${stamp}`;
+}
+
 export default function OperatorDashboard() {
   const [regs, setRegs] = useState<Regulation[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -75,6 +92,18 @@ export default function OperatorDashboard() {
   const [versionLabel, setVersionLabel] = useState("v1-auto");
   const [docType, setDocType] = useState<"Regulation" | "Guidance">("Regulation");
   const [busy, setBusy] = useState(false);
+
+  // Per-version action modal
+  const [openVersionAction, setOpenVersionAction] = useState(false);
+  const [actionMode, setActionMode] = useState<"refresh" | "new">("refresh");
+  const [actionRegId, setActionRegId] = useState<string>("");
+  const [actionRegTitle, setActionRegTitle] = useState<string>("");
+  const [actionCurrentVersion, setActionCurrentVersion] = useState<string>("");
+  const [actionNewVersion, setActionNewVersion] = useState<string>("");
+  const [actionUseManual, setActionUseManual] = useState(false);
+  const [actionSourceUrl, setActionSourceUrl] = useState("");
+  const [actionManualText, setActionManualText] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
 
   const supaUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string;
   const anon = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string;
@@ -97,31 +126,36 @@ export default function OperatorDashboard() {
 
   // Load versions for a regulation
   const loadVersions = useCallback(async (regId: string) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("regulation_documents")
-      .select("id, regulation_id, version_label, doc_type, language, source_url, published_at, created_at")
+      .select(
+        "id, regulation_id, version_label, doc_type, language, source_url, published_at, created_at"
+      )
       .eq("regulation_id", regId)
       .order("created_at", { ascending: false });
-    if (!error) {
-      setVersions((prev) => ({ ...prev, [regId]: (data || []) as RegDoc[] }));
-    }
+    setVersions((prev) => ({ ...prev, [regId]: (data || []) as RegDoc[] }));
   }, []);
 
   // Load ingestion logs (latest first)
   const loadLogs = useCallback(async () => {
     setLoadingLogs(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("ingestions")
-      .select("id, regulation_document_id, status, chunks_total, chunks_done, error, started_at, finished_at")
+      .select(
+        "id, regulation_document_id, status, chunks_total, chunks_done, error, started_at, finished_at"
+      )
       .order("started_at", { ascending: false })
       .limit(200);
-    if (!error && data) setLogs(data as IngestionRow[]);
+    setLogs((data || []) as IngestionRow[]);
     setLoadingLogs(false);
   }, []);
 
   // Poll logs every 3s
   useEffect(() => {
-    (async () => { await loadRegs(); await loadLogs(); })();
+    (async () => {
+      await loadRegs();
+      await loadLogs();
+    })();
     const t = setInterval(loadLogs, 3000);
     return () => clearInterval(t);
   }, [loadRegs, loadLogs]);
@@ -157,7 +191,6 @@ export default function OperatorDashboard() {
 
     setBusy(true);
     try {
-      // If paste, chunk once and reuse
       let chunks:
         | Array<{ path_hierarchy: string; number_label: string | null; text_raw: string }>
         | undefined;
@@ -167,16 +200,20 @@ export default function OperatorDashboard() {
         const clean = manualText.replace(/\s+/g, " ").trim();
         const max = 2000;
         chunks = [];
-        let i = 0, idx = 0;
+        let i = 0,
+          idx = 0;
         while (i < clean.length) {
-          chunks.push({ path_hierarchy: `Section ${++idx}`, number_label: null, text_raw: clean.slice(i, i + max) });
+          chunks.push({
+            path_hierarchy: `Section ${++idx}`,
+            number_label: null,
+            text_raw: clean.slice(i, i + max),
+          });
           i += max;
         }
       } else {
         srcUrlForDoc = sourceUrl;
       }
 
-      // Fire sequentially (less stress on Groq / easier to read)
       for (const regId of selectedRegIds) {
         const res = await fetch(fnUrl, {
           method: "POST",
@@ -196,9 +233,11 @@ export default function OperatorDashboard() {
         });
         const text = await res.text();
         if (!res.ok) {
-          let pretty = text; try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch {}
+          let pretty = text;
+          try {
+            pretty = JSON.stringify(JSON.parse(text), null, 2);
+          } catch {}
           alert(`Ingestion for ${regId} failed (${res.status}):\n${pretty}`);
-          // continue to next reg rather than aborting whole bulk
           continue;
         }
       }
@@ -209,12 +248,110 @@ export default function OperatorDashboard() {
       setSourceUrl("");
       setManualText("");
       setUseManual(false);
-      // refresh visible data
-      setTimeout(() => { loadLogs(); selectedRegIds.forEach(loadVersions); }, 1500);
+      setTimeout(() => {
+        loadLogs();
+        selectedRegIds.forEach(loadVersions);
+      }, 1500);
     } catch (e: any) {
       alert("Bulk ingest error: " + String(e?.message || e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Per-version actions
+  const openAction = (mode: "refresh" | "new", reg: Regulation, doc?: RegDoc) => {
+    setActionMode(mode);
+    setActionRegId(reg.id);
+    setActionRegTitle(`${reg.title} (${reg.short_code})`);
+    setActionCurrentVersion(doc?.version_label || "");
+    setActionNewVersion(
+      mode === "new" ? suggestNextVersion(doc?.version_label) : doc?.version_label || "v1-auto"
+    );
+    setActionUseManual(false);
+    setActionSourceUrl(doc?.source_url || "");
+    setActionManualText("");
+    setOpenVersionAction(true);
+  };
+
+  const runVersionAction = async () => {
+    if (!actionRegId) return;
+    const vLabel = actionMode === "refresh" ? actionCurrentVersion || "v1-auto" : actionNewVersion.trim() || suggestNextVersion(actionCurrentVersion);
+
+    if (!actionUseManual && (!actionSourceUrl || !/^https?:\/\//i.test(actionSourceUrl))) {
+      alert("Enter a valid http(s) Source URL, or switch to Paste text.");
+      return;
+    }
+    if (actionUseManual && actionManualText.trim().length < 30) {
+      alert("Paste at least a few sentences of text.");
+      return;
+    }
+
+    setActionBusy(true);
+    try {
+      let chunks:
+        | Array<{ path_hierarchy: string; number_label: string | null; text_raw: string }>
+        | undefined;
+      let srcUrlForDoc: string | undefined;
+
+      if (actionUseManual) {
+        const clean = actionManualText.replace(/\s+/g, " ").trim();
+        const max = 2000;
+        chunks = [];
+        let i = 0,
+          idx = 0;
+        while (i < clean.length) {
+          chunks.push({
+            path_hierarchy: `Section ${++idx}`,
+            number_label: null,
+            text_raw: clean.slice(i, i + max),
+          });
+          i += max;
+        }
+      } else {
+        srcUrlForDoc = actionSourceUrl;
+      }
+
+      const res = await fetch(fnUrl, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          regulationId: actionRegId,
+          source_url: srcUrlForDoc,
+          document: {
+            versionLabel: vLabel,
+            docType: "Regulation",
+            language: "en",
+            source_url: srcUrlForDoc,
+            published_at: new Date().toISOString(),
+          },
+          ...(chunks ? { chunks } : {}),
+        }),
+      });
+
+      const text = await res.text();
+      if (!res.ok) {
+        let pretty = text;
+        try {
+          pretty = JSON.stringify(JSON.parse(text), null, 2);
+        } catch {}
+        alert(`Ingestion failed (${res.status}):\n${pretty}`);
+      } else {
+        alert(
+          actionMode === "refresh"
+            ? `Re-ingest started for ${actionRegTitle} — ${vLabel}`
+            : `New version ingestion started for ${actionRegTitle} — ${vLabel}`
+        );
+        setOpenVersionAction(false);
+        setTimeout(() => {
+          loadLogs();
+          loadVersions(actionRegId);
+        }, 1500);
+      }
+    } catch (e: any) {
+      alert("Action error: " + String(e?.message || e));
+    } finally {
+      setActionBusy(false);
     }
   };
 
@@ -235,9 +372,13 @@ export default function OperatorDashboard() {
           .select("id, title, short_code")
           .in("id", regIds);
         const regMap: Record<string, { title: string; short: string }> = {};
-        (rds || []).forEach((r: any) => { regMap[r.id] = { title: r.title, short: r.short_code }; });
+        (rds || []).forEach((r: any) => {
+          regMap[r.id] = { title: r.title, short: r.short_code };
+        });
         const m: Record<string, { title: string; short: string }> = {};
-        (docs || []).forEach((d: any) => { if (regMap[d.regulation_id]) m[d.id] = regMap[d.regulation_id]; });
+        (docs || []).forEach((d: any) => {
+          if (regMap[d.regulation_id]) m[d.id] = regMap[d.regulation_id];
+        });
         setDocToReg(m);
       }
     })();
@@ -290,7 +431,9 @@ export default function OperatorDashboard() {
 
                     {isOpen && (
                       <div className="mt-4">
-                        {!versions[r.id] && <div className="text-sm text-muted-foreground">Loading versions…</div>}
+                        {!versions[r.id] && (
+                          <div className="text-sm text-muted-foreground">Loading versions…</div>
+                        )}
                         {versions[r.id] && versions[r.id]!.length === 0 && (
                           <div className="text-sm text-muted-foreground">No versions yet.</div>
                         )}
@@ -305,11 +448,12 @@ export default function OperatorDashboard() {
                                   <th className="py-2 pr-4">Source URL</th>
                                   <th className="py-2 pr-4">Published</th>
                                   <th className="py-2 pr-4">Created</th>
+                                  <th className="py-2 pr-4">Actions</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {versions[r.id]!.map((d) => (
-                                  <tr key={d.id} className="border-t">
+                                  <tr key={d.id} className="border-t align-top">
                                     <td className="py-2 pr-4">{d.version_label}</td>
                                     <td className="py-2 pr-4">{d.doc_type || "—"}</td>
                                     <td className="py-2 pr-4">{d.language || "—"}</td>
@@ -322,8 +466,29 @@ export default function OperatorDashboard() {
                                         "—"
                                       )}
                                     </td>
-                                    <td className="py-2 pr-4">{d.published_at ? new Date(d.published_at).toLocaleString() : "—"}</td>
+                                    <td className="py-2 pr-4">
+                                      {d.published_at ? new Date(d.published_at).toLocaleString() : "—"}
+                                    </td>
                                     <td className="py-2 pr-4">{new Date(d.created_at).toLocaleString()}</td>
+                                    <td className="py-2 pr-4">
+                                      <div className="flex gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => openAction("refresh", r, d)}
+                                          title="Clear & repopulate same version"
+                                        >
+                                          Re-ingest (refresh)
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => openAction("new", r, d)}
+                                          title="Create a new version and ingest"
+                                        >
+                                          Ingest as new
+                                        </Button>
+                                      </div>
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -360,7 +525,6 @@ export default function OperatorDashboard() {
                 </thead>
                 <tbody>
                   {logs.map((l) => {
-                    const reg = docToReg[l.regulation_document_id];
                     const total = l.chunks_total || 0;
                     const done = l.chunks_done || 0;
                     const pct =
@@ -371,9 +535,7 @@ export default function OperatorDashboard() {
                         : 0;
                     return (
                       <tr key={l.id} className="border-t align-top">
-                        <td className="py-2 px-4 whitespace-nowrap">
-                          {reg ? `${reg.title} (${reg.short})` : "—"}
-                        </td>
+                        <td className="py-2 px-4">{l.regulation_document_id}</td>
                         <td className="py-2 px-4"><StatusChip status={l.status} /></td>
                         <td className="py-2 px-4">
                           <div className="w-44 h-2 rounded bg-muted overflow-hidden">
@@ -461,13 +623,93 @@ export default function OperatorDashboard() {
             </div>
 
             <div className="text-xs text-muted-foreground">
-              Note: We’ll send one request per regulation. Your edge function already has retry/backoff for Groq rate limits.
+              One request per regulation. Edge function has retry/backoff for Groq limits.
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpenBulk(false)} disabled={busy}>Cancel</Button>
             <Button onClick={runBulk} disabled={busy || selectedRegIds.length === 0}>
               {busy ? "Submitting…" : "Run Bulk Ingest"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Per-Version Action Modal */}
+      <Dialog open={openVersionAction} onOpenChange={setOpenVersionAction}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {actionMode === "refresh" ? "Re-ingest (refresh this version)" : "Ingest as new version"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="text-sm">
+              <div><b>Regulation:</b> {actionRegTitle || "—"}</div>
+              {actionMode === "refresh" ? (
+                <div><b>Version:</b> {actionCurrentVersion || "v1-auto"}</div>
+              ) : (
+                <>
+                  <div><b>Current:</b> {actionCurrentVersion || "—"}</div>
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium">New version label</label>
+                    <input
+                      className="w-full border rounded-md px-3 py-2 bg-background"
+                      value={actionNewVersion}
+                      onChange={(e) => setActionNewVersion(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                id="actionUseManual"
+                type="checkbox"
+                checked={actionUseManual}
+                onChange={(e) => setActionUseManual(e.target.checked)}
+              />
+              <label htmlFor="actionUseManual" className="text-sm">Paste text instead of fetching a URL</label>
+            </div>
+
+            {!actionUseManual ? (
+              <>
+                <label className="block text-sm font-medium">Source URL</label>
+                <input
+                  type="url"
+                  placeholder="https://…"
+                  className="w-full border rounded-md px-3 py-2 bg-background"
+                  value={actionSourceUrl}
+                  onChange={(e) => setActionSourceUrl(e.target.value)}
+                />
+              </>
+            ) : (
+              <>
+                <label className="block text-sm font-medium">Paste regulation text</label>
+                <textarea
+                  placeholder="Paste 2–5 paragraphs…"
+                  className="w-full border rounded-md px-3 py-2 bg-background min-h-[160px]"
+                  value={actionManualText}
+                  onChange={(e) => setActionManualText(e.target.value)}
+                />
+              </>
+            )}
+
+            <div className="text-xs text-muted-foreground">
+              {actionMode === "refresh"
+                ? "Refresh re-uses the same version label and replaces clauses/obligations."
+                : "New version keeps history and ingests into a fresh version label."}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenVersionAction(false)} disabled={actionBusy}>
+              Cancel
+            </Button>
+            <Button onClick={runVersionAction} disabled={actionBusy}>
+              {actionBusy ? "Submitting…" : actionMode === "refresh" ? "Re-ingest (refresh)" : "Ingest as new"}
             </Button>
           </DialogFooter>
         </DialogContent>
