@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -17,7 +17,7 @@ type IngestRow = {
   ratio_tagged_count: number | null;
   jurisdiction_tagged_count: number | null;
   finished_at: string | null;
-  updated_at?: string | null;
+  updated_at: string | null;
   error: string | null;
   version_label: string | null;
   regulation_id: string;
@@ -31,7 +31,7 @@ function StatusBadge({ status }: { status: IngestRow["status"] }) {
     succeeded: "success",
     failed: "destructive",
   };
-  // @ts-ignore
+  // @ts-ignore shadcn types
   return <Badge variant={map[status] || "outline"}>{status}</Badge>;
 }
 
@@ -40,10 +40,13 @@ export default function OperatorDashboard() {
   const [loading, setLoading] = useState(false);
   const [ingestOpen, setIngestOpen] = useState(false);
 
+  // track if we recently saw movement; helps suppress “backing off…” flicker
+  const lastDone = useRef<Record<string, number>>({});
+
   async function loadIngestions() {
     setLoading(true);
     const { data, error } = await supabase
-      .from("ingestions_v") // public view
+      .from("ingestions_v")
       .select("*")
       .order("finished_at", { ascending: false })
       .limit(50);
@@ -52,11 +55,17 @@ export default function OperatorDashboard() {
     setLoading(false);
   }
 
+  // Adaptive polling: fast while any run is active, slower when idle
   useEffect(() => {
     loadIngestions();
-    const t = setInterval(loadIngestions, 5000);
-    return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    const running = ing.some((r) => r.status === "running");
+    const intervalMs = running ? 3000 : 15000;
+    const t = setInterval(loadIngestions, intervalMs);
+    return () => clearInterval(t);
+  }, [ing]);
 
   const anyRunning = useMemo(() => ing.some((r) => r.status === "running"), [ing]);
 
@@ -87,9 +96,18 @@ export default function OperatorDashboard() {
           {ing.map((r) => {
             const pct = r.chunks_total ? Math.round((r.chunks_done / r.chunks_total) * 100) : 0;
             const finished = r.finished_at ? new Date(r.finished_at).toLocaleString() : "—";
+
+            // Detect “stale” rows: running, no chunk change, updated_at older than 8s
+            const key = r.id;
+            const prev = lastDone.current[key] ?? -1;
+            const moved = r.chunks_done !== prev;
+            if (moved) lastDone.current[key] = r.chunks_done;
+
             const updatedAgo =
-              r.updated_at ? Math.round((Date.now() - new Date(r.updated_at).getTime()) / 1000) : null;
-            const waiting = r.status === "running" && updatedAgo !== null && updatedAgo > 10;
+              r.updated_at ? (Date.now() - new Date(r.updated_at).getTime()) / 1000 : null;
+
+            const showBackingOff =
+              r.status === "running" && !moved && updatedAgo !== null && updatedAgo > 8;
 
             return (
               <div key={r.id} className="grid items-center gap-3 md:grid-cols-6 border rounded-lg p-3">
@@ -98,22 +116,28 @@ export default function OperatorDashboard() {
                     {r.regulation_title}{" "}
                     <span className="text-muted-foreground">({r.regulation_short_code})</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">Version: {r.version_label ?? "—"}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Version: {r.version_label ?? "—"}
+                  </div>
                 </div>
+
                 <div className="flex items-center gap-2">
                   <StatusBadge status={r.status} />
-                  {waiting && <span className="text-xs text-muted-foreground">· backing off…</span>}
+                  {showBackingOff && <span className="text-xs text-muted-foreground">· backing off…</span>}
                 </div>
+
                 <div className="md:col-span-2">
                   <Progress value={pct} className="h-2" />
                   <div className="text-xs mt-1">
                     {r.chunks_done}/{r.chunks_total}
                   </div>
                 </div>
+
                 <div className="text-sm">{finished}</div>
               </div>
             );
           })}
+
           {!ing.length && (
             <div className="text-sm text-muted-foreground">No runs found.</div>
           )}
@@ -121,11 +145,12 @@ export default function OperatorDashboard() {
 
         {anyRunning && (
           <div className="mt-3 text-xs text-muted-foreground">
-            Auto-refreshing… (every 5s while a run is active)
+            Auto-refreshing every 3s while a run is active…
           </div>
         )}
       </Card>
 
+      {/* Only place the ingest modal exists */}
       <IngestModal open={ingestOpen} onClose={() => setIngestOpen(false)} />
     </div>
   );
