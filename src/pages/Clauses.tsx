@@ -46,32 +46,20 @@ const RISK_AREAS = [
   "RISK_MANAGEMENT",
 ];
 
-function useDebounced<T>(value: T, delay = 400) {
+function useDebounced<T>(value: T, delay = 350) {
   const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
+  useEffect(() => { const t = setTimeout(() => setV(value), delay); return () => clearTimeout(t); }, [value, delay]);
   return v;
 }
 
-function highlight(text: string, q: string) {
-  if (!q || !text) return text;
-  try {
-    const esc = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`(${esc})`, "ig");
-    return text.split(re).map((part, i) =>
-      re.test(part) ? (
-        <mark key={i} className="bg-yellow-200 px-0.5 rounded">
-          {part}
-        </mark>
-      ) : (
-        <span key={i}>{part}</span>
-      )
-    );
-  } catch {
-    return text;
-  }
+function highlightText(text: string, q: string) {
+  if (!q) return text;
+  const esc = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`(${esc})`, "ig");
+  const parts = text.split(re);
+  return parts.map((p, i) =>
+    re.test(p) ? <mark key={i} className="bg-yellow-200 px-0.5 rounded">{p}</mark> : <span key={i}>{p}</span>
+  );
 }
 
 export default function ClausesPage() {
@@ -92,9 +80,9 @@ export default function ClausesPage() {
   const [rows, setRows] = useState<Clause[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const debouncedQ = useDebounced(search, 400);
+  const debouncedQ = useDebounced(search, 350);
 
-  // Load regulations for filter
+  // Load regulations for the filter
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
@@ -105,13 +93,12 @@ export default function ClausesPage() {
     })();
   }, []);
 
-  // Build the query based on filters (count + page fetch)
+  // COUNT + PAGE fetch (no SQL aggregates in select list)
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    // ---- COUNT (no aggregates in select) ----
+    // ----- COUNT (via headers) -----
     let countQ = supabase.from("clauses").select("*", { count: "exact", head: true });
-
     if (regId) countQ = countQ.eq("regulation_id", regId);
     if (risk) countQ = countQ.eq("risk_area", risk);
     if (obType) countQ = countQ.eq("obligation_type", obType);
@@ -125,12 +112,10 @@ export default function ClausesPage() {
         countQ = countQ.ilike("text_raw", like);
       }
     }
+    const { count } = await countQ;
+    setTotal(Number(count || 0));
 
-    const { count, error: countErr } = await countQ;
-    if (!countErr) setTotal(Number(count || 0));
-    else setTotal(0);
-
-    // ---- PAGE FETCH ----
+    // ----- DATA -----
     let q = supabase
       .from("clauses")
       .select(
@@ -157,20 +142,13 @@ export default function ClausesPage() {
     q = q.range(from, to);
 
     const { data, error } = await q;
-    if (!error && data) setRows(data as Clause[]);
-    else setRows([]);
-
+    setRows(!error && data ? (data as Clause[]) : []);
     setLoading(false);
   }, [regId, risk, obType, debouncedQ, searchIn, page, pageSize]);
 
-  // Refetch when filters/pagination change
-  useEffect(() => {
-    setPage(1); // reset page on filter/search change
-  }, [regId, risk, obType, debouncedQ, searchIn]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData, page, pageSize]);
+  // Reset page when filters/search change
+  useEffect(() => { setPage(1); }, [regId, risk, obType, debouncedQ, searchIn]);
+  useEffect(() => { fetchData(); }, [fetchData, page, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -284,9 +262,7 @@ export default function ClausesPage() {
               onChange={(e) => setPageSize(Number(e.target.value))}
             >
               {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
+                <option key={n} value={n}>{n}</option>
               ))}
             </select>
           </div>
@@ -301,43 +277,29 @@ export default function ClausesPage() {
           return (
             <Card key={cl.id} className="p-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
-                <span className="px-2 py-1 rounded bg-muted">
-                  {cl.path_hierarchy}
-                </span>
-                {cl.risk_area && (
-                  <span className="px-2 py-1 rounded bg-muted">{cl.risk_area}</span>
-                )}
-                {cl.obligation_type && (
-                  <span className="px-2 py-1 rounded bg-muted">
-                    {cl.obligation_type}
-                  </span>
-                )}
+                <span className="px-2 py-1 rounded bg-muted">{cl.path_hierarchy}</span>
+                {cl.risk_area && <span className="px-2 py-1 rounded bg-muted">{cl.risk_area}</span>}
+                {cl.obligation_type && <span className="px-2 py-1 rounded bg-muted">{cl.obligation_type}</span>}
                 {cl.themes?.slice(0, 3).map((t) => (
-                  <span key={t} className="px-2 py-1 rounded bg-muted">
-                    #{t}
-                  </span>
+                  <span key={t} className="px-2 py-1 rounded bg-muted">#{t}</span>
                 ))}
                 <span className="ml-auto">{new Date(cl.created_at).toLocaleString()}</span>
               </div>
 
               {showSummary && cl.summary_plain && (
                 <div className="mb-2">
-                  <div className="text-xs font-medium text-muted-foreground mb-1">
-                    Summary
-                  </div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">Summary</div>
                   <div className="leading-relaxed">
-                    {highlight(cl.summary_plain, debouncedQ)}
+                    {highlightText(cl.summary_plain, debouncedQ)}
                   </div>
                 </div>
               )}
 
               {showText && (
                 <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1">
-                    Clause text
-                  </div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">Clause text</div>
                   <div className="leading-relaxed line-clamp-6">
-                    {highlight(cl.text_raw, debouncedQ)}
+                    {highlightText(cl.text_raw, debouncedQ)}
                   </div>
                 </div>
               )}
@@ -358,30 +320,10 @@ export default function ClausesPage() {
           Page {page} / {totalPages}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setPage(1)} disabled={page <= 1}>
-            « First
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            ‹ Prev
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-          >
-            Next ›
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setPage(totalPages)}
-            disabled={page >= totalPages}
-          >
-            Last »
-          </Button>
+          <Button variant="outline" onClick={() => setPage(1)} disabled={page <= 1}>« First</Button>
+          <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>‹ Prev</Button>
+          <Button variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next ›</Button>
+          <Button variant="outline" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>Last »</Button>
         </div>
       </div>
     </div>
