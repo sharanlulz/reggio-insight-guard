@@ -5,16 +5,21 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 type Regulation = {
-  id: string;
-  title: string;
-  short_code: string;
-  jurisdiction: string | null;
-  regulator: string | null;
-  org_id: string;
+  id: string; title: string; short_code: string;
+  jurisdiction: string | null; regulator: string | null; org_id: string;
 };
-
 type DocsAgg = { regulation_id: string; count: number; max_created: string | null };
 type ClausesAgg = { regulation_id: string; count: number };
+type IngestionRow = {
+  regulation_document_id: string;
+  status: "queued" | "running" | "succeeded" | "failed";
+  chunks_total: number | null;
+  chunks_done: number | null;
+  error: string | null;
+  started_at: string | null;
+};
+
+const DEMO_ORG_ID = (import.meta as any).env?.VITE_REGGIO_ORG_ID || "d3546758-a241-4546-aff7-fa600731502a";
 
 function timeAgo(iso?: string | null) {
   if (!iso) return "—";
@@ -26,17 +31,15 @@ function timeAgo(iso?: string | null) {
   return d.toLocaleString();
 }
 
-const DEMO_ORG_ID = (import.meta as any).env?.VITE_REGGIO_ORG_ID || "d3546758-a241-4546-aff7-fa600731502a";
-
 export default function Dashboard() {
   const [regs, setRegs] = useState<Regulation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Aggregates per regulation
+  // Aggregates
   const [docsAgg, setDocsAgg] = useState<Record<string, DocsAgg>>({});
   const [clausesAgg, setClausesAgg] = useState<Record<string, number>>({});
 
-  // Ingest modal
+  // Ingest modal state
   const [openIngest, setOpenIngest] = useState(false);
   const [selectedRegId, setSelectedRegId] = useState<string>("");
   const [sourceUrl, setSourceUrl] = useState("");
@@ -46,13 +49,18 @@ export default function Dashboard() {
   const [docType, setDocType] = useState<"Regulation" | "Guidance">("Regulation");
   const [busy, setBusy] = useState(false);
 
-  // Add Regulation modal
+  // Add Reg modal
   const [openAdd, setOpenAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newShort, setNewShort] = useState("");
   const [newJur, setNewJur] = useState("UK");
   const [newReg, setNewReg] = useState("PRA");
   const [adding, setAdding] = useState(false);
+
+  // Progress map: regulation_id -> {status, pct, error}
+  const [progress, setProgress] = useState<Record<string, { status: string; pct: number; error?: string }>>({});
+  // Quick map of reg_doc_id -> regulation_id
+  const [regDocMap, setRegDocMap] = useState<Record<string, string>>({});
 
   const loadRegs = useCallback(async () => {
     setLoading(true);
@@ -70,11 +78,11 @@ export default function Dashboard() {
   }, []);
 
   const loadAggs = useCallback(async () => {
-    // docs per regulation (count + latest)
-    const { data: docs, error: e1 } = await supabase
+    // docs per regulation
+    const { data: docs } = await supabase
       .from("regulation_documents")
       .select("regulation_id, count:count(), max_created:max(created_at)");
-    if (!e1 && docs) {
+    if (docs) {
       const map: Record<string, DocsAgg> = {};
       (docs as any[]).forEach((d) => {
         map[d.regulation_id] = {
@@ -84,20 +92,57 @@ export default function Dashboard() {
         };
       });
       setDocsAgg(map);
-    } else if (e1) console.error(e1);
+    }
 
     // clauses per regulation
-    const { data: cls, error: e2 } = await supabase
+    const { data: cls } = await supabase
       .from("clauses")
       .select("regulation_id, count:count()");
-    if (!e2 && cls) {
+    if (cls) {
       const map: Record<string, number> = {};
-      (cls as any[]).forEach((c) => {
-        map[c.regulation_id] = Number(c.count || 0);
-      });
+      (cls as any[]).forEach((c) => { map[c.regulation_id] = Number(c.count || 0); });
       setClausesAgg(map);
-    } else if (e2) console.error(e2);
+    }
   }, []);
+
+  // Poll progress
+  useEffect(() => {
+    const t = setInterval(async () => {
+      // 1) Get recent ingestions (latest 50)
+      const { data: ing } = await supabase
+        .from("ingestions")
+        .select("regulation_document_id, status, chunks_total, chunks_done, error, started_at")
+        .order("started_at", { ascending: false })
+        .limit(50);
+
+      // 2) Ensure we know which regulation each doc belongs to
+      const docIds = Array.from(new Set((ing || []).map(r => r.regulation_document_id)));
+      if (docIds.length) {
+        const { data: docs } = await supabase
+          .from("regulation_documents")
+          .select("id, regulation_id")
+          .in("id", docIds);
+        const map: Record<string, string> = { ...regDocMap };
+        (docs || []).forEach((d: any) => { map[d.id] = d.regulation_id; });
+        setRegDocMap(map);
+      }
+
+      // 3) Reduce to latest status per regulation
+      const latest: Record<string, { status: string; pct: number; error?: string }> = {};
+      (ing || []).forEach((row: IngestionRow) => {
+        const regId = regDocMap[row.regulation_document_id];
+        if (!regId) return;
+        if (latest[regId]) return; // already have most recent due to order
+        const total = row.chunks_total || 0;
+        const done = row.chunks_done || 0;
+        const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : (row.status === "succeeded" ? 100 : 0);
+        latest[regId] = { status: row.status, pct, error: row.status === "failed" ? row.error || "Ingestion failed" : undefined };
+      });
+      setProgress(latest);
+    }, 2000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regDocMap]);
 
   useEffect(() => { loadRegs(); }, [loadRegs]);
   useEffect(() => { loadAggs(); }, [loadAggs]);
@@ -155,12 +200,12 @@ export default function Dashboard() {
       let pretty = text; try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch {}
       if (!res.ok) { alert(`Ingestion failed (${res.status}):\n${pretty}`); return; }
 
-      alert(`Ingestion succeeded:\n${pretty}`);
+      alert(`Ingestion started:\n${pretty}`);
       setOpenIngest(false);
       setSourceUrl(""); setManualText(""); setUseManual(false);
 
-      // refresh aggregates
-      await loadAggs();
+      // refresh aggregates soon after
+      setTimeout(loadAggs, 1500);
     } catch (err: any) {
       console.error(err);
       alert("Ingestion error: " + String(err?.message || err));
@@ -215,6 +260,10 @@ export default function Dashboard() {
           {regs.map((r) => {
             const docs = docsAgg[r.id];
             const clausesCount = clausesAgg[r.id] ?? 0;
+            const prog = progress[r.id]; // {status,pct,error}
+
+            const isRunning = prog?.status === "running" || prog?.status === "queued";
+
             return (
               <Card key={r.id} className="p-4 flex flex-col justify-between">
                 <div className="space-y-1">
@@ -237,10 +286,27 @@ export default function Dashboard() {
                     <span className="text-muted-foreground">Last ingested</span>
                     <span className="font-medium">{timeAgo(docs?.max_created)}</span>
                   </div>
+
+                  {prog && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="uppercase">{prog.status}</span>
+                        <span>{prog.pct}%</span>
+                      </div>
+                      <div className="w-full h-2 rounded bg-muted overflow-hidden">
+                        <div
+                          className={`h-2 ${prog.status === "failed" ? "bg-red-500" : "bg-primary"}`}
+                          style={{ width: `${prog.pct}%` }}
+                          title={prog.error || ""}
+                        />
+                      </div>
+                      {prog.error && <div className="text-xs text-red-500 mt-1 truncate" title={prog.error}>{prog.error}</div>}
+                    </div>
+                  )}
                 </div>
 
-                <Button className="mt-4" onClick={() => { setSelectedRegId(r.id); setOpenIngest(true); }}>
-                  Ingest Document
+                <Button className="mt-4" onClick={() => { setSelectedRegId(r.id); setOpenIngest(true); }} disabled={isRunning}>
+                  {isRunning ? "Ingesting…" : "Ingest Document"}
                 </Button>
               </Card>
             );
