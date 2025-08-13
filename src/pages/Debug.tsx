@@ -1,69 +1,50 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-type Row = { id: string; title: string; short_code: string; org_id: string };
+type Check = { name: string; ok: boolean; detail?: string };
 
 export default function Debug() {
-  const [envs, setEnvs] = useState<{ url?: string; anon?: string }>({});
-  const [rows, setRows] = useState<Row[]>([]);
-  const [error, setError] = useState<any>(null);
+  const [checks, setChecks] = useState<Check[]>([]);
+  const SUPA = (import.meta as any).env?.VITE_SUPABASE_URL as string;
+  const ANON = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string;
 
   useEffect(() => {
-    setEnvs({
-      url: (import.meta as any).env?.VITE_SUPABASE_URL,
-      anon: ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY || "").slice(0, 8) + "…",
-    });
-
     (async () => {
-      const tables = ["public.regulations", "reggio.regulations", "regulations"];
-      for (const name of tables) {
-        const { data, error } = await supabase
-          .from(name)
-          .select("id, title, short_code, org_id")
-          .limit(10);
+      const c: Check[] = [];
+      c.push({ name: "Env: VITE_SUPABASE_URL", ok: !!SUPA, detail: SUPA || "missing" });
+      c.push({ name: "Env: VITE_SUPABASE_ANON_KEY", ok: !!ANON, detail: ANON?.slice(0, 12) + "…" });
 
-        if (error) {
-          setError({ tableTried: name, message: error.message, details: (error as any).details });
-        } else if (data && data.length) {
-          setRows(data as Row[]);
-          setError(null);
-          break;
-        }
+      // DB table counts via public views
+      const tables = ["regulations", "regulation_documents", "clauses", "obligations"];
+      for (const t of tables) {
+        const { data, error } = await supabase.from(t).select("count:count()");
+        c.push({ name: `DB: ${t}`, ok: !error, detail: error ? error.message : String((data as any)?.[0]?.count ?? 0) });
       }
+
+      // Ping edge function
+      try {
+        const fnUrl = SUPA.replace("supabase.co", "functions.supabase.co") + "/reggio-ingest";
+        const r = await fetch(fnUrl, { method: "OPTIONS" });
+        c.push({ name: "Edge: reggio-ingest OPTIONS", ok: r.ok, detail: `status ${r.status}` });
+      } catch (e: any) {
+        c.push({ name: "Edge: reggio-ingest OPTIONS", ok: false, detail: String(e?.message || e) });
+      }
+
+      setChecks(c);
     })();
   }, []);
 
   return (
-    <div style={{ padding: 24, fontFamily: "ui-sans-serif" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Reggio Debug</h1>
-      <div style={{ marginBottom: 16 }}>
-        <div><b>VITE_SUPABASE_URL:</b> {envs.url || "(missing)"}</div>
-        <div><b>VITE_SUPABASE_ANON_KEY (first 8):</b> {envs.anon || "(missing)"} </div>
-      </div>
-      {error && (
-        <div style={{ padding: 12, background: "#fee2e2", borderRadius: 8, marginBottom: 16 }}>
-          <div><b>Last table tried:</b> {error.tableTried}</div>
-          <div><b>Error:</b> {error.message}</div>
-          {error.details && <div><b>Details:</b> {error.details}</div>}
-        </div>
-      )}
-      <div>
-        <h2 style={{ fontWeight: 600, marginBottom: 8 }}>First rows found</h2>
-        {rows.length === 0 ? (
-          <div>No rows returned from any table/view.</div>
-        ) : (
-          <ul style={{ lineHeight: 1.6 }}>
-            {rows.map((r) => (
-              <li key={r.id}>
-                {r.short_code} — {r.title} (org {r.org_id})
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <p style={{ marginTop: 16, color: "#6b7280" }}>
-        After committing, open <code>/debug</code> in your preview.
-      </p>
+    <div className="p-6 space-y-3">
+      <h1 className="text-2xl font-bold">Reggio Debug</h1>
+      <div className="text-sm">Project: {SUPA}</div>
+      <ul className="space-y-1">
+        {checks.map((k) => (
+          <li key={k.name} className={`p-2 rounded border ${k.ok ? "border-green-500" : "border-red-500"}`}>
+            <span className="font-medium">{k.name}</span> — {k.ok ? "OK" : "FAIL"} {k.detail ? `· ${k.detail}` : ""}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
