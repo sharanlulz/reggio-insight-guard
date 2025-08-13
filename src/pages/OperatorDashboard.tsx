@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { withRetry, fetchWithTimeout } from "@/lib/supaRetry";
 
 type Regulation = {
   id: string;
@@ -60,7 +61,6 @@ function StatusChip({ status }: { status: string }) {
   return <span className={`text-xs px-2 py-0.5 rounded ${c}`}>{status}</span>;
 }
 
-// Suggest a new version label (safe default)
 function suggestNextVersion(current?: string) {
   const d = new Date();
   const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(
@@ -68,10 +68,7 @@ function suggestNextVersion(current?: string) {
   ).padStart(2, "0")}`;
   if (!current) return `v1-${stamp}`;
   const m = current.match(/^v(\d+)([\w-]*)/i);
-  if (m) {
-    const n = Number(m[1]) + 1;
-    return `v${n}-${stamp}`;
-  }
+  if (m) return `v${Number(m[1]) + 1}-${stamp}`;
   return `${current}-${stamp}`;
 }
 
@@ -115,37 +112,43 @@ export default function OperatorDashboard() {
   // Load regulations
   const loadRegs = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("regulations")
-      .select("id, title, short_code, jurisdiction, regulator, org_id")
-      .eq("org_id", DEMO_ORG_ID)
-      .order("title");
-    if (!error && data) setRegs(data as Regulation[]);
+    const { data } = await withRetry(() =>
+      supabase
+        .from("regulations")
+        .select("id, title, short_code, jurisdiction, regulator, org_id")
+        .eq("org_id", DEMO_ORG_ID)
+        .order("title")
+    );
+    setRegs((data || []) as Regulation[]);
     setLoading(false);
   }, []);
 
   // Load versions for a regulation
   const loadVersions = useCallback(async (regId: string) => {
-    const { data } = await supabase
-      .from("regulation_documents")
-      .select(
-        "id, regulation_id, version_label, doc_type, language, source_url, published_at, created_at"
-      )
-      .eq("regulation_id", regId)
-      .order("created_at", { ascending: false });
+    const { data } = await withRetry(() =>
+      supabase
+        .from("regulation_documents")
+        .select(
+          "id, regulation_id, version_label, doc_type, language, source_url, published_at, created_at"
+        )
+        .eq("regulation_id", regId)
+        .order("created_at", { ascending: false })
+    );
     setVersions((prev) => ({ ...prev, [regId]: (data || []) as RegDoc[] }));
   }, []);
 
   // Load ingestion logs (latest first)
   const loadLogs = useCallback(async () => {
     setLoadingLogs(true);
-    const { data } = await supabase
-      .from("ingestions")
-      .select(
-        "id, regulation_document_id, status, chunks_total, chunks_done, error, started_at, finished_at"
-      )
-      .order("started_at", { ascending: false })
-      .limit(200);
+    const { data } = await withRetry(() =>
+      supabase
+        .from("ingestions")
+        .select(
+          "id, regulation_document_id, status, chunks_total, chunks_done, error, started_at, finished_at"
+        )
+        .order("started_at", { ascending: false })
+        .limit(200)
+    );
     setLogs((data || []) as IngestionRow[]);
     setLoadingLogs(false);
   }, []);
@@ -174,6 +177,24 @@ export default function OperatorDashboard() {
   };
   const isSelected = (id: string) => selectedRegIds.includes(id);
 
+  // Build optional chunks from pasted text
+  const chunkManual = (text: string) => {
+    const clean = text.replace(/\s+/g, " ").trim();
+    const max = 2000;
+    const chunks: Array<{ path_hierarchy: string; number_label: string | null; text_raw: string }> = [];
+    let i = 0,
+      idx = 0;
+    while (i < clean.length) {
+      chunks.push({
+        path_hierarchy: `Section ${++idx}`,
+        number_label: null,
+        text_raw: clean.slice(i, i + max),
+      });
+      i += max;
+    }
+    return chunks;
+  };
+
   // Bulk ingest run
   const runBulk = async () => {
     if (!selectedRegIds.length) {
@@ -191,52 +212,34 @@ export default function OperatorDashboard() {
 
     setBusy(true);
     try {
-      let chunks:
-        | Array<{ path_hierarchy: string; number_label: string | null; text_raw: string }>
-        | undefined;
-      let srcUrlForDoc: string | undefined;
-
-      if (useManual) {
-        const clean = manualText.replace(/\s+/g, " ").trim();
-        const max = 2000;
-        chunks = [];
-        let i = 0,
-          idx = 0;
-        while (i < clean.length) {
-          chunks.push({
-            path_hierarchy: `Section ${++idx}`,
-            number_label: null,
-            text_raw: clean.slice(i, i + max),
-          });
-          i += max;
-        }
-      } else {
-        srcUrlForDoc = sourceUrl;
-      }
+      const chunks = useManual ? chunkManual(manualText) : undefined;
+      const srcUrlForDoc = useManual ? undefined : sourceUrl;
 
       for (const regId of selectedRegIds) {
-        const res = await fetch(fnUrl, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            regulationId: regId,
-            source_url: srcUrlForDoc,
-            document: {
-              versionLabel,
-              docType,
-              language: "en",
+        const res = await fetchWithTimeout(
+          fnUrl,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              regulationId: regId,
               source_url: srcUrlForDoc,
-              published_at: new Date().toISOString(),
-            },
-            ...(chunks ? { chunks } : {}),
-          }),
-        });
+              document: {
+                versionLabel,
+                docType,
+                language: "en",
+                source_url: srcUrlForDoc,
+                published_at: new Date().toISOString(),
+              },
+              ...(chunks ? { chunks } : {}),
+            }),
+          },
+          15000
+        );
         const text = await res.text();
         if (!res.ok) {
           let pretty = text;
-          try {
-            pretty = JSON.stringify(JSON.parse(text), null, 2);
-          } catch {}
+          try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch {}
           alert(`Ingestion for ${regId} failed (${res.status}):\n${pretty}`);
           continue;
         }
@@ -259,7 +262,18 @@ export default function OperatorDashboard() {
     }
   };
 
-  // Per-version actions
+  // Per-version actions (refresh/new)
+  const [openVersionAction, setOpenVersionAction] = useState(false);
+  const [actionMode, setActionMode] = useState<"refresh" | "new">("refresh");
+  const [actionRegId, setActionRegId] = useState<string>("");
+  const [actionRegTitle, setActionRegTitle] = useState<string>("");
+  const [actionCurrentVersion, setActionCurrentVersion] = useState<string>("");
+  const [actionNewVersion, setActionNewVersion] = useState<string>("");
+  const [actionUseManual, setActionUseManual] = useState(false);
+  const [actionSourceUrl, setActionSourceUrl] = useState("");
+  const [actionManualText, setActionManualText] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+
   const openAction = (mode: "refresh" | "new", reg: Regulation, doc?: RegDoc) => {
     setActionMode(mode);
     setActionRegId(reg.id);
@@ -276,7 +290,10 @@ export default function OperatorDashboard() {
 
   const runVersionAction = async () => {
     if (!actionRegId) return;
-    const vLabel = actionMode === "refresh" ? actionCurrentVersion || "v1-auto" : actionNewVersion.trim() || suggestNextVersion(actionCurrentVersion);
+    const vLabel =
+      actionMode === "refresh"
+        ? actionCurrentVersion || "v1-auto"
+        : actionNewVersion.trim() || suggestNextVersion(actionCurrentVersion);
 
     if (!actionUseManual && (!actionSourceUrl || !/^https?:\/\//i.test(actionSourceUrl))) {
       alert("Enter a valid http(s) Source URL, or switch to Paste text.");
@@ -289,52 +306,34 @@ export default function OperatorDashboard() {
 
     setActionBusy(true);
     try {
-      let chunks:
-        | Array<{ path_hierarchy: string; number_label: string | null; text_raw: string }>
-        | undefined;
-      let srcUrlForDoc: string | undefined;
+      const chunks = actionUseManual ? chunkManual(actionManualText) : undefined;
+      const srcUrlForDoc = actionUseManual ? undefined : actionSourceUrl;
 
-      if (actionUseManual) {
-        const clean = actionManualText.replace(/\s+/g, " ").trim();
-        const max = 2000;
-        chunks = [];
-        let i = 0,
-          idx = 0;
-        while (i < clean.length) {
-          chunks.push({
-            path_hierarchy: `Section ${++idx}`,
-            number_label: null,
-            text_raw: clean.slice(i, i + max),
-          });
-          i += max;
-        }
-      } else {
-        srcUrlForDoc = actionSourceUrl;
-      }
-
-      const res = await fetch(fnUrl, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          regulationId: actionRegId,
-          source_url: srcUrlForDoc,
-          document: {
-            versionLabel: vLabel,
-            docType: "Regulation",
-            language: "en",
+      const res = await fetchWithTimeout(
+        fnUrl,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            regulationId: actionRegId,
             source_url: srcUrlForDoc,
-            published_at: new Date().toISOString(),
-          },
-          ...(chunks ? { chunks } : {}),
-        }),
-      });
+            document: {
+              versionLabel: vLabel,
+              docType: "Regulation",
+              language: "en",
+              source_url: srcUrlForDoc,
+              published_at: new Date().toISOString(),
+            },
+            ...(chunks ? { chunks } : {}),
+          }),
+        },
+        15000
+      );
 
       const text = await res.text();
       if (!res.ok) {
         let pretty = text;
-        try {
-          pretty = JSON.stringify(JSON.parse(text), null, 2);
-        } catch {}
+        try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch {}
         alert(`Ingestion failed (${res.status}):\n${pretty}`);
       } else {
         alert(
@@ -355,22 +354,20 @@ export default function OperatorDashboard() {
     }
   };
 
-  // Map document id → regulation title/code (for logs table)
+  // Map document id → regulation title/code (for logs)
   const [docToReg, setDocToReg] = useState<Record<string, { title: string; short: string }>>({});
   useEffect(() => {
     (async () => {
       const docIds = Array.from(new Set(logs.map((l) => l.regulation_document_id))).filter(Boolean);
       if (!docIds.length) return;
-      const { data: docs } = await supabase
-        .from("regulation_documents")
-        .select("id, regulation_id")
-        .in("id", docIds);
+      const { data: docs } = await withRetry(() =>
+        supabase.from("regulation_documents").select("id, regulation_id").in("id", docIds)
+      );
       const regIds = Array.from(new Set((docs || []).map((d: any) => d.regulation_id))).filter(Boolean);
       if (regIds.length) {
-        const { data: rds } = await supabase
-          .from("regulations")
-          .select("id, title, short_code")
-          .in("id", regIds);
+        const { data: rds } = await withRetry(() =>
+          supabase.from("regulations").select("id, title, short_code").in("id", regIds)
+        );
         const regMap: Record<string, { title: string; short: string }> = {};
         (rds || []).forEach((r: any) => {
           regMap[r.id] = { title: r.title, short: r.short_code };
@@ -397,7 +394,6 @@ export default function OperatorDashboard() {
           <TabsTrigger value="logs">Ingestion Logs</TabsTrigger>
         </TabsList>
 
-        {/* Regulations + Versions */}
         <TabsContent value="regs" className="space-y-3">
           {loading && <Card className="p-4">Loading regulations…</Card>}
 
@@ -504,7 +500,6 @@ export default function OperatorDashboard() {
           )}
         </TabsContent>
 
-        {/* Ingestion Logs */}
         <TabsContent value="logs" className="space-y-3">
           {loadingLogs && <Card className="p-4">Loading logs…</Card>}
           {!loadingLogs && logs.length === 0 && (
@@ -535,7 +530,7 @@ export default function OperatorDashboard() {
                         : 0;
                     return (
                       <tr key={l.id} className="border-t align-top">
-                        <td className="py-2 px-4">{l.regulation_document_id}</td>
+                        <td className="py-2 px-4">{docToReg[l.regulation_document_id]?.title || "—"}</td>
                         <td className="py-2 px-4"><StatusChip status={l.status} /></td>
                         <td className="py-2 px-4">
                           <div className="w-44 h-2 rounded bg-muted overflow-hidden">
