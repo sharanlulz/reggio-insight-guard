@@ -36,9 +36,10 @@ export default function OperatorIngestions() {
   async function load() {
     setLoading(true);
     try {
-      const result = await withRetry(() =>
-        supabase.from("ingestions_v").select("*").order("finished_at", { ascending: false }).limit(100)
-      );
+      const result = await withRetry(async () => {
+        const response = await supabase.from("ingestions_v").select("*").order("finished_at", { ascending: false }).limit(100);
+        return response;
+      });
       if (!result.error && result.data) setRows(result.data as IngestRow[]);
     } catch (error) {
       console.error("Failed to load ingestions:", error);

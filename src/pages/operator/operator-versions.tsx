@@ -46,14 +46,16 @@ export default function OperatorVersions() {
   async function load() {
     try {
       const [v1, v2] = await Promise.all([
-        withRetry(() =>
-          supabase.from("regulation_documents_v")
+        withRetry(async () => {
+          const response = await supabase.from("regulation_documents_v")
             .select("*")
-            .order("created_at", { ascending: false })
-        ),
-        withRetry(() =>
-          supabase.from("clause_coverage_by_document_v").select("*")
-        ),
+            .order("created_at", { ascending: false });
+          return response;
+        }),
+        withRetry(async () => {
+          const response = await supabase.from("clause_coverage_by_document_v").select("*");
+          return response;
+        }),
       ]);
 
       if (v1.error) {
@@ -86,9 +88,10 @@ export default function OperatorVersions() {
 
   async function softDeleteDoc(docId: string) {
     try {
-      const result = await withRetry(() =>
-        supabase.rpc("soft_delete_document", { p_doc_id: docId })
-      );
+      const result = await withRetry(async () => {
+        const response = await supabase.rpc("soft_delete_document", { p_doc_id: docId });
+        return response;
+      });
       if (result.error) {
         toast({ variant: "destructive", title: "Delete failed", description: result.error.message });
       } else {
@@ -104,9 +107,10 @@ export default function OperatorVersions() {
     const ok = window.confirm("Hard delete will permanently remove this version and its clauses/obligations. Continue?");
     if (!ok) return;
     try {
-      const result = await withRetry(() =>
-        supabase.rpc("hard_delete_document", { p_doc_id: docId })
-      );
+      const result = await withRetry(async () => {
+        const response = await supabase.rpc("hard_delete_document", { p_doc_id: docId });
+        return response;
+      });
       if (result.error) {
         toast({ variant: "destructive", title: "Hard delete failed", description: result.error.message });
       } else {
@@ -121,13 +125,14 @@ export default function OperatorVersions() {
   async function reIngest(regId: string, docId: string, versionLabel: string) {
     try {
       // Read the source_url from the public view
-      const result = await withRetry(() =>
-        supabase
+      const result = await withRetry(async () => {
+        const response = await supabase
           .from("regulation_documents_detail_v")
           .select("source_url")
           .eq("document_id", docId)
-          .single()
-      );
+          .single();
+        return response;
+      });
       if (result.error) {
         toast({ variant: "destructive", title: "Load doc failed", description: result.error.message });
         return;

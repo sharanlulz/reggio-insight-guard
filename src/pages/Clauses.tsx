@@ -96,9 +96,10 @@ export default function ClausesPage() {
   // Load regulations (for the dropdown)
   useEffect(() => {
     (async () => {
-      const result = await withRetry(() =>
-        supabase.from("regulations").select("id, title, short_code").order("title")
-      );
+      const result = await withRetry(async () => {
+        const response = await supabase.from("regulations").select("id, title, short_code").order("title");
+        return response;
+      });
       if (!result.error && result.data) setRegs(result.data as Regulation[]);
     })();
   }, []);
@@ -125,7 +126,10 @@ export default function ClausesPage() {
         countQ = countQ.ilike("text_raw", like);
       }
     }
-    const countResult = await withRetry(() => countQ);
+    const countResult = await withRetry(async () => {
+      const response = await countQ;
+      return response;
+    });
     setTotal(Number(countResult.count || 0));
 
     // ----- DATA -----
@@ -156,7 +160,10 @@ export default function ClausesPage() {
     const to = from + pageSize - 1;
     q = q.range(from, to);
 
-    const result = await withRetry(() => q);
+    const result = await withRetry(async () => {
+      const response = await q;
+      return response;
+    });
     setRows(!result.error && result.data ? (result.data as Clause[]) : []);
     setLoading(false);
   }, [regId, risk, obType, debouncedQ, searchIn, page, pageSize]);

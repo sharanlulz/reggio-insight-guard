@@ -17,18 +17,20 @@ export default function Dashboard() {
   async function loadCounts() {
     try {
       // Documents count via HEAD count
-      const docHead = await withRetry(() =>
-        supabase.from(T.REGDOCS).select("*", { count: "exact", head: true })
-      );
+      const docHead = await withRetry(async () => {
+        const response = await supabase.from(T.REGDOCS).select("*", { count: "exact", head: true });
+        return response;
+      });
       setDocCount(Number(docHead.count || 0));
 
       // Last ingestion time
-      const ing = await withRetry(() =>
-        supabase.from(T.INGESTIONS)
+      const ing = await withRetry(async () => {
+        const response = await supabase.from(T.INGESTIONS)
           .select("finished_at, updated_at, status")
           .order("finished_at", { ascending: false })
-          .limit(1)
-      );
+          .limit(1);
+        return response;
+      });
       if (!ing.error && ing.data && ing.data.length) {
         const r = ing.data[0] as any;
         const ts = r.finished_at || r.updated_at;
@@ -38,12 +40,13 @@ export default function Dashboard() {
       // Risk counts (do multiple head counts to avoid aggregates)
       const counts: Record<string, number> = {};
       await Promise.all(RISK_AREAS.map(async (ra) => {
-        const head = await withRetry(() =>
-          supabase
+        const head = await withRetry(async () => {
+          const response = await supabase
             .from(T.CLAUSES)
             .select("*", { count: "exact", head: true })
-            .eq("risk_area", ra)
-        );
+            .eq("risk_area", ra);
+          return response;
+        });
         counts[ra] = Number(head.count || 0);
       }));
       setRiskCounts(counts);

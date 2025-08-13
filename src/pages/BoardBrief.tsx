@@ -31,9 +31,10 @@ export default function BoardBrief() {
   useEffect(() => {
     (async () => {
       try {
-        const result = await withRetry(() =>
-          supabase.from(T.REGULATIONS).select("id, title, short_code").order("title")
-        );
+        const result = await withRetry(async () => {
+          const response = await supabase.from(T.REGULATIONS).select("id, title, short_code").order("title");
+          return response;
+        });
         if (result.error) toast({ variant: "destructive", title: "Load regulations failed", description: result.error.message });
         else setRegs((result.data as Regulation[]) || []);
       } catch (error: any) {
@@ -46,14 +47,15 @@ export default function BoardBrief() {
     if (!regId) { setClauses([]); setMarkdown(""); return; }
     (async () => {
       try {
-        const result = await withRetry(() =>
-          supabase
+        const result = await withRetry(async () => {
+          const response = await supabase
             .from(T.CLAUSES)
             .select("id, risk_area, summary_plain, path_hierarchy, regulation_title, regulation_short_code")
             .eq("regulation_id", regId)
             .order("path_hierarchy", { ascending: true })
-            .limit(2000)
-        );
+            .limit(2000);
+          return response;
+        });
         if (result.error) {
           toast({ variant: "destructive", title: "Load clauses failed", description: result.error.message });
           setClauses([]);
