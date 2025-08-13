@@ -11,10 +11,12 @@ type VersionRow = {
   document_id: string;
   regulation_id: string;
   regulation_title: string;
-  short_code: string;
+  regulation_short_code?: string; // in case your view exposes it later
+  short_code: string;             // from regulation_documents_v
   version_label: string;
   created_at: string;
-  deleted: boolean;
+  is_deleted?: boolean;
+  deleted?: boolean;              // backward compat with older view
 };
 
 type CoverageRow = {
@@ -30,6 +32,14 @@ type CoverageRow = {
   obligation_pct: number;
 };
 
+function getFunctionsBaseUrl() {
+  const url = import.meta.env.VITE_SUPABASE_URL as string;
+  // https://<project-ref>.supabase.co -> https://<project-ref>.functions.supabase.co
+  const m = url.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co$/i);
+  const ref = m ? m[1] : "";
+  return `https://${ref}.functions.supabase.co`;
+}
+
 export default function OperatorVersions() {
   const [rows, setRows] = useState<VersionRow[]>([]);
   const [coverage, setCoverage] = useState<Record<string, CoverageRow>>({});
@@ -38,7 +48,9 @@ export default function OperatorVersions() {
   async function load() {
     const [v1, v2] = await Promise.all([
       withRetry(() =>
-        supabase.from("regulation_documents_v").select("*").order("created_at", { ascending: false })
+        supabase.from("regulation_documents_v")
+          .select("*")
+          .order("created_at", { ascending: false })
       ),
       withRetry(() =>
         supabase.from("clause_coverage_by_document_v").select("*")
@@ -46,14 +58,22 @@ export default function OperatorVersions() {
     ]);
 
     if (v1.error) {
-      toast({ variant: "destructive", title: "Load versions failed", description: v1.error.message });
-    } else if (v1.data) {
-      setRows(v1.data as VersionRow[]);
+      toast({
+        variant: "destructive",
+        title: "Load versions failed",
+        description: v1.error.message
+      });
+    } else {
+      setRows((v1.data || []) as VersionRow[]);
     }
 
     if (v2.error) {
-      toast({ variant: "destructive", title: "Load coverage failed", description: v2.error.message });
-    } else if (v2.data) {
+      toast({
+        variant: "destructive",
+        title: "Load coverage failed",
+        description: v2.error.message
+      });
+    } else {
       const map: Record<string, CoverageRow> = {};
       (v2.data as CoverageRow[]).forEach((r) => (map[r.document_id] = r));
       setCoverage(map);
@@ -66,8 +86,12 @@ export default function OperatorVersions() {
     const { error } = await withRetry(() =>
       supabase.rpc("soft_delete_document", { p_doc_id: docId })
     );
-    if (error) toast({ variant: "destructive", title: "Delete failed", description: error.message });
-    else { toast({ title: "Document hidden" }); load(); }
+    if (error) {
+      toast({ variant: "destructive", title: "Delete failed", description: error.message });
+    } else {
+      toast({ title: "Document hidden" });
+      load();
+    }
   }
 
   async function hardDeleteDoc(docId: string) {
@@ -76,12 +100,16 @@ export default function OperatorVersions() {
     const { error } = await withRetry(() =>
       supabase.rpc("hard_delete_document", { p_doc_id: docId })
     );
-    if (error) toast({ variant: "destructive", title: "Hard delete failed", description: error.message });
-    else { toast({ title: "Document removed" }); load(); }
+    if (error) {
+      toast({ variant: "destructive", title: "Hard delete failed", description: error.message });
+    } else {
+      toast({ title: "Document removed" });
+      load();
+    }
   }
 
   async function reIngest(regId: string, docId: string, versionLabel: string) {
-    // Read source_url via a PUBLIC view (not reggio.*)
+    // Read the source_url from the public view
     const { data: doc, error } = await withRetry(() =>
       supabase
         .from("regulation_documents_detail_v")
@@ -94,13 +122,14 @@ export default function OperatorVersions() {
       return;
     }
 
-    let source = (doc as any)?.source_url as string | null;
+    let source = (doc?.source_url as string) || "";
     if (!source) {
       source = window.prompt("Enter source URL to ingest:") || "";
       if (!source) return;
     }
 
-    const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reggio-ingest`;
+    // Call the Edge Function
+    const fnUrl = `${getFunctionsBaseUrl()}/reggio-ingest`;
     const res = await fetch(fnUrl, {
       method: "POST",
       headers: {
@@ -110,14 +139,14 @@ export default function OperatorVersions() {
       body: JSON.stringify({
         regulationId: regId,
         source_url: source,
-        document: { versionLabel },
-        chunks: [], // let the edge function fetch & chunk
+        document: { versionLabel }, // function will find/create version safely
+        chunks: [],                  // let the function fetch & chunk
       }),
     });
 
     if (!res.ok) {
       const err = await res.text();
-      toast({ variant: "destructive", title: "Re-ingest failed", description: err.slice(0, 200) });
+      toast({ variant: "destructive", title: "Re-ingest failed", description: err.slice(0, 240) });
     } else {
       toast({ title: "Re-ingestion started" });
     }
@@ -149,18 +178,18 @@ export default function OperatorVersions() {
       <div className="space-y-3">
         {filtered.map((v) => {
           const cov = coverage[v.document_id];
+          const deleted = v.is_deleted ?? v.deleted ?? false;
           return (
             <Card key={v.document_id} className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="font-semibold">
-                    {v.regulation_title}{" "}
-                    <span className="text-muted-foreground">({v.short_code})</span>
+                    {v.regulation_title} <span className="text-muted-foreground">({v.short_code})</span>
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Version: {v.version_label} · Created {new Date(v.created_at).toLocaleString()}
                   </div>
-                  {v.deleted && <Badge variant="destructive" className="mt-1">DELETED</Badge>}
+                  {deleted && <Badge variant="destructive" className="mt-1">DELETED</Badge>}
                 </div>
 
                 <div className="text-right text-sm">
@@ -168,8 +197,8 @@ export default function OperatorVersions() {
                     <>
                       <div>Clauses: <span className="font-medium">{cov.clauses_total}</span></div>
                       <div>
-                        Risk: <span className="font-medium">{cov.risk_pct}%</span> · Obligation:{" "}
-                        <span className="font-medium">{cov.obligation_pct}%</span>
+                        Risk: <span className="font-medium">{cov.risk_pct}%</span> ·
+                        Obligation: <span className="font-medium"> {cov.obligation_pct}%</span>
                       </div>
                     </>
                   ) : (
@@ -181,7 +210,7 @@ export default function OperatorVersions() {
                   <Button variant="secondary" onClick={() => reIngest(v.regulation_id, v.document_id, v.version_label)}>
                     Re-ingest
                   </Button>
-                  <Button variant="outline" onClick={() => softDeleteDoc(v.document_id)} disabled={v.deleted}>
+                  <Button variant="outline" onClick={() => softDeleteDoc(v.document_id)} disabled={deleted}>
                     Soft Delete
                   </Button>
                   <Button variant="destructive" onClick={() => hardDeleteDoc(v.document_id)}>
@@ -192,7 +221,6 @@ export default function OperatorVersions() {
             </Card>
           );
         })}
-
         {!filtered.length && (
           <Card className="p-6 text-sm text-muted-foreground">
             No versions match your search.
