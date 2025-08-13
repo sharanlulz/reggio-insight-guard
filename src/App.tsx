@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
@@ -12,7 +13,9 @@ import BoardBrief from "./pages/BoardBrief";
 import Debug from "@/pages/Debug";
 import Regs from "@/pages/Regs";
 import OperatorDashboard from "@/pages/OperatorDashboard";
-import operator-versions from "@/pages/operator-versions";
+
+// IMPORTANT: component identifiers must be PascalCase; file can be named operator-versions.tsx
+import OperatorVersions from "@/pages/operator-versions";
 
 const queryClient = new QueryClient();
 
@@ -22,13 +25,15 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-      <header className="p-4 border-b flex items-center justify-between">
-        <Link to="/" className="font-semibold">Reggio</Link>
-        <nav className="text-sm flex gap-3">
-          <Link to="/regs" className="underline">Regs</Link>
-          <Link to="/debug" className="underline">Debug</Link>
-        </nav>
-      </header>
+        <header className="p-4 border-b flex items-center justify-between">
+          <Link to="/" className="font-semibold">Reggio</Link>
+          <nav className="text-sm flex gap-3">
+            <Link to="/regs" className="underline">Regs</Link>
+            <Link to="/debug" className="underline">Debug</Link>
+            <Link to="/operator" className="underline">Operator</Link>
+            <Link to="/operator-versions" className="underline">Versions</Link>
+          </nav>
+        </header>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
@@ -37,9 +42,12 @@ const App = () => (
           <Route path="/brief" element={<BoardBrief />} />
           <Route path="/regs" element={<Regs />} />
           <Route path="/debug" element={<Debug />} />
+
+          {/* Operator pages */}
           <Route path="/operator" element={<OperatorDashboard />} />
-           <Route path="/operator" element={<operator-version />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/operator-versions" element={<OperatorVersions />} />
+
+          {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
