@@ -1,7 +1,7 @@
-// Enhanced IngestModal with URL support
+// Smart IngestModal with auto-detection capabilities
 // REPLACE ENTIRE CONTENTS of: src/components/ingest/IngestModal.tsx
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,12 +12,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Link2, Upload, Globe, FileText } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { AlertCircle, Link2, Upload, FileText, Zap, Globe, CheckCircle2, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
+// ---------- Types ----------
 interface IngestModalProps {
   open: boolean;
   onClose: () => void;
+  presetRegulationId?: string; // optional: lock to a specific reg from Operator page
 }
 
 type IngestMode = "url" | "file" | "text";
@@ -28,7 +31,18 @@ interface RegulationOption {
   short_code: string;
 }
 
-// Common regulatory document URLs for quick access
+interface AutoDetectedMetadata {
+  title?: string;
+  version?: string;
+  published_at?: string;
+  doc_type?: "Regulation" | "Guidance";
+  language?: string;
+  last_modified?: string;
+  hasExisting?: boolean;
+  suggestedVersion?: string;
+}
+
+// ---------- Quick URLs (handy for operators) ----------
 const QUICK_URLs = [
   {
     category: "UK - PRA",
@@ -37,538 +51,501 @@ const QUICK_URLs = [
         name: "PRA Rulebook - Liquidity",
         url: "https://www.bankofengland.co.uk/prudential-regulation/publication/2015/pra-rulebook-crd-firms-liquidity",
         suggested_id: "PRA-LIQ",
+        expected_type: "Regulation" as const,
+        jurisdiction: "UK",
+        regulator: "PRA",
       },
       {
         name: "PRA110 Instructions",
         url: "https://www.bankofengland.co.uk/prudential-regulation/regulatory-reporting/regulatory-reporting-banking-sector/pra110",
         suggested_id: "PRA-PRA110",
-      }
-    ]
+        expected_type: "Guidance" as const,
+        jurisdiction: "UK",
+        regulator: "PRA",
+      },
+    ],
   },
   {
     category: "UK - FCA",
     urls: [
       {
-        name: "FCA Handbook - SYSC",
+        name: "FCA Handbook - SYSC (PDF)",
         url: "https://www.handbook.fca.org.uk/handbook/SYSC.pdf",
         suggested_id: "FCA-SYSC",
-      }
-    ]
+        expected_type: "Regulation" as const,
+        jurisdiction: "UK",
+        regulator: "FCA",
+      },
+    ],
   },
   {
     category: "EU - EBA",
     urls: [
       {
-        name: "CRR - Capital Requirements Regulation",
-        url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32013R0575",
+        name: "CRR (EUR-Lex)",
+        url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32013R0575",
         suggested_id: "EU-CRR",
-      }
-    ]
-  }
+        expected_type: "Regulation" as const,
+        jurisdiction: "EU",
+        regulator: "EBA",
+      },
+    ],
+  },
 ];
 
-export default function IngestModal({ open, onClose }: IngestModalProps) {
-  const [mode, setMode] = useState<IngestMode>("url");
-  const [loading, setLoading] = useState(false);
-  
-  // Common fields
-  const [regulationId, setRegulationId] = useState("");
-  const [versionLabel, setVersionLabel] = useState("");
-  const [regulations, setRegulations] = useState<RegulationOption[]>([]);
-  const [createNewReg, setCreateNewReg] = useState(false);
-  
-  // New regulation fields
-  const [newRegTitle, setNewRegTitle] = useState("");
-  const [newRegShortCode, setNewRegShortCode] = useState("");
-  const [jurisdiction, setJurisdiction] = useState("");
-  const [regulator, setRegulator] = useState("");
-  
-  // URL mode fields
-  const [sourceUrl, setSourceUrl] = useState("");
-  const [urlPreview, setUrlPreview] = useState<{title?: string; description?: string; error?: string} | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  
-  // File mode fields
-  const [file, setFile] = useState<File | null>(null);
-  
-  // Text mode fields
-  const [manualText, setManualText] = useState("");
-  const [textChunks, setTextChunks] = useState<Array<{path: string; text: string}>>([]);
+// ---------- Helpers (local, no extra imports) ----------
+function getFunctionsBaseUrl() {
+  const base = import.meta.env.VITE_SUPABASE_URL as string;
+  const m = base?.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co$/i);
+  const ref = m ? m[1] : "";
+  return `https://${ref}.functions.supabase.co`;
+}
 
-  // Document metadata
-  const [docType, setDocType] = useState<"Regulation" | "Guidance">("Regulation");
-  const [language, setLanguage] = useState("en");
-  const [publishedAt, setPublishedAt] = useState("");
+async function safeFetchJson(url: string, init?: RequestInit) {
+  const res = await fetch(url, init);
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) {
+    const msg =
+      data?.error?.message ||
+      data?.message ||
+      (typeof data?.error === "string" ? data.error : undefined) ||
+      text;
+    const err: any = new Error(msg || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.payload = data;
+    throw err;
+  }
+  return data;
+}
 
-  // Load existing regulations
-  useEffect(() => {
-    if (open) {
-      loadRegulations();
-      // Reset form
-      setRegulationId("");
-      setVersionLabel("");
-      setSourceUrl("");
-      setFile(null);
-      setManualText("");
-      setUrlPreview(null);
-      setCreateNewReg(false);
+function todayVersionPrefix() {
+  const d = new Date();
+  const iso = d.toISOString().slice(0, 10);
+  return `v-auto-${iso}`;
+}
+
+function chunkText(text: string, max = 2000) {
+  const out: { path_hierarchy: string; number_label: string | null; text_raw: string }[] = [];
+  let i = 0;
+  let n = 0;
+  while (i < text.length && out.length < 200) {
+    out.push({ path_hierarchy: `Section ${++n}`, number_label: null, text_raw: text.slice(i, i + max) });
+    i += max;
+  }
+  return out;
+}
+
+async function detectFromUrl(url: string): Promise<AutoDetectedMetadata> {
+  const meta: AutoDetectedMetadata = {};
+
+  // Try HEAD to pick up headers (last-modified, content-language)
+  try {
+    const head = await fetch(url, { method: "HEAD" });
+    if (head.ok) {
+      const lm = head.headers.get("last-modified");
+      const lang = head.headers.get("content-language");
+      if (lm) meta.last_modified = lm;
+      if (lang) meta.language = lang.toUpperCase();
     }
-  }, [open]);
+  } catch {
+    // ignore
+  }
 
-  async function loadRegulations() {
-    try {
+  // Fetch small HTML to extract <title> if text/html
+  try {
+    const r = await fetch(url, { method: "GET" });
+    if (r.ok) {
+      const ct = r.headers.get("content-type") || "";
+      if (ct.includes("text/html")) {
+        const html = await r.text();
+        const mTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        if (mTitle) meta.title = mTitle[1].trim();
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // Guess doc type & language defaults
+  meta.doc_type = meta.doc_type || "Regulation";
+  meta.language = (meta.language || "EN").toUpperCase();
+
+  // Suggest version based on date
+  const d = meta.last_modified ? new Date(meta.last_modified) : new Date();
+  if (!Number.isNaN(d.getTime())) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    meta.suggestedVersion = `v-${yyyy}${mm}${dd}`;
+    meta.published_at = d.toISOString();
+  } else {
+    meta.suggestedVersion = todayVersionPrefix();
+  }
+
+  return meta;
+}
+
+// ---------- Component ----------
+export default function IngestModal({ open, onClose, presetRegulationId }: IngestModalProps) {
+  const [mode, setMode] = useState<IngestMode>("url");
+  const [regs, setRegs] = useState<RegulationOption[]>([]);
+  const [regId, setRegId] = useState<string>(presetRegulationId || "");
+  const [sourceUrl, setSourceUrl] = useState<string>("");
+  const [versionLabel, setVersionLabel] = useState<string>(todayVersionPrefix());
+  const [docType, setDocType] = useState<"Regulation" | "Guidance">("Regulation");
+  const [language, setLanguage] = useState<string>("EN");
+  const [autoMeta, setAutoMeta] = useState<AutoDetectedMetadata>({});
+  const [advOpen, setAdvOpen] = useState<boolean>(false);
+  const [fileText, setFileText] = useState<string>("");
+  const [pasteText, setPasteText] = useState<string>("");
+
+  const canSubmit = useMemo(() => {
+    if (!regId || !versionLabel) return false;
+    if (mode === "url") return !!sourceUrl;
+    if (mode === "file") return !!fileText.trim();
+    if (mode === "text") return !!pasteText.trim();
+    return false;
+  }, [regId, versionLabel, mode, sourceUrl, fileText, pasteText]);
+
+  // Load regulations for dropdown (public view only)
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
       const { data, error } = await supabase
-        .from("regulations")
+        .from("regulations_v")
         .select("id, title, short_code")
         .order("title");
-      
-      if (error) throw error;
-      setRegulations(data || []);
-    } catch (error: any) {
-      console.error("Failed to load regulations:", error);
+
+      if (!error && data) setRegs(data as RegulationOption[]);
+    })();
+  }, [open]);
+
+  // If presetRegulationId was passed, lock the dropdown
+  useEffect(() => {
+    if (presetRegulationId) setRegId(presetRegulationId);
+  }, [presetRegulationId]);
+
+  // Check for existing document (reg_id + versionLabel)
+  async function checkExisting(regulationId: string, vlabel: string) {
+    if (!regulationId || !vlabel) {
+      setAutoMeta((m) => ({ ...m, hasExisting: false }));
+      return;
+    }
+    const { data, error } = await supabase
+      .from("regulation_documents_v")
+      .select("document_id")
+      .eq("regulation_id", regulationId)
+      .eq("version_label", vlabel)
+      .limit(1);
+    if (!error && data && data.length > 0) {
+      setAutoMeta((m) => ({ ...m, hasExisting: true }));
+    } else {
+      setAutoMeta((m) => ({ ...m, hasExisting: false }));
+    }
+  }
+
+  useEffect(() => {
+    checkExisting(regId, versionLabel);
+  }, [regId, versionLabel]);
+
+  async function handleDetect() {
+    if (!sourceUrl) {
+      toast({ variant: "destructive", title: "Enter a URL to detect metadata." });
+      return;
+    }
+    try {
+      const meta = await detectFromUrl(sourceUrl);
+      setAutoMeta(meta);
+      if (meta.suggestedVersion && !versionLabel) {
+        setVersionLabel(meta.suggestedVersion);
+      }
+      if (meta.language) setLanguage(meta.language);
+      if (meta.doc_type) setDocType(meta.doc_type);
+      toast({ title: "Detected", description: meta.title || "Fetched headers/metadata" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Detect failed", description: e?.message || String(e) });
+    }
+  }
+
+  // File reading (only .txt / .md for v1)
+  async function onPickFile(file: File | null) {
+    if (!file) return;
+    if (!/\.txt$|\.md$/i.test(file.name)) {
       toast({
         variant: "destructive",
-        title: "Load failed",
-        description: error.message
+        title: "Unsupported file",
+        description: "For now, please use .txt or paste text. (PDF/DOCX ingestion via URL is supported.)",
       });
-    }
-  }
-
-  async function previewUrl(url: string) {
-    if (!url.trim()) {
-      setUrlPreview(null);
       return;
     }
+    const text = await file.text();
+    setFileText(text);
+    if (!versionLabel) setVersionLabel(todayVersionPrefix());
+  }
 
-    setPreviewLoading(true);
-    try {
-      // Simple URL validation
-      new URL(url);
-      
-      // Try to fetch head information (this is limited by CORS in browser)
-      setUrlPreview({
-        title: extractTitleFromUrl(url),
-        description: `Ready to ingest from: ${new URL(url).hostname}`
+  async function submit() {
+    if (!canSubmit) return;
+
+    const fnUrl = `${getFunctionsBaseUrl()}/reggio-ingest`;
+    const baseDoc = {
+      versionLabel,
+      docType,
+      language,
+      source_url: mode === "url" ? sourceUrl : undefined,
+      published_at: autoMeta.published_at || undefined,
+    };
+
+    const payload: any = { regulationId: regId, document: baseDoc };
+
+    if (mode === "url") {
+      payload.source_url = sourceUrl;
+      // chunks omitted → edge will fetch & chunk
+    } else if (mode === "file") {
+      payload.chunks = chunkText(fileText);
+    } else if (mode === "text") {
+      payload.chunks = chunkText(pasteText);
+    }
+
+    // Show a friendly note when overwriting an existing version
+    if (autoMeta.hasExisting) {
+      toast({
+        title: "Re-ingesting existing version",
+        description: "Old clauses for this document will be replaced.",
       });
-    } catch (error) {
-      setUrlPreview({
-        error: "Invalid URL format"
-      });
-    } finally {
-      setPreviewLoading(false);
-    }
-  }
-
-  function extractTitleFromUrl(url: string): string {
-    try {
-      const urlObj = new URL(url);
-      const hostname = urlObj.hostname.replace('www.', '');
-      const path = urlObj.pathname;
-      
-      // Extract meaningful parts
-      const parts = path.split('/').filter(p => p.length > 0);
-      const lastPart = parts[parts.length - 1];
-      
-      if (lastPart && lastPart.includes('.')) {
-        return `${hostname} - ${lastPart}`;
-      }
-      
-      return hostname;
-    } catch {
-      return "Document";
-    }
-  }
-
-  function useQuickUrl(quickUrl: typeof QUICK_URLs[0]["urls"][0]) {
-    setSourceUrl(quickUrl.url);
-    if (quickUrl.suggested_id && !newRegShortCode) {
-      setNewRegShortCode(quickUrl.suggested_id);
-      setNewRegTitle(quickUrl.name);
-      setCreateNewReg(true);
-    }
-    previewUrl(quickUrl.url);
-  }
-
-  function chunkManualText(text: string) {
-    const maxChunkSize = 2000;
-    const chunks: Array<{path: string; text: string}> = [];
-    
-    // Try to split on double newlines (paragraphs) first
-    let sections = text.split(/\n\s*\n/).filter(s => s.trim().length > 0);
-    
-    let sectionIndex = 1;
-    for (const section of sections) {
-      if (section.length <= maxChunkSize) {
-        chunks.push({
-          path: `Section ${sectionIndex}`,
-          text: section.trim()
-        });
-        sectionIndex++;
-      } else {
-        // Split large sections
-        let start = 0;
-        let subsectionIndex = 1;
-        while (start < section.length) {
-          let end = Math.min(start + maxChunkSize, section.length);
-          
-          // Try to break on sentence
-          if (end < section.length) {
-            const lastPeriod = section.lastIndexOf('.', end);
-            if (lastPeriod > start + maxChunkSize * 0.7) {
-              end = lastPeriod + 1;
-            }
-          }
-          
-          chunks.push({
-            path: `Section ${sectionIndex}.${subsectionIndex}`,
-            text: section.slice(start, end).trim()
-          });
-          
-          start = end;
-          subsectionIndex++;
-        }
-        sectionIndex++;
-      }
-    }
-    
-    setTextChunks(chunks);
-  }
-
-  async function createRegulationIfNeeded(): Promise<string> {
-    if (!createNewReg) {
-      return regulationId;
-    }
-
-    if (!newRegTitle || !newRegShortCode) {
-      throw new Error("New regulation title and short code are required");
-    }
-
-    // Get current user's org
-    const { data: profile } = await supabase.auth.getUser();
-    if (!profile.user) throw new Error("Not authenticated");
-
-    // For demo, use the default org - in production you'd get this from user profile
-    const orgId = "d3546758-a241-4546-aff7-fa600731502a";
-
-    const { data: newReg, error } = await supabase
-      .from("regulations")
-      .insert({
-        org_id: orgId,
-        title: newRegTitle,
-        short_code: newRegShortCode,
-        jurisdiction: jurisdiction || null,
-        regulator: regulator || null
-      })
-      .select("id")
-      .single();
-
-    if (error) throw error;
-    return newReg.id;
-  }
-
-  async function handleIngest() {
-    if (!versionLabel.trim()) {
-      toast({ variant: "destructive", title: "Missing info", description: "Version label is required" });
-      return;
     }
 
     try {
-      setLoading(true);
-
-      const finalRegulationId = await createRegulationIfNeeded();
-      
-      let payload: any = {
-        regulationId: finalRegulationId,
-        document: {
-          versionLabel: versionLabel.trim(),
-          docType,
-          language,
-          published_at: publishedAt || null
-        }
-      };
-
-      if (mode === "url") {
-        if (!sourceUrl.trim()) {
-          throw new Error("Source URL is required");
-        }
-        payload.source_url = sourceUrl.trim();
-        payload.document.source_url = sourceUrl.trim();
-        
-      } else if (mode === "file") {
-        if (!file) {
-          throw new Error("File is required");
-        }
-        // For file mode, you'd typically upload to Supabase storage first
-        // For now, we'll show an error since the edge function expects URL or chunks
-        throw new Error("File upload not implemented yet - please use URL mode");
-        
-      } else if (mode === "text") {
-        if (!manualText.trim()) {
-          throw new Error("Text content is required");
-        }
-        
-        if (textChunks.length === 0) {
-          chunkManualText(manualText);
-        }
-        
-        payload.chunks = textChunks.map(chunk => ({
-          path_hierarchy: chunk.path,
-          text_raw: chunk.text,
-          number_label: null
-        }));
-      }
-
-      // Call the enhanced edge function
-      const { error: fnError } = await supabase.functions.invoke("reggio-ingest", {
-        body: payload
+      const res = await safeFetchJson(fnUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
 
-      if (fnError) throw fnError;
-
-      toast({ 
-        title: "Ingestion started", 
-        description: `Processing ${mode === "url" ? "URL" : mode === "file" ? "file" : `${textChunks.length} text chunks`}...` 
+      toast({
+        title: "Ingestion started",
+        description: `Doc ${res.regulation_document_id} • ${res.chunks_total ?? "…" } chunks`,
       });
-      
-      onClose();
-      
-    } catch (err: any) {
-      console.error("Ingestion error:", err);
+      // Reset light state, keep dialog open? We'll close to return user to dashboard.
+      handleClose();
+    } catch (e: any) {
       toast({
         variant: "destructive",
         title: "Ingestion failed",
-        description: err.message || "Unknown error occurred"
+        description: e?.message || "Unknown error",
       });
-    } finally {
-      setLoading(false);
+      // keep dialog open for fixes
     }
   }
 
+  function handleClose() {
+    setSourceUrl("");
+    setFileText("");
+    setPasteText("");
+    setAutoMeta({});
+    if (!presetRegulationId) setRegId("");
+    setVersionLabel(todayVersionPrefix());
+    setDocType("Regulation");
+    setLanguage("EN");
+    onClose();
+  }
+
+  const currentReg = regs.find((r) => r.id === regId);
+  const headerBadge = (
+    <div className="flex items-center gap-2">
+      <Badge variant="outline">
+        <Globe className="h-3.5 w-3.5 mr-1" />
+        {mode.toUpperCase()}
+      </Badge>
+      {autoMeta.hasExisting && (
+        <Badge variant="secondary">
+          <AlertCircle className="h-3.5 w-3.5 mr-1" />
+          existing version
+        </Badge>
+      )}
+      {autoMeta.suggestedVersion && (
+        <Badge variant="outline">
+          <Clock className="h-3.5 w-3.5 mr-1" />
+          {autoMeta.suggestedVersion}
+        </Badge>
+      )}
+    </div>
+  );
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Ingest Regulatory Document
-          </DialogTitle>
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader className="flex flex-row items-center justify-between">
+          <DialogTitle>Ingest Regulation Document</DialogTitle>
+          {headerBadge}
         </DialogHeader>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Left Column: Source */}
-          <div className="space-y-4">
-            <div>
-              <Label className="text-base font-medium">Document Source</Label>
-              <Tabs value={mode} onValueChange={(v) => setMode(v as IngestMode)} className="mt-2">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="url" className="flex items-center gap-1">
-                    <Link2 className="h-4 w-4" />
-                    URL
-                  </TabsTrigger>
-                  <TabsTrigger value="file" className="flex items-center gap-1">
-                    <Upload className="h-4 w-4" />
-                    File
-                  </TabsTrigger>
-                  <TabsTrigger value="text" className="flex items-center gap-1">
-                    <FileText className="h-4 w-4" />
-                    Text
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="url" className="space-y-4">
-                  <div>
-                    <Label htmlFor="sourceUrl">Document URL</Label>
-                    <Input
-                      id="sourceUrl"
-                      placeholder="https://example.com/regulation.pdf"
-                      value={sourceUrl}
-                      onChange={(e) => {
-                        setSourceUrl(e.target.value);
-                        previewUrl(e.target.value);
-                      }}
-                    />
-                    {previewLoading && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Validating URL...
-                      </div>
-                    )}
-                    {urlPreview?.error && (
-                      <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />
-                        {urlPreview.error}
-                      </div>
-                    )}
-                    {urlPreview?.title && (
-                      <div className="text-xs text-green-600 mt-1">
-                        ✓ {urlPreview.description}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quick URLs */}
-                  <div>
-                    <Label className="text-sm">Quick Access</Label>
-                    <div className="mt-2 space-y-3 max-h-48 overflow-auto">
-                      {QUICK_URLs.map((category) => (
-                        <div key={category.category}>
-                          <div className="text-xs font-medium text-muted-foreground mb-1">
-                            {category.category}
-                          </div>
-                          <div className="space-y-1">
-                            {category.urls.map((quickUrl, idx) => (
-                              <Button
-                                key={idx}
-                                variant="ghost"
-                                size="sm"
-                                className="h-auto p-2 justify-start text-left w-full"
-                                onClick={() => useQuickUrl(quickUrl)}
-                              >
-                                <div className="text-xs">
-                                  <div className="font-medium">{quickUrl.name}</div>
-                                  <div className="text-muted-foreground truncate">
-                                    {quickUrl.url}
-                                  </div>
-                                </div>
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="file" className="space-y-4">
-                  <div>
-                    <Label htmlFor="file">Upload Document</Label>
-                    <Input
-                      id="file"
-                      type="file"
-                      accept=".pdf,.docx,.txt,.html"
-                      onChange={(e) => setFile(e.target.files?.[0] || null)}
-                    />
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Supports: PDF, DOCX, TXT, HTML
-                    </div>
-                  </div>
-                  {file && (
-                    <Card className="p-3">
-                      <div className="text-sm">
-                        <div className="font-medium">{file.name}</div>
-                        <div className="text-muted-foreground">
-                          {(file.size / 1024 / 1024).toFixed(1)} MB
-                        </div>
-                      </div>
-                    </Card>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="text" className="space-y-4">
-                  <div>
-                    <Label htmlFor="manualText">Paste Text Content</Label>
-                    <Textarea
-                      id="manualText"
-                      placeholder="Paste regulatory text here..."
-                      value={manualText}
-                      onChange={(e) => setManualText(e.target.value)}
-                      rows={8}
-                    />
-                  </div>
-                  {manualText.trim() && (
-                    <Button
-                      variant="outline"
-                      onClick={() => chunkManualText(manualText)}
-                      size="sm"
-                    >
-                      Preview Chunks ({Math.ceil(manualText.length / 2000)} estimated)
-                    </Button>
-                  )}
-                  {textChunks.length > 0 && (
-                    <div className="text-xs text-green-600">
-                      ✓ Text chunked into {textChunks.length} sections
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </div>
+        <div className="grid gap-4">
+          {/* Regulation select */}
+          <div className="grid gap-2">
+            <Label>Regulation</Label>
+            {presetRegulationId ? (
+              <Input
+                value={currentReg ? `${currentReg.title} (${currentReg.short_code})` : presetRegulationId}
+                readOnly
+              />
+            ) : (
+              <Select value={regId} onValueChange={(v) => setRegId(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select regulation…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {regs.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.title} ({r.short_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
-          {/* Right Column: Metadata */}
-          <div className="space-y-4">
-            <div>
-              <Label className="text-base font-medium">Regulation & Metadata</Label>
-            </div>
+          {/* Mode tabs */}
+          <Tabs value={mode} onValueChange={(v) => setMode(v as IngestMode)} className="w-full">
+            <TabsList className="grid grid-cols-3">
+              <TabsTrigger value="url">
+                <Link2 className="h-4 w-4 mr-2" />
+                URL
+              </TabsTrigger>
+              <TabsTrigger value="file">
+                <Upload className="h-4 w-4 mr-2" />
+                File (.txt)
+              </TabsTrigger>
+              <TabsTrigger value="text">
+                <FileText className="h-4 w-4 mr-2" />
+                Paste Text
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Regulation Selection */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Target Regulation</Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCreateNewReg(!createNewReg)}
-                >
-                  {createNewReg ? "Select Existing" : "Create New"}
-                </Button>
-              </div>
-
-              {createNewReg ? (
-                <div className="space-y-3">
-                  <Input
-                    placeholder="Regulation title"
-                    value={newRegTitle}
-                    onChange={(e) => setNewRegTitle(e.target.value)}
-                  />
-                  <Input
-                    placeholder="Short code (e.g., PRA-LIQ)"
-                    value={newRegShortCode}
-                    onChange={(e) => setNewRegShortCode(e.target.value.toUpperCase())}
-                  />
-                  <div className="grid grid-cols-2 gap-2">
+            <TabsContent value="url" className="mt-3">
+              <Card className="p-4 space-y-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="url">Source URL</Label>
+                  <div className="flex gap-2">
                     <Input
-                      placeholder="Jurisdiction (e.g., UK)"
-                      value={jurisdiction}
-                      onChange={(e) => setJurisdiction(e.target.value)}
+                      id="url"
+                      placeholder="https://…"
+                      value={sourceUrl}
+                      onChange={(e) => setSourceUrl(e.target.value)}
                     />
-                    <Input
-                      placeholder="Regulator (e.g., PRA)"
-                      value={regulator}
-                      onChange={(e) => setRegulator(e.target.value)}
-                    />
+                    <Button variant="secondary" onClick={handleDetect}>
+                      <Zap className="h-4 w-4 mr-2" />
+                      Detect
+                    </Button>
                   </div>
                 </div>
-              ) : (
-                <Select value={regulationId} onValueChange={setRegulationId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose regulation..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {regulations.map((reg) => (
-                      <SelectItem key={reg.id} value={reg.id}>
-                        {reg.title} ({reg.short_code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
 
-            {/* Version and Document Details */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="versionLabel">Version Label</Label>
+                {/* Quick links */}
+                <div className="grid gap-2">
+                  <Label className="text-xs text-muted-foreground">Quick sources</Label>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {QUICK_URLs.map((g) => (
+                      <Card key={g.category} className="p-3">
+                        <div className="text-xs font-medium mb-2">{g.category}</div>
+                        <div className="flex flex-col gap-1">
+                          {g.urls.map((u) => (
+                            <Button
+                              key={u.url}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSourceUrl(u.url);
+                                setDocType(u.expected_type);
+                              }}
+                            >
+                              <Globe className="h-3.5 w-3.5 mr-2" />
+                              {u.name}
+                            </Button>
+                          ))}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Detected */}
+                {(autoMeta.title || autoMeta.last_modified) && (
+                  <div className="text-xs text-muted-foreground">
+                    {autoMeta.title && (
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Title: {autoMeta.title}</span>
+                      </div>
+                    )}
+                    {autoMeta.last_modified && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>Last-Modified: {autoMeta.last_modified}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="file" className="mt-3">
+              <Card className="p-4 space-y-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="file">Upload .txt / .md</Label>
+                  <Input
+                    id="file"
+                    type="file"
+                    accept=".txt,.md"
+                    onChange={(e) => onPickFile(e.target.files?.[0] || null)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label className="text-xs text-muted-foreground">Preview (first 400 chars)</Label>
+                  <Textarea value={fileText.slice(0, 400)} readOnly />
+                </div>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="text" className="mt-3">
+              <Card className="p-4 space-y-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="paste">Paste raw text</Label>
+                  <Textarea
+                    id="paste"
+                    placeholder="Paste text to ingest…"
+                    value={pasteText}
+                    onChange={(e) => setPasteText(e.target.value)}
+                    rows={10}
+                  />
+                </div>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          {/* Document settings */}
+          <Card className="p-4 space-y-3">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-2">
+                <Label>Version label</Label>
                 <Input
-                  id="versionLabel"
-                  placeholder="e.g., v1.0, 2024-Q1"
                   value={versionLabel}
                   onChange={(e) => setVersionLabel(e.target.value)}
+                  placeholder="v-auto-YYYY-MM-DD"
                 />
               </div>
-              <div>
-                <Label htmlFor="docType">Document Type</Label>
-                <Select value={docType} onValueChange={(v) => setDocType(v as "Regulation" | "Guidance")}>
+              <div className="grid gap-2">
+                <Label>Type</Label>
+                <Select value={docType} onValueChange={(v) => setDocType(v as any)}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Regulation or Guidance" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Regulation">Regulation</SelectItem>
@@ -576,44 +553,51 @@ export default function IngestModal({ open, onClose }: IngestModalProps) {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid gap-2">
+                <Label>Language</Label>
+                <Input value={language} onChange={(e) => setLanguage(e.target.value.toUpperCase())} />
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="language">Language</Label>
-                <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="fr">French</SelectItem>
-                    <SelectItem value="de">German</SelectItem>
-                    <SelectItem value="es">Spanish</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="flex items-center gap-2 pt-2">
+              <Switch checked={advOpen} onCheckedChange={setAdvOpen} id="adv" />
+              <Label htmlFor="adv">Show advanced metadata</Label>
+            </div>
+
+            {advOpen && (
+              <div className="grid gap-2 text-xs text-muted-foreground">
+                <div>Auto title: {autoMeta.title || "—"}</div>
+                <div>Last-Modified: {autoMeta.last_modified || "—"}</div>
+                <div>Suggested version: {autoMeta.suggestedVersion || "—"}</div>
+                <div>Published at: {autoMeta.published_at || "—"}</div>
               </div>
-              <div>
-                <Label htmlFor="publishedAt">Published Date</Label>
-                <Input
-                  id="publishedAt"
-                  type="date"
-                  value={publishedAt}
-                  onChange={(e) => setPublishedAt(e.target.value)}
-                />
-              </div>
+            )}
+          </Card>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-muted-foreground flex items-center gap-2">
+              {autoMeta.hasExisting ? (
+                <>
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  This version already exists. Re-ingest will replace prior clauses for this document.
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Ready to ingest.
+                </>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleClose}>
+                Cancel
+              </Button>
+              <Button onClick={submit} disabled={!canSubmit}>
+                Start Ingestion
+              </Button>
             </div>
           </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex justify-end space-x-2 pt-4 border-t">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={handleIngest} disabled={loading}>
-            {loading ? "Starting..." : "Start Ingestion"}
-          </Button>
         </div>
       </DialogContent>
     </Dialog>
