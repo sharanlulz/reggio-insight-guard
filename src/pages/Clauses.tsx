@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { withRetry } from "@/lib/supaRetry";
 
 type Regulation = { id: string; title: string; short_code: string };
 type Clause = {
@@ -98,6 +99,8 @@ export default function ClausesPage() {
     setLoading(true);
 
     // ----- COUNT (via headers) -----
+    const { count } = await withRetry(() =>
+      countQ
     let countQ = supabase.from("clauses").select("*", { count: "exact", head: true });
     if (regId) countQ = countQ.eq("regulation_id", regId);
     if (risk) countQ = countQ.eq("risk_area", risk);
@@ -116,6 +119,8 @@ export default function ClausesPage() {
     setTotal(Number(count || 0));
 
     // ----- DATA -----
+    const { count } = await withRetry(() =>
+        countQ
     let q = supabase
       .from("clauses")
       .select(
