@@ -8,17 +8,24 @@ export default function Debug() {
   const SUPA = (import.meta as any).env?.VITE_SUPABASE_URL as string;
   const ANON = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string;
 
+  async function tableCount(view: string) {
+    // Use count header instead of aggregate functions
+    const { error, count } = await supabase
+      .from(view)
+      .select("*", { count: "exact", head: true }); // no data returned, only count
+    if (error) return { ok: false, detail: error.message };
+    return { ok: true, detail: String(count ?? 0) };
+  }
+
   useEffect(() => {
     (async () => {
       const c: Check[] = [];
       c.push({ name: "Env: VITE_SUPABASE_URL", ok: !!SUPA, detail: SUPA || "missing" });
-      c.push({ name: "Env: VITE_SUPABASE_ANON_KEY", ok: !!ANON, detail: ANON?.slice(0, 12) + "…" });
+      c.push({ name: "Env: VITE_SUPABASE_ANON_KEY", ok: !!ANON, detail: ANON ? ANON.slice(0, 12) + "…" : "missing" });
 
-      // DB table counts via public views
-      const tables = ["regulations", "regulation_documents", "clauses", "obligations"];
-      for (const t of tables) {
-        const { data, error } = await supabase.from(t).select("count:count()");
-        c.push({ name: `DB: ${t}`, ok: !error, detail: error ? error.message : String((data as any)?.[0]?.count ?? 0) });
+      for (const t of ["regulations", "regulation_documents", "clauses", "obligations"]) {
+        const res = await tableCount(t);
+        c.push({ name: `DB: ${t}`, ok: res.ok, detail: res.detail });
       }
 
       // Ping edge function
