@@ -31,56 +31,99 @@ export default function BoardBrief() {
 
   const [clauses, setClauses] = useState<Clause[]>([]);
   const [obls, setObls] = useState<Obligation[]>([]);
+  const [counts, setCounts] = useState<{ docs: number; clauses: number; obls: number }>({ docs: 0, clauses: 0, obls: 0 });
 
   const [markdown, setMarkdown] = useState("");
   const [title, setTitle] = useState("Board Brief — Compliance Update");
 
-  // Load regulations
+  const [errRegs, setErrRegs] = useState<string | null>(null);
+  const [errDocs, setErrDocs] = useState<string | null>(null);
+  const [errData, setErrData] = useState<string | null>(null);
+
+  // Load regulations & auto-select first
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
+      setErrRegs(null);
+      const { data, error } = await supabase
         .from("regulations")
         .select("id, title, short_code")
         .order("title");
-      setRegs((data || []) as Regulation[]);
+      if (error) {
+        setErrRegs(error.message || JSON.stringify(error));
+        setRegs([]);
+        return;
+      }
+      const list = (data || []) as Regulation[];
+      setRegs(list);
+      if (list.length && !regId) setRegId(list[0].id);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load versions for selected regulation
+  // Load versions for selected regulation & auto-select latest
   useEffect(() => {
     if (!regId) { setDocs([]); setDocId(""); return; }
     (async () => {
-      const { data } = await supabase
+      setErrDocs(null);
+      const { data, error } = await supabase
         .from("regulation_documents")
         .select("id, version_label, created_at")
         .eq("regulation_id", regId)
         .order("created_at", { ascending: false });
+      if (error) {
+        setErrDocs(error.message || JSON.stringify(error));
+        setDocs([]);
+        setDocId("");
+        return;
+      }
       const rows = (data || []) as RegDoc[];
       setDocs(rows);
+      setCounts((c) => ({ ...c, docs: rows.length }));
       setDocId(rows[0]?.id || "");
     })();
   }, [regId]);
 
   const loadData = useCallback(async () => {
-    if (!docId) { setClauses([]); setObls([]); return; }
+    if (!docId) { setClauses([]); setObls([]); setCounts((c)=>({ ...c, clauses:0, obls:0 })); return; }
     setLoading(true);
+    setErrData(null);
 
-    const { data: cls } = await supabase
+    // CLAUSES
+    const { data: cls, error: e1, count: cCount } = await supabase
       .from("clauses")
-      .select("id, path_hierarchy, summary_plain, risk_area")
+      .select("id, path_hierarchy, summary_plain, risk_area", { count: "exact" })
       .eq("document_id", docId)
       .order("path_hierarchy");
-    setClauses((cls || []) as Clause[]);
+    if (e1) {
+      setErrData(e1.message || JSON.stringify(e1));
+      setClauses([]);
+      setObls([]);
+      setLoading(false);
+      return;
+    }
+    const clauseRows = (cls || []) as Clause[];
+    setClauses(clauseRows);
+    setCounts((c) => ({ ...c, clauses: Number(cCount || clauseRows.length) }));
 
-    const clauseIds = (cls || []).map((c: any) => c.id);
+    // OBLIGATIONS (only for those clause IDs)
+    const clauseIds = clauseRows.map((c: any) => c.id);
     if (clauseIds.length) {
-      const { data: os } = await supabase
+      const { data: os, error: e2, count: oCount } = await supabase
         .from("obligations")
-        .select("id, clause_id, obligation_text, related_clause_path")
+        .select("id, clause_id, obligation_text, related_clause_path", { count: "exact" })
         .in("clause_id", clauseIds);
-      setObls((os || []) as Obligation[]);
+      if (e2) {
+        setErrData(e2.message || JSON.stringify(e2));
+        setObls([]);
+        setLoading(false);
+        return;
+      }
+      const oblRows = (os || []) as Obligation[];
+      setObls(oblRows);
+      setCounts((c) => ({ ...c, obls: Number(oCount || oblRows.length) }));
     } else {
       setObls([]);
+      setCounts((c) => ({ ...c, obls: 0 }));
     }
 
     setLoading(false);
@@ -127,18 +170,25 @@ export default function BoardBrief() {
     return md.trim() + "\n";
   }, [title, clauses, obls, regId, docId, regs, docs]);
 
-  // When data changes, populate editor with generated markdown (but let user edit afterwards)
+  // When data changes, populate editor with generated markdown
   useEffect(() => { setMarkdown(builtMarkdown); }, [builtMarkdown]);
 
   // Print to PDF
-  const exportPdf = () => {
-    // opens the native print dialog; user can save as PDF
-    window.print();
-  };
+  const exportPdf = () => window.print();
 
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-bold">Board Brief</h1>
+
+      {/* Troubleshooting banner */}
+      {(errRegs || errDocs || errData) && (
+        <Card className="p-3 text-sm bg-red-50 text-red-700">
+          <div><b>Data error</b></div>
+          {errRegs && <div>Regulations: {errRegs}</div>}
+          {errDocs && <div>Documents: {errDocs}</div>}
+          {errData && <div>Data: {errData}</div>}
+        </Card>
+      )}
 
       <Card className="p-4 space-y-3">
         <div className="grid gap-3 md:grid-cols-4">
@@ -156,6 +206,9 @@ export default function BoardBrief() {
                 </option>
               ))}
             </select>
+            <div className="text-xs text-muted-foreground mt-1">
+              Regulations: {regs.length}
+            </div>
           </div>
 
           <div>
@@ -173,6 +226,9 @@ export default function BoardBrief() {
                 </option>
               ))}
             </select>
+            <div className="text-xs text-muted-foreground mt-1">
+              Versions: {docs.length}
+            </div>
           </div>
 
           <div className="md:col-span-2">
@@ -189,14 +245,16 @@ export default function BoardBrief() {
           <Button variant="outline" onClick={() => setMarkdown(builtMarkdown)} disabled={loading}>
             Regenerate from data
           </Button>
-          <Button onClick={exportPdf} disabled={loading}>
+          <Button onClick={exportPdf} disabled={loading || !clauses.length}>
             Export to PDF
           </Button>
+          <div className="text-xs text-muted-foreground ml-auto">
+            Stats — Docs: {counts.docs} · Clauses: {counts.clauses} · Obligations: {counts.obls}
+          </div>
         </div>
       </Card>
 
       <Card className="p-0 overflow-hidden">
-        {/* Print-friendly styles */}
         <style>
           {`@media print {
             nav, .no-print, .btn, .button, .shadcn-hide { display: none !important; }
@@ -211,6 +269,7 @@ export default function BoardBrief() {
           className="w-full min-h-[60vh] p-4 bg-background outline-none"
           value={markdown}
           onChange={(e) => setMarkdown(e.target.value)}
+          placeholder={loading ? "Loading…" : "No content yet — select a regulation/version above."}
         />
       </Card>
     </div>
