@@ -112,7 +112,7 @@ export default function OperatorDashboard() {
   // Load regulations
   const loadRegs = useCallback(async () => {
     setLoading(true);
-    const { data } = await withRetry(() =>
+    const { data } = await withRetry(async () =>
       supabase
         .from("regulations")
         .select("id, title, short_code, jurisdiction, regulator, org_id")
@@ -125,7 +125,7 @@ export default function OperatorDashboard() {
 
   // Load versions for a regulation
   const loadVersions = useCallback(async (regId: string) => {
-    const { data } = await withRetry(() =>
+    const { data } = await withRetry(async () =>
       supabase
         .from("regulation_documents")
         .select(
@@ -140,7 +140,7 @@ export default function OperatorDashboard() {
   // Load ingestion logs (latest first)
   const loadLogs = useCallback(async () => {
     setLoadingLogs(true);
-    const { data } = await withRetry(() =>
+    const { data } = await withRetry(async () =>
       supabase
         .from("ingestions")
         .select(
@@ -262,17 +262,6 @@ export default function OperatorDashboard() {
     }
   };
 
-  // Per-version actions (refresh/new)
-  const [openVersionAction, setOpenVersionAction] = useState(false);
-  const [actionMode, setActionMode] = useState<"refresh" | "new">("refresh");
-  const [actionRegId, setActionRegId] = useState<string>("");
-  const [actionRegTitle, setActionRegTitle] = useState<string>("");
-  const [actionCurrentVersion, setActionCurrentVersion] = useState<string>("");
-  const [actionNewVersion, setActionNewVersion] = useState<string>("");
-  const [actionUseManual, setActionUseManual] = useState(false);
-  const [actionSourceUrl, setActionSourceUrl] = useState("");
-  const [actionManualText, setActionManualText] = useState("");
-  const [actionBusy, setActionBusy] = useState(false);
 
   const openAction = (mode: "refresh" | "new", reg: Regulation, doc?: RegDoc) => {
     setActionMode(mode);
@@ -360,12 +349,12 @@ export default function OperatorDashboard() {
     (async () => {
       const docIds = Array.from(new Set(logs.map((l) => l.regulation_document_id))).filter(Boolean);
       if (!docIds.length) return;
-      const { data: docs } = await withRetry(() =>
+      const { data: docs } = await withRetry(async () =>
         supabase.from("regulation_documents").select("id, regulation_id").in("id", docIds)
       );
       const regIds = Array.from(new Set((docs || []).map((d: any) => d.regulation_id))).filter(Boolean);
       if (regIds.length) {
-        const { data: rds } = await withRetry(() =>
+        const { data: rds } = await withRetry(async () =>
           supabase.from("regulations").select("id, title, short_code").in("id", regIds)
         );
         const regMap: Record<string, { title: string; short: string }> = {};

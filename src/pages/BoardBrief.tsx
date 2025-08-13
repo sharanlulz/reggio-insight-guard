@@ -45,7 +45,7 @@ export default function BoardBrief() {
   useEffect(() => {
     (async () => {
       setErrRegs(null);
-      const { data, error } = await withRetry(() =>
+      const { data, error } = await withRetry(async () =>
         supabase.from("regulations").select("id, title, short_code").order("title")
       );
       if (error) {
@@ -65,7 +65,7 @@ export default function BoardBrief() {
     if (!regId) { setDocs([]); setDocId(""); return; }
     (async () => {
       setErrDocs(null);
-      const { data, error } = await withRetry(() =>
+      const { data, error } = await withRetry(async () =>
         supabase
           .from("regulation_documents")
           .select("id, version_label, created_at")
@@ -91,7 +91,7 @@ export default function BoardBrief() {
     setErrData(null);
 
     // CLAUSES
-    const { data: cls, error: e1, count: cCount } = await withRetry(() =>
+    const { data: cls, error: e1, count: cCount } = await withRetry(async () =>
       supabase
         .from("clauses")
         .select("id, path_hierarchy, summary_plain, risk_area", { count: "exact" })
@@ -112,7 +112,7 @@ export default function BoardBrief() {
     // OBLIGATIONS (only for those clause IDs)
     const clauseIds = clauseRows.map((c: any) => c.id);
     if (clauseIds.length) {
-      const { data: os, error: e2, count: oCount } = await withRetry(() =>
+      const { data: os, error: e2, count: oCount } = await withRetry(async () =>
         supabase
           .from("obligations")
           .select("id, clause_id, obligation_text, related_clause_path", { count: "exact" })
