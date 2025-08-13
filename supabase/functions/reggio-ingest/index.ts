@@ -166,17 +166,30 @@ async function upsertDocAndClauses(payload: IngestPayload) {
   return { regulation_document_id: document_id };
 }
 
+// -------- CORS helper --------
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+
 // -------- HTTP --------
 serve(async (req) => {
+  // Preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     if (req.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
+      return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
     }
+
     const payload = (await req.json()) as IngestPayload;
 
     if (!payload.regulationId) {
       return new Response(JSON.stringify({ error: "regulationId required" }), {
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
         status: 400,
       });
     }
@@ -185,9 +198,10 @@ serve(async (req) => {
       payload.chunks = await fetchAndChunk(payload.source_url);
       if (!payload.document.source_url) payload.document.source_url = payload.source_url;
     }
+
     if (!payload.chunks || payload.chunks.length === 0) {
       return new Response(JSON.stringify({ error: "No chunks provided/resolved" }), {
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
         status: 400,
       });
     }
@@ -195,19 +209,13 @@ serve(async (req) => {
     const result = await upsertDocAndClauses(payload);
 
     return new Response(JSON.stringify({ ok: true, ...result }), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
       status: 200,
     });
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: String(e) }), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
       status: 500,
     });
   }
