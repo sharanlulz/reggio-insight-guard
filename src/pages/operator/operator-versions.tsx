@@ -33,11 +33,9 @@ type CoverageRow = {
 };
 
 function getFunctionsBaseUrl() {
-  const url = import.meta.env.VITE_SUPABASE_URL as string;
-  // https://<project-ref>.supabase.co -> https://<project-ref>.functions.supabase.co
-  const m = url.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co$/i);
-  const ref = m ? m[1] : "";
-  return `https://${ref}.functions.supabase.co`;
+  // Use the project ID directly from the env
+  const projectRef = "plktjrbfnzyelwkyyssz";
+  return `https://${projectRef}.functions.supabase.co`;
 }
 
 export default function OperatorVersions() {
@@ -46,109 +44,126 @@ export default function OperatorVersions() {
   const [q, setQ] = useState("");
 
   async function load() {
-    const [v1, v2] = await Promise.all([
-      withRetry(() =>
-        supabase.from("regulation_documents_v")
-          .select("*")
-          .order("created_at", { ascending: false })
-      ),
-      withRetry(() =>
-        supabase.from("clause_coverage_by_document_v").select("*")
-      ),
-    ]);
+    try {
+      const [v1, v2] = await Promise.all([
+        withRetry(() =>
+          supabase.from("regulation_documents_v")
+            .select("*")
+            .order("created_at", { ascending: false })
+        ),
+        withRetry(() =>
+          supabase.from("clause_coverage_by_document_v").select("*")
+        ),
+      ]);
 
-    if (v1.error) {
-      toast({
-        variant: "destructive",
-        title: "Load versions failed",
-        description: v1.error.message
-      });
-    } else {
-      setRows((v1.data || []) as VersionRow[]);
-    }
+      if (v1.error) {
+        toast({
+          variant: "destructive",
+          title: "Load versions failed",
+          description: v1.error.message
+        });
+      } else {
+        setRows((v1.data || []) as VersionRow[]);
+      }
 
-    if (v2.error) {
-      toast({
-        variant: "destructive",
-        title: "Load coverage failed",
-        description: v2.error.message
-      });
-    } else {
-      const map: Record<string, CoverageRow> = {};
-      (v2.data as CoverageRow[]).forEach((r) => (map[r.document_id] = r));
-      setCoverage(map);
+      if (v2.error) {
+        toast({
+          variant: "destructive",
+          title: "Load coverage failed",
+          description: v2.error.message
+        });
+      } else {
+        const map: Record<string, CoverageRow> = {};
+        (v2.data as CoverageRow[]).forEach((r) => (map[r.document_id] = r));
+        setCoverage(map);
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Load failed", description: error.message });
     }
   }
 
   useEffect(() => { load(); }, []);
 
   async function softDeleteDoc(docId: string) {
-    const { error } = await withRetry(() =>
-      supabase.rpc("soft_delete_document", { p_doc_id: docId })
-    );
-    if (error) {
+    try {
+      const result = await withRetry(() =>
+        supabase.rpc("soft_delete_document", { p_doc_id: docId })
+      );
+      if (result.error) {
+        toast({ variant: "destructive", title: "Delete failed", description: result.error.message });
+      } else {
+        toast({ title: "Document hidden" });
+        load();
+      }
+    } catch (error: any) {
       toast({ variant: "destructive", title: "Delete failed", description: error.message });
-    } else {
-      toast({ title: "Document hidden" });
-      load();
     }
   }
 
   async function hardDeleteDoc(docId: string) {
     const ok = window.confirm("Hard delete will permanently remove this version and its clauses/obligations. Continue?");
     if (!ok) return;
-    const { error } = await withRetry(() =>
-      supabase.rpc("hard_delete_document", { p_doc_id: docId })
-    );
-    if (error) {
+    try {
+      const result = await withRetry(() =>
+        supabase.rpc("hard_delete_document", { p_doc_id: docId })
+      );
+      if (result.error) {
+        toast({ variant: "destructive", title: "Hard delete failed", description: result.error.message });
+      } else {
+        toast({ title: "Document removed" });
+        load();
+      }
+    } catch (error: any) {
       toast({ variant: "destructive", title: "Hard delete failed", description: error.message });
-    } else {
-      toast({ title: "Document removed" });
-      load();
     }
   }
 
   async function reIngest(regId: string, docId: string, versionLabel: string) {
-    // Read the source_url from the public view
-    const { data: doc, error } = await withRetry(() =>
-      supabase
-        .from("regulation_documents_detail_v")
-        .select("source_url")
-        .eq("document_id", docId)
-        .single()
-    );
-    if (error) {
-      toast({ variant: "destructive", title: "Load doc failed", description: error.message });
-      return;
-    }
+    try {
+      // Read the source_url from the public view
+      const result = await withRetry(() =>
+        supabase
+          .from("regulation_documents_detail_v")
+          .select("source_url")
+          .eq("document_id", docId)
+          .single()
+      );
+      if (result.error) {
+        toast({ variant: "destructive", title: "Load doc failed", description: result.error.message });
+        return;
+      }
+      const doc = result.data;
 
-    let source = (doc?.source_url as string) || "";
-    if (!source) {
-      source = window.prompt("Enter source URL to ingest:") || "";
-      if (!source) return;
-    }
+      let source = (doc?.source_url as string) || "";
+      if (!source) {
+        source = window.prompt("Enter source URL to ingest:") || "";
+        if (!source) return;
+      }
 
-    // Call the Edge Function
-    const fnUrl = `${getFunctionsBaseUrl()}/reggio-ingest`;
-    const res = await fetch(fnUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        regulationId: regId,
-        source_url: source,
-        document: { versionLabel }, // function will find/create version safely
-        chunks: [],                  // let the function fetch & chunk
-      }),
-    });
+      // Call the Edge Function
+      const fnUrl = `${getFunctionsBaseUrl()}/reggio-ingest`;
+      const res = await fetch(fnUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsa3RqcmJmbnp5ZWx3a3l5c3N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NDg1ODEsImV4cCI6MjA3MDQyNDU4MX0.od0uTP1PV4iALtJLB79fOCZ5g7ACJew0FzL5CJlzZ20`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          regulationId: regId,
+          source_url: source,
+          document: { versionLabel }, // function will find/create version safely
+          chunks: [],                  // let the function fetch & chunk
+        }),
+      });
 
-    if (!res.ok) {
-      const err = await res.text();
-      toast({ variant: "destructive", title: "Re-ingest failed", description: err.slice(0, 240) });
-    } else {
-      toast({ title: "Re-ingestion started" });
+      if (!res.ok) {
+        const err = await res.text();
+        toast({ variant: "destructive", title: "Re-ingest failed", description: err.slice(0, 240) });
+      } else {
+        toast({ title: "Re-ingestion started" });
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Re-ingest failed", description: error.message });
     }
   }
 

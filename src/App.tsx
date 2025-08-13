@@ -1,6 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+// import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 
@@ -15,14 +15,13 @@ import Regs from "@/pages/Regs";
 import OperatorDashboard from "@/pages/OperatorDashboard";
 
 // IMPORTANT: component identifiers must be PascalCase; file can be named operator-versions.tsx
-import OperatorVersions from "@/pages/operator-versions";
-import OperatorIngestions from "@/pages/operator-ingestions";
+import OperatorVersions from "@/pages/operator/operator-versions";
+import OperatorIngestions from "@/pages/operator/operator-ingestions";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
@@ -47,13 +46,12 @@ const App = () => (
           {/* Operator pages */}
           <Route path="/operator" element={<OperatorDashboard />} />
           <Route path="/operator-versions" element={<OperatorVersions />} />
-          <Route path="/operator-ingestions" element={<OperatorVersions />} />
+          <Route path="/operator-ingestions" element={<OperatorIngestions />} />
 
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-    </TooltipProvider>
   </QueryClientProvider>
 );
 

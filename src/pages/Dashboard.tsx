@@ -15,37 +15,41 @@ export default function Dashboard() {
   const [riskCounts, setRiskCounts] = useState<Record<string, number>>({});
 
   async function loadCounts() {
-    // Documents count via HEAD count
-    const docHead = await withRetry(() =>
-      supabase.from(T.REGDOCS).select("*", { count: "exact", head: true })
-    );
-    setDocCount(Number(docHead.count || 0));
-
-    // Last ingestion time
-    const ing = await withRetry(() =>
-      supabase.from(T.INGESTIONS)
-        .select("finished_at, updated_at, status")
-        .order("finished_at", { ascending: false })
-        .limit(1)
-    );
-    if (!ing.error && ing.data && ing.data.length) {
-      const r = ing.data[0] as any;
-      const ts = r.finished_at || r.updated_at;
-      setLastIngest(ts ? new Date(ts).toLocaleString() : "—");
-    }
-
-    // Risk counts (do multiple head counts to avoid aggregates)
-    const counts: Record<string, number> = {};
-    await Promise.all(RISK_AREAS.map(async (ra) => {
-      const head = await withRetry(() =>
-        supabase
-          .from(T.CLAUSES)
-          .select("*", { count: "exact", head: true })
-          .eq("risk_area", ra)
+    try {
+      // Documents count via HEAD count
+      const docHead = await withRetry(() =>
+        supabase.from(T.REGDOCS).select("*", { count: "exact", head: true })
       );
-      counts[ra] = Number(head.count || 0);
-    }));
-    setRiskCounts(counts);
+      setDocCount(Number(docHead.count || 0));
+
+      // Last ingestion time
+      const ing = await withRetry(() =>
+        supabase.from(T.INGESTIONS)
+          .select("finished_at, updated_at, status")
+          .order("finished_at", { ascending: false })
+          .limit(1)
+      );
+      if (!ing.error && ing.data && ing.data.length) {
+        const r = ing.data[0] as any;
+        const ts = r.finished_at || r.updated_at;
+        setLastIngest(ts ? new Date(ts).toLocaleString() : "—");
+      }
+
+      // Risk counts (do multiple head counts to avoid aggregates)
+      const counts: Record<string, number> = {};
+      await Promise.all(RISK_AREAS.map(async (ra) => {
+        const head = await withRetry(() =>
+          supabase
+            .from(T.CLAUSES)
+            .select("*", { count: "exact", head: true })
+            .eq("risk_area", ra)
+        );
+        counts[ra] = Number(head.count || 0);
+      }));
+      setRiskCounts(counts);
+    } catch (error) {
+      console.error("Failed to load counts:", error);
+    }
   }
 
   useEffect(() => { loadCounts(); }, []);

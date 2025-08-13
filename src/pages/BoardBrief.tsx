@@ -30,31 +30,40 @@ export default function BoardBrief() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await withRetry(() =>
-        supabase.from(T.REGULATIONS).select("id, title, short_code").order("title")
-      );
-      if (error) toast({ variant: "destructive", title: "Load regulations failed", description: error.message });
-      else setRegs((data as Regulation[]) || []);
+      try {
+        const result = await withRetry(() =>
+          supabase.from(T.REGULATIONS).select("id, title, short_code").order("title")
+        );
+        if (result.error) toast({ variant: "destructive", title: "Load regulations failed", description: result.error.message });
+        else setRegs((result.data as Regulation[]) || []);
+      } catch (error: any) {
+        toast({ variant: "destructive", title: "Load regulations failed", description: error.message });
+      }
     })();
   }, []);
 
   useEffect(() => {
     if (!regId) { setClauses([]); setMarkdown(""); return; }
     (async () => {
-      const { data, error } = await withRetry(() =>
-        supabase
-          .from(T.CLAUSES)
-          .select("id, risk_area, summary_plain, path_hierarchy, regulation_title, regulation_short_code")
-          .eq("regulation_id", regId)
-          .order("path_hierarchy", { ascending: true })
-          .limit(2000)
-      );
-      if (error) {
+      try {
+        const result = await withRetry(() =>
+          supabase
+            .from(T.CLAUSES)
+            .select("id, risk_area, summary_plain, path_hierarchy, regulation_title, regulation_short_code")
+            .eq("regulation_id", regId)
+            .order("path_hierarchy", { ascending: true })
+            .limit(2000)
+        );
+        if (result.error) {
+          toast({ variant: "destructive", title: "Load clauses failed", description: result.error.message });
+          setClauses([]);
+          return;
+        }
+        setClauses((result.data as Clause[]) || []);
+      } catch (error: any) {
         toast({ variant: "destructive", title: "Load clauses failed", description: error.message });
         setClauses([]);
-        return;
       }
-      setClauses((data as Clause[]) || []);
     })();
   }, [regId]);
 
