@@ -13,8 +13,8 @@ type Regulation = {
   org_id: string;
 };
 
-type DocAgg = { regulation_id: string; count: number; max_created: string | null };
-type RiskAgg = { regulation_id: string; risk_area: string | null; count: number };
+type DocsAgg = { regulation_id: string; count: number; max_created: string | null };
+type ClausesAgg = { regulation_id: string; count: number };
 
 function timeAgo(iso?: string | null) {
   if (!iso) return "—";
@@ -31,8 +31,10 @@ const DEMO_ORG_ID = (import.meta as any).env?.VITE_REGGIO_ORG_ID || "d3546758-a2
 export default function Dashboard() {
   const [regs, setRegs] = useState<Regulation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [docsAgg, setDocsAgg] = useState<Record<string, DocAgg>>({});
-  const [riskAgg, setRiskAgg] = useState<Record<string, RiskAgg[]>>({});
+
+  // Aggregates per regulation
+  const [docsAgg, setDocsAgg] = useState<Record<string, DocsAgg>>({});
+  const [clausesAgg, setClausesAgg] = useState<Record<string, number>>({});
 
   // Ingest modal
   const [openIngest, setOpenIngest] = useState(false);
@@ -52,7 +54,6 @@ export default function Dashboard() {
   const [newReg, setNewReg] = useState("PRA");
   const [adding, setAdding] = useState(false);
 
-  // Load regulations
   const loadRegs = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -68,47 +69,38 @@ export default function Dashboard() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadRegs(); }, [loadRegs]);
-
-  // Load aggregates when regs change
   const loadAggs = useCallback(async () => {
-    if (!regs.length) return;
-    const { data: docs } = await supabase
+    // docs per regulation (count + latest)
+    const { data: docs, error: e1 } = await supabase
       .from("regulation_documents")
       .select("regulation_id, count:count(), max_created:max(created_at)");
-    const mapDocs: Record<string, DocAgg> = {};
-    (docs || []).forEach((d: any) => {
-      mapDocs[d.regulation_id] = {
-        regulation_id: d.regulation_id,
-        count: Number(d.count || 0),
-        max_created: d.max_created || null,
-      };
-    });
-    setDocsAgg(mapDocs);
-
-    const { data: risks } = await supabase
-      .from("clauses")
-      .select("regulation_id, risk_area, count:count()");
-    const mapRisk: Record<string, RiskAgg[]> = {};
-    (risks || []).forEach((r: any) => {
-      const rid = r.regulation_id as string;
-      if (!mapRisk[rid]) mapRisk[rid] = [];
-      mapRisk[rid].push({
-        regulation_id: rid,
-        risk_area: r.risk_area || "UNKNOWN",
-        count: Number(r.count || 0),
+    if (!e1 && docs) {
+      const map: Record<string, DocsAgg> = {};
+      (docs as any[]).forEach((d) => {
+        map[d.regulation_id] = {
+          regulation_id: d.regulation_id,
+          count: Number(d.count || 0),
+          max_created: d.max_created || null,
+        };
       });
-    });
-    Object.keys(mapRisk).forEach((k) => mapRisk[k].sort((a, b) => b.count - a.count));
-    setRiskAgg(mapRisk);
-  }, [regs]);
+      setDocsAgg(map);
+    } else if (e1) console.error(e1);
 
-  useEffect(() => { loadAggs(); }, [loadAggs]);
-
-  const handleOpenFor = useCallback((rid: string) => {
-    setSelectedRegId(rid);
-    setOpenIngest(true);
+    // clauses per regulation
+    const { data: cls, error: e2 } = await supabase
+      .from("clauses")
+      .select("regulation_id, count:count()");
+    if (!e2 && cls) {
+      const map: Record<string, number> = {};
+      (cls as any[]).forEach((c) => {
+        map[c.regulation_id] = Number(c.count || 0);
+      });
+      setClausesAgg(map);
+    } else if (e2) console.error(e2);
   }, []);
+
+  useEffect(() => { loadRegs(); }, [loadRegs]);
+  useEffect(() => { loadAggs(); }, [loadAggs]);
 
   const handleIngest = useCallback(async () => {
     if (!selectedRegId) { alert("Please select a regulation."); return; }
@@ -127,7 +119,7 @@ export default function Dashboard() {
       const anon = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string;
       const fnUrl = supaUrl.replace("supabase.co", "functions.supabase.co") + "/reggio-ingest";
 
-      let chunks: Array<{ path_hierarchy: string; number_label?: string | null; text_raw: string }> | undefined;
+      let chunks: Array<{ path_hierarchy: string; number_label: string | null; text_raw: string }> | undefined;
       let srcUrlForDoc: string | undefined;
       if (useManual) {
         const clean = manualText.replace(/\s+/g, " ").trim();
@@ -167,7 +159,7 @@ export default function Dashboard() {
       setOpenIngest(false);
       setSourceUrl(""); setManualText(""); setUseManual(false);
 
-      // refresh stats
+      // refresh aggregates
       await loadAggs();
     } catch (err: any) {
       console.error(err);
@@ -177,14 +169,11 @@ export default function Dashboard() {
     }
   }, [selectedRegId, sourceUrl, useManual, manualText, versionLabel, docType, loadAggs]);
 
-  // Add regulation
   const handleAddReg = useCallback(async () => {
-    if (!newTitle.trim() || !newShort.trim()) {
-      alert("Please enter Title and Short code."); return;
-    }
+    if (!newTitle.trim() || !newShort.trim()) { alert("Please enter Title and Short code."); return; }
     setAdding(true);
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("regulations")
         .insert({
           title: newTitle.trim(),
@@ -195,14 +184,11 @@ export default function Dashboard() {
         })
         .select("id")
         .single();
-      if (error) {
-        alert("Add regulation failed: " + (error.message || JSON.stringify(error)));
-        return;
-      }
+      if (error) { alert("Add regulation failed: " + (error.message || JSON.stringify(error))); return; }
       setOpenAdd(false);
       setNewTitle(""); setNewShort("");
-      await loadRegs();      // refresh list
-      await loadAggs();      // refresh stats
+      await loadRegs();
+      await loadAggs();
       alert("Regulation added.");
     } catch (e: any) {
       alert("Add regulation error: " + String(e?.message || e));
@@ -210,8 +196,6 @@ export default function Dashboard() {
       setAdding(false);
     }
   }, [newTitle, newShort, newJur, newReg, loadRegs, loadAggs]);
-
-  const byId = useMemo(() => Object.fromEntries(regs.map((r) => [r.id, r])), [regs]);
 
   return (
     <div className="p-6 space-y-6">
@@ -229,8 +213,8 @@ export default function Dashboard() {
       {!loading && regs.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {regs.map((r) => {
-            const doc = docsAgg[r.id];
-            const risks = riskAgg[r.id] || [];
+            const docs = docsAgg[r.id];
+            const clausesCount = clausesAgg[r.id] ?? 0;
             return (
               <Card key={r.id} className="p-4 flex flex-col justify-between">
                 <div className="space-y-1">
@@ -242,26 +226,16 @@ export default function Dashboard() {
 
                 <div className="mt-3 text-sm space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Documents</span>
-                    <span className="font-medium">{doc?.count ?? 0}</span>
+                    <span className="text-muted-foreground">Docs</span>
+                    <span className="font-medium">{docs?.count ?? 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Clauses</span>
+                    <span className="font-medium">{clausesCount}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Last ingested</span>
-                    <span className="font-medium">{timeAgo(doc?.max_created)}</span>
-                  </div>
-                  <div className="pt-2">
-                    <div className="text-muted-foreground mb-1">Clauses by risk</div>
-                    {risks.length === 0 ? (
-                      <div className="text-muted-foreground">—</div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {risks.slice(0, 6).map((x) => (
-                          <span key={`${x.risk_area}-${x.count}`} className="px-2 py-1 rounded-full border text-xs">
-                            {x.risk_area}: {x.count}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    <span className="font-medium">{timeAgo(docs?.max_created)}</span>
                   </div>
                 </div>
 
@@ -281,25 +255,20 @@ export default function Dashboard() {
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium">Title</label>
-              <input className="w-full border rounded-md px-3 py-2 bg-background"
-                     value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+              <input className="w-full border rounded-md px-3 py-2 bg-background" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
             </div>
             <div>
               <label className="block text-sm font-medium">Short code</label>
-              <input className="w-full border rounded-md px-3 py-2 bg-background"
-                     placeholder="e.g., PRA-LIQ-TEST"
-                     value={newShort} onChange={e => setNewShort(e.target.value)} />
+              <input className="w-full border rounded-md px-3 py-2 bg-background" placeholder="e.g., PRA-LIQ-TEST" value={newShort} onChange={e => setNewShort(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium">Jurisdiction</label>
-                <input className="w-full border rounded-md px-3 py-2 bg-background"
-                       value={newJur} onChange={e => setNewJur(e.target.value)} />
+                <input className="w-full border rounded-md px-3 py-2 bg-background" value={newJur} onChange={e => setNewJur(e.target.value)} />
               </div>
               <div>
                 <label className="block text-sm font-medium">Regulator</label>
-                <input className="w-full border rounded-md px-3 py-2 bg-background"
-                       value={newReg} onChange={e => setNewReg(e.target.value)} />
+                <input className="w-full border rounded-md px-3 py-2 bg-background" value={newReg} onChange={e => setNewReg(e.target.value)} />
               </div>
             </div>
           </div>
@@ -316,12 +285,9 @@ export default function Dashboard() {
           <DialogHeader><DialogTitle>Ingest a regulation document</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <label className="block text-sm font-medium">Select regulation</label>
-            <select className="w-full border rounded-md px-3 py-2 bg-background"
-                    value={selectedRegId} onChange={(e) => setSelectedRegId(e.target.value)}>
+            <select className="w-full border rounded-md px-3 py-2 bg-background" value={selectedRegId} onChange={(e) => setSelectedRegId(e.target.value)}>
               <option value="">-- Choose --</option>
-              {regs.map((r) => (
-                <option key={r.id} value={r.id}>{r.title} ({r.short_code})</option>
-              ))}
+              {regs.map((r) => (<option key={r.id} value={r.id}>{r.title} ({r.short_code})</option>))}
             </select>
 
             <div className="flex items-center gap-2 pt-2">
@@ -332,27 +298,23 @@ export default function Dashboard() {
             {!useManual ? (
               <>
                 <label className="block text-sm font-medium">Source URL</label>
-                <input type="url" placeholder="https://…" className="w-full border rounded-md px-3 py-2 bg-background"
-                       value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
+                <input type="url" placeholder="https://…" className="w-full border rounded-md px-3 py-2 bg-background" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
               </>
             ) : (
               <>
                 <label className="block text-sm font-medium">Paste regulation text</label>
-                <textarea placeholder="Paste 2–5 paragraphs…" className="w-full border rounded-md px-3 py-2 bg-background min-h-[160px]"
-                          value={manualText} onChange={(e) => setManualText(e.target.value)} />
+                <textarea placeholder="Paste 2–5 paragraphs…" className="w-full border rounded-md px-3 py-2 bg-background min-h-[160px]" value={manualText} onChange={(e) => setManualText(e.target.value)} />
               </>
             )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium">Version label</label>
-                <input className="w-full border rounded-md px-3 py-2 bg-background"
-                       value={versionLabel} onChange={(e) => setVersionLabel(e.target.value)} />
+                <input className="w-full border rounded-md px-3 py-2 bg-background" value={versionLabel} onChange={(e) => setVersionLabel(e.target.value)} />
               </div>
               <div>
                 <label className="block text-sm font-medium">Doc type</label>
-                <select className="w-full border rounded-md px-3 py-2 bg-background"
-                        value={docType} onChange={(e) => setDocType(e.target.value as any)}>
+                <select className="w-full border rounded-md px-3 py-2 bg-background" value={docType} onChange={(e) => setDocType(e.target.value as any)}>
                   <option value="Regulation">Regulation</option>
                   <option value="Guidance">Guidance</option>
                 </select>
