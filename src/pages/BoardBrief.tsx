@@ -6,11 +6,14 @@ import { withRetry } from "@/lib/supaRetry";
 
 type Regulation = { id: string; title: string; short_code: string };
 type RegDoc = { id: string; version_label: string; created_at: string };
-type Clause = {
+type ClauseRow = {
   id: string;
+  document_id: string | null;
   path_hierarchy: string;
   summary_plain: string | null;
   risk_area: string | null;
+  regulation_title: string | null;
+  regulation_short_code: string | null;
 };
 type Obligation = {
   id: string;
@@ -23,6 +26,26 @@ function formatDate(iso?: string | null) {
   return iso ? new Date(iso).toLocaleString() : "—";
 }
 
+function useDebounced<T>(value: T, delay = 300) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return v;
+}
+
+function matchClause(c: ClauseRow, q: string, mode: "both" | "summary" | "text") {
+  if (!q) return true;
+  const haySummary = (c.summary_plain || "").toLowerCase();
+  const hayText = `${c.path_hierarchy}`.toLowerCase(); // we don't carry full text here on purpose
+  const ql = q.toLowerCase();
+
+  if (mode === "summary") return haySummary.includes(ql);
+  if (mode === "text") return hayText.includes(ql);
+  return haySummary.includes(ql) || hayText.includes(ql);
+}
+
 export default function BoardBrief() {
   const [regs, setRegs] = useState<Regulation[]>([]);
   const [regId, setRegId] = useState("");
@@ -30,12 +53,20 @@ export default function BoardBrief() {
   const [docId, setDocId] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [clauses, setClauses] = useState<Clause[]>([]);
+  const [clauses, setClauses] = useState<ClauseRow[]>([]);
   const [obls, setObls] = useState<Obligation[]>([]);
-  const [counts, setCounts] = useState<{ docs: number; clauses: number; obls: number }>({ docs: 0, clauses: 0, obls: 0 });
+  const [counts, setCounts] = useState<{ docs: number; clauses: number; obls: number }>({
+    docs: 0,
+    clauses: 0,
+    obls: 0,
+  });
 
-  const [markdown, setMarkdown] = useState("");
   const [title, setTitle] = useState("Board Brief — Compliance Update");
+
+  // NEW: local search on the brief view
+  const [search, setSearch] = useState("");
+  const [searchIn, setSearchIn] = useState<"both" | "summary" | "text">("both");
+  const q = useDebounced(search, 250);
 
   const [errRegs, setErrRegs] = useState<string | null>(null);
   const [errDocs, setErrDocs] = useState<string | null>(null);
@@ -45,7 +76,7 @@ export default function BoardBrief() {
   useEffect(() => {
     (async () => {
       setErrRegs(null);
-      const { data, error } = await withRetry(async () =>
+      const { data, error } = await withRetry(() =>
         supabase.from("regulations").select("id, title, short_code").order("title")
       );
       if (error) {
@@ -62,10 +93,14 @@ export default function BoardBrief() {
 
   // Load versions for selected regulation & auto-select latest
   useEffect(() => {
-    if (!regId) { setDocs([]); setDocId(""); return; }
+    if (!regId) {
+      setDocs([]);
+      setDocId("");
+      return;
+    }
     (async () => {
       setErrDocs(null);
-      const { data, error } = await withRetry(async () =>
+      const { data, error } = await withRetry(() =>
         supabase
           .from("regulation_documents")
           .select("id, version_label, created_at")
@@ -85,16 +120,25 @@ export default function BoardBrief() {
     })();
   }, [regId]);
 
+  // Load data for selected document (clauses via clauses_v + obligations)
   const loadData = useCallback(async () => {
-    if (!docId) { setClauses([]); setObls([]); setCounts((c)=>({ ...c, clauses:0, obls:0 })); return; }
+    if (!docId) {
+      setClauses([]);
+      setObls([]);
+      setCounts((c) => ({ ...c, clauses: 0, obls: 0 }));
+      return;
+    }
     setLoading(true);
     setErrData(null);
 
-    // CLAUSES
-    const { data: cls, error: e1, count: cCount } = await withRetry(async () =>
+    // CLAUSES (from public.clauses_v so we also have regulation name)
+    const { data: cls, error: e1, count: cCount } = await withRetry(() =>
       supabase
-        .from("clauses")
-        .select("id, path_hierarchy, summary_plain, risk_area", { count: "exact" })
+        .from("clauses_v")
+        .select(
+          "id, document_id, path_hierarchy, summary_plain, risk_area, regulation_title, regulation_short_code",
+          { count: "exact" }
+        )
         .eq("document_id", docId)
         .order("path_hierarchy")
     );
@@ -105,14 +149,14 @@ export default function BoardBrief() {
       setLoading(false);
       return;
     }
-    const clauseRows = (cls || []) as Clause[];
+    const clauseRows = (cls || []) as ClauseRow[];
     setClauses(clauseRows);
     setCounts((c) => ({ ...c, clauses: Number(cCount || clauseRows.length) }));
 
-    // OBLIGATIONS (only for those clause IDs)
-    const clauseIds = clauseRows.map((c: any) => c.id);
+    // OBLIGATIONS (for those clauses)
+    const clauseIds = clauseRows.map((c) => c.id);
     if (clauseIds.length) {
-      const { data: os, error: e2, count: oCount } = await withRetry(async () =>
+      const { data: os, error: e2, count: oCount } = await withRetry(() =>
         supabase
           .from("obligations")
           .select("id, clause_id, obligation_text, related_clause_path", { count: "exact" })
@@ -135,25 +179,32 @@ export default function BoardBrief() {
     setLoading(false);
   }, [docId]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  // Build markdown grouped by risk_area
-  const builtMarkdown = useMemo(() => {
-    if (!clauses.length) return "# Board Brief\n\n_No clauses available for this version._";
+  // Filtered clauses for display based on local search
+  const filteredClauses = useMemo(() => {
+    if (!q) return clauses;
+    return clauses.filter((c) => matchClause(c, q, searchIn));
+  }, [clauses, q, searchIn]);
 
-    const groups = new Map<string, Clause[]>();
-    for (const c of clauses) {
+  // Build markdown (still available for Export → Print)
+  const markdown = useMemo(() => {
+    if (!filteredClauses.length)
+      return "# Board Brief\n\n_No clauses available (try changing search or version)._";
+
+    const groups = new Map<string, ClauseRow[]>();
+    for (const c of filteredClauses) {
       const key = c.risk_area || "UNASSIGNED";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(c);
     }
 
-    const findObls = (clauseId: string) =>
-      obls.filter(o => o.clause_id === clauseId && (o.obligation_text || "").trim().length > 0);
+    const docMeta = docs.find((d) => d.id === docId);
+    const regMeta = regs.find((r) => r.id === regId);
 
     let md = `# ${title}\n\n`;
-    const docMeta = docs.find(d => d.id === docId);
-    const regMeta = regs.find(r => r.id === regId);
     md += `**Regulation:** ${regMeta?.title || "—"} (${regMeta?.short_code || "—"})\n\n`;
     md += `**Version:** ${docMeta?.version_label || "—"}  \n`;
     md += `**Generated:** ${new Date().toLocaleString()}\n\n`;
@@ -165,22 +216,22 @@ export default function BoardBrief() {
       for (const c of arr) {
         md += `\n### ${c.path_hierarchy}\n`;
         if (c.summary_plain) md += `${c.summary_plain}\n`;
-        const os = findObls(c.id);
+        const os = obls.filter(
+          (o) => o.clause_id === c.id && (o.obligation_text || "").trim().length > 0
+        );
         if (os.length) {
           md += `\n**Obligations:**\n`;
           for (const o of os) {
-            md += `- ${o.obligation_text}${o.related_clause_path ? ` _(ref: ${o.related_clause_path})_` : ""}\n`;
+            md += `- ${o.obligation_text}${
+              o.related_clause_path ? ` _(ref: ${o.related_clause_path})_` : ""
+            }\n`;
           }
         }
       }
     }
     return md.trim() + "\n";
-  }, [title, clauses, obls, regId, docId, regs, docs]);
+  }, [title, filteredClauses, obls, regId, docId, regs, docs]);
 
-  // When data changes, populate editor with generated markdown
-  useEffect(() => { setMarkdown(builtMarkdown); }, [builtMarkdown]);
-
-  // Print to PDF
   const exportPdf = () => window.print();
 
   return (
@@ -212,12 +263,10 @@ export default function BoardBrief() {
                 </option>
               ))}
             </select>
-            <div className="text-xs text-muted-foreground mt-1">
-              Regulations: {regs.length}
-            </div>
+            <div className="text-xs text-muted-foreground mt-1">Regulations: {regs.length}</div>
           </div>
 
-        <div>
+          <div>
             <label className="block text-sm font-medium">Version</label>
             <select
               className="w-full border rounded-md px-3 py-2 bg-background"
@@ -232,9 +281,7 @@ export default function BoardBrief() {
                 </option>
               ))}
             </select>
-            <div className="text-xs text-muted-foreground mt-1">
-              Versions: {docs.length}
-            </div>
+            <div className="text-xs text-muted-foreground mt-1">Versions: {docs.length}</div>
           </div>
 
           <div className="md:col-span-2">
@@ -247,37 +294,119 @@ export default function BoardBrief() {
           </div>
         </div>
 
+        {/* NEW: brief search */}
+        <div className="grid gap-3 md:grid-cols-3 pt-2">
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium">Search within this brief</label>
+            <input
+              className="w-full border rounded-md px-3 py-2 bg-background"
+              placeholder="Search summary and/or headings…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Search in</label>
+            <div className="flex gap-3 items-center text-sm mt-2">
+              <label className="inline-flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="searchIn"
+                  value="both"
+                  checked={searchIn === "both"}
+                  onChange={() => setSearchIn("both")}
+                />
+                both
+              </label>
+              <label className="inline-flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="searchIn"
+                  value="summary"
+                  checked={searchIn === "summary"}
+                  onChange={() => setSearchIn("summary")}
+                />
+                summary
+              </label>
+              <label className="inline-flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="searchIn"
+                  value="text"
+                  checked={searchIn === "text"}
+                  onChange={() => setSearchIn("text")}
+                />
+                headings only
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setMarkdown(builtMarkdown)} disabled={loading}>
-            Regenerate from data
-          </Button>
-          <Button onClick={exportPdf} disabled={loading || !clauses.length}>
-            Export to PDF
-          </Button>
+          <Button onClick={exportPdf} disabled={loading || !clauses.length}>Export to PDF</Button>
           <div className="text-xs text-muted-foreground ml-auto">
             Stats — Docs: {counts.docs} · Clauses: {counts.clauses} · Obligations: {counts.obls}
           </div>
         </div>
       </Card>
 
-      <Card className="p-0 overflow-hidden">
-        <style>
-          {`@media print {
-            nav, .no-print, .btn, .button, .shadcn-hide { display: none !important; }
-            body { background: white; }
-            textarea { border: none !important; }
-          }`}
-        </style>
-        <div className="p-3 border-b text-sm text-muted-foreground">
-          Markdown (editable)
-        </div>
-        <textarea
-          className="w-full min-h-[60vh] p-4 bg-background outline-none"
-          value={markdown}
-          onChange={(e) => setMarkdown(e.target.value)}
-          placeholder={loading ? "Loading…" : "No content yet — select a regulation/version above."}
-        />
-      </Card>
+      {/* Preview cards (regulation tag per clause) */}
+      <div className="space-y-3">
+        {filteredClauses.map((c) => {
+          const os = obls.filter(
+            (o) => o.clause_id === c.id && (o.obligation_text || "").trim().length > 0
+          );
+          return (
+            <Card key={c.id} className="p-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
+                {/* Regulation tag */}
+                {c.regulation_title && (
+                  <span className="px-2 py-1 rounded bg-muted">
+                    {c.regulation_short_code || ""} {c.regulation_short_code ? "·" : ""}
+                    {c.regulation_title}
+                  </span>
+                )}
+                <span className="px-2 py-1 rounded bg-muted">{c.path_hierarchy}</span>
+                {c.risk_area && <span className="px-2 py-1 rounded bg-muted">{c.risk_area}</span>}
+              </div>
+
+              {c.summary_plain && (
+                <div className="mb-2 leading-relaxed">{c.summary_plain}</div>
+              )}
+
+              {os.length > 0 && (
+                <div className="mt-2">
+                  <div className="text-xs font-medium text-muted-foreground mb-1">Obligations</div>
+                  <ul className="list-disc ml-5 space-y-1">
+                    {os.map((o) => (
+                      <li key={o.id}>
+                        {o.obligation_text}
+                        {o.related_clause_path ? (
+                          <span className="text-xs text-muted-foreground"> — ref: {o.related_clause_path}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+
+        {!loading && filteredClauses.length === 0 && (
+          <Card className="p-6 text-sm text-muted-foreground">
+            No results. Try changing your search or version.
+          </Card>
+        )}
+      </div>
+
+      {/* Print stylesheet */}
+      <style>
+        {`@media print {
+          nav, .no-print, .shadcn-hide { display: none !important; }
+          body { background: white; }
+        }`}
+      </style>
     </div>
   );
 }
