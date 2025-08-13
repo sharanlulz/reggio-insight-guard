@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { withRetry } from "@/lib/supaRetry";
 
 type Regulation = { id: string; title: string; short_code: string };
 type RegDoc = { id: string; version_label: string; created_at: string };
@@ -44,10 +45,9 @@ export default function BoardBrief() {
   useEffect(() => {
     (async () => {
       setErrRegs(null);
-      const { data, error } = await supabase
-        .from("regulations")
-        .select("id, title, short_code")
-        .order("title");
+      const { data, error } = await withRetry(() =>
+        supabase.from("regulations").select("id, title, short_code").order("title")
+      );
       if (error) {
         setErrRegs(error.message || JSON.stringify(error));
         setRegs([]);
@@ -65,11 +65,13 @@ export default function BoardBrief() {
     if (!regId) { setDocs([]); setDocId(""); return; }
     (async () => {
       setErrDocs(null);
-      const { data, error } = await supabase
-        .from("regulation_documents")
-        .select("id, version_label, created_at")
-        .eq("regulation_id", regId)
-        .order("created_at", { ascending: false });
+      const { data, error } = await withRetry(() =>
+        supabase
+          .from("regulation_documents")
+          .select("id, version_label, created_at")
+          .eq("regulation_id", regId)
+          .order("created_at", { ascending: false })
+      );
       if (error) {
         setErrDocs(error.message || JSON.stringify(error));
         setDocs([]);
@@ -89,11 +91,13 @@ export default function BoardBrief() {
     setErrData(null);
 
     // CLAUSES
-    const { data: cls, error: e1, count: cCount } = await supabase
-      .from("clauses")
-      .select("id, path_hierarchy, summary_plain, risk_area", { count: "exact" })
-      .eq("document_id", docId)
-      .order("path_hierarchy");
+    const { data: cls, error: e1, count: cCount } = await withRetry(() =>
+      supabase
+        .from("clauses")
+        .select("id, path_hierarchy, summary_plain, risk_area", { count: "exact" })
+        .eq("document_id", docId)
+        .order("path_hierarchy")
+    );
     if (e1) {
       setErrData(e1.message || JSON.stringify(e1));
       setClauses([]);
@@ -108,10 +112,12 @@ export default function BoardBrief() {
     // OBLIGATIONS (only for those clause IDs)
     const clauseIds = clauseRows.map((c: any) => c.id);
     if (clauseIds.length) {
-      const { data: os, error: e2, count: oCount } = await supabase
-        .from("obligations")
-        .select("id, clause_id, obligation_text, related_clause_path", { count: "exact" })
-        .in("clause_id", clauseIds);
+      const { data: os, error: e2, count: oCount } = await withRetry(() =>
+        supabase
+          .from("obligations")
+          .select("id, clause_id, obligation_text, related_clause_path", { count: "exact" })
+          .in("clause_id", clauseIds)
+      );
       if (e2) {
         setErrData(e2.message || JSON.stringify(e2));
         setObls([]);
@@ -142,7 +148,8 @@ export default function BoardBrief() {
       groups.get(key)!.push(c);
     }
 
-    const findObls = (clauseId: string) => obls.filter(o => o.clause_id === clauseId && (o.obligation_text || "").trim().length > 0);
+    const findObls = (clauseId: string) =>
+      obls.filter(o => o.clause_id === clauseId && (o.obligation_text || "").trim().length > 0);
 
     let md = `# ${title}\n\n`;
     const docMeta = docs.find(d => d.id === docId);
@@ -180,7 +187,6 @@ export default function BoardBrief() {
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-bold">Board Brief</h1>
 
-      {/* Troubleshooting banner */}
       {(errRegs || errDocs || errData) && (
         <Card className="p-3 text-sm bg-red-50 text-red-700">
           <div><b>Data error</b></div>
@@ -211,7 +217,7 @@ export default function BoardBrief() {
             </div>
           </div>
 
-          <div>
+        <div>
             <label className="block text-sm font-medium">Version</label>
             <select
               className="w-full border rounded-md px-3 py-2 bg-background"
