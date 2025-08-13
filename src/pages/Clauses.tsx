@@ -18,6 +18,8 @@ type Clause = {
   themes: string[] | null;
   industries: string[] | null;
   created_at: string;
+  regulation_title: string | null;
+  regulation_short_code: string | null;
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50];
@@ -72,6 +74,7 @@ function highlightText(text: string, q: string) {
 }
 
 export default function ClausesPage() {
+  // Filters
   const [regs, setRegs] = useState<Regulation[]>([]);
   const [regId, setRegId] = useState("");
   const [risk, setRisk] = useState("");
@@ -79,16 +82,18 @@ export default function ClausesPage() {
   const [search, setSearch] = useState("");
   const [searchIn, setSearchIn] = useState<"both" | "summary" | "text">("both");
 
+  // Pagination
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(30);
   const [total, setTotal] = useState(0);
 
+  // Data
   const [rows, setRows] = useState<Clause[]>([]);
   const [loading, setLoading] = useState(false);
 
   const debouncedQ = useDebounced(search, 350);
 
-  // Load regulations
+  // Load regulations (for the dropdown)
   useEffect(() => {
     (async () => {
       const { data, error } = await withRetry(() =>
@@ -98,18 +103,22 @@ export default function ClausesPage() {
     })();
   }, []);
 
+  // COUNT + PAGE fetch via public.clauses_v
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    // ----- COUNT -----
-    let countQ = supabase.from("clauses").select("*", { count: "exact", head: true });
+    // ----- COUNT (headers only) -----
+    let countQ = supabase.from("clauses_v").select("*", { count: "exact", head: true });
     if (regId) countQ = countQ.eq("regulation_id", regId);
     if (risk) countQ = countQ.eq("risk_area", risk);
     if (obType) countQ = countQ.eq("obligation_type", obType);
     if (debouncedQ) {
       const like = `%${debouncedQ}%`;
       if (searchIn === "both") {
-        countQ = countQ.or(`summary_plain.ilike.${like},text_raw.ilike.${like}`);
+        // Search across summary, raw text, AND regulation title for convenience
+        countQ = countQ.or(
+          `summary_plain.ilike.${like},text_raw.ilike.${like},regulation_title.ilike.${like}`
+        );
       } else if (searchIn === "summary") {
         countQ = countQ.ilike("summary_plain", like);
       } else {
@@ -121,9 +130,9 @@ export default function ClausesPage() {
 
     // ----- DATA -----
     let q = supabase
-      .from("clauses")
+      .from("clauses_v")
       .select(
-        "id, regulation_id, document_id, path_hierarchy, number_label, text_raw, summary_plain, obligation_type, risk_area, themes, industries, created_at"
+        "id, regulation_id, document_id, path_hierarchy, number_label, text_raw, summary_plain, obligation_type, risk_area, themes, industries, created_at, regulation_title, regulation_short_code"
       )
       .order("created_at", { ascending: false });
 
@@ -133,7 +142,9 @@ export default function ClausesPage() {
     if (debouncedQ) {
       const like = `%${debouncedQ}%`;
       if (searchIn === "both") {
-        q = q.or(`summary_plain.ilike.${like},text_raw.ilike.${like}`);
+        q = q.or(
+          `summary_plain.ilike.${like},text_raw.ilike.${like},regulation_title.ilike.${like}`
+        );
       } else if (searchIn === "summary") {
         q = q.ilike("summary_plain", like);
       } else {
@@ -218,7 +229,7 @@ export default function ClausesPage() {
             <label className="block text-sm font-medium">Search</label>
             <input
               className="w-full border rounded-md px-3 py-2 bg-background"
-              placeholder="Search summary and/or text…"
+              placeholder="Search summary/text/regulation title…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -284,6 +295,13 @@ export default function ClausesPage() {
           return (
             <Card key={cl.id} className="p-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
+                {/* NEW: regulation tag */}
+                {cl.regulation_title && (
+                  <span className="px-2 py-1 rounded bg-muted">
+                    {cl.regulation_short_code || ""} {cl.regulation_short_code ? "·" : ""}
+                    {cl.regulation_title}
+                  </span>
+                )}
                 <span className="px-2 py-1 rounded bg-muted">{cl.path_hierarchy}</span>
                 {cl.risk_area && <span className="px-2 py-1 rounded bg-muted">{cl.risk_area}</span>}
                 {cl.obligation_type && <span className="px-2 py-1 rounded bg-muted">{cl.obligation_type}</span>}
