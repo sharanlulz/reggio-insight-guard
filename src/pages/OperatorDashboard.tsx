@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { fromPublic } from "@/lib/dbPublic";
-import { T } from "@/lib/tables";
+import { supabase } from "@/integrations/supabase/client";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,7 @@ function StatusBadge({ status }: { status: IngestRow["status"] }) {
     succeeded: "success",
     failed: "destructive",
   };
-  // @ts-ignore shadcn variant type lenient
+  // @ts-ignore
   return <Badge variant={map[status] || "outline"}>{status}</Badge>;
 }
 
@@ -43,12 +42,13 @@ export default function OperatorDashboard() {
 
   async function loadIngestions() {
     setLoading(true);
-    const { data, error } = await fromPublic<IngestRow>(T.INGESTIONS)
+    const { data, error } = await supabase
+      .from("ingestions_v") // public view
       .select("*")
       .order("finished_at", { ascending: false })
       .limit(50);
 
-    if (!error && data) setIng(data);
+    if (!error && data) setIng(data as IngestRow[]);
     setLoading(false);
   }
 
@@ -62,7 +62,6 @@ export default function OperatorDashboard() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header with the ONLY ingest button in the entire app */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Operator Dashboard</h1>
         <div className="flex gap-2">
@@ -76,7 +75,6 @@ export default function OperatorDashboard() {
         </div>
       </div>
 
-      {/* Ingestion activity snapshot */}
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-lg font-semibold">Recent Ingestions</div>
@@ -128,7 +126,6 @@ export default function OperatorDashboard() {
         )}
       </Card>
 
-      {/* The only place where the ingest modal is mounted */}
       <IngestModal open={ingestOpen} onClose={() => setIngestOpen(false)} />
     </div>
   );
