@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,10 @@ const RISK_AREAS = [
 
 function useDebounced<T>(value: T, delay = 350) {
   const [v, setV] = useState(value);
-  useEffect(() => { const t = setTimeout(() => setV(value), delay); return () => clearTimeout(t); }, [value, delay]);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
   return v;
 }
 
@@ -59,7 +62,13 @@ function highlightText(text: string, q: string) {
   const re = new RegExp(`(${esc})`, "ig");
   const parts = text.split(re);
   return parts.map((p, i) =>
-    re.test(p) ? <mark key={i} className="bg-yellow-200 px-0.5 rounded">{p}</mark> : <span key={i}>{p}</span>
+    re.test(p) ? (
+      <mark key={i} className="bg-yellow-200 px-0.5 rounded">
+        {p}
+      </mark>
+    ) : (
+      <span key={i}>{p}</span>
+    )
   );
 }
 
@@ -86,10 +95,9 @@ export default function ClausesPage() {
   // Load regulations for the filter
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase
-        .from("regulations")
-        .select("id, title, short_code")
-        .order("title");
+      const { data, error } = await withRetry(() =>
+        supabase.from("regulations").select("id, title, short_code").order("title")
+      );
       if (!error && data) setRegs(data as Regulation[]);
     })();
   }, []);
@@ -99,9 +107,10 @@ export default function ClausesPage() {
     setLoading(true);
 
     // ----- COUNT (via headers) -----
-    const { count } = await withRetry(() =>
-      countQ
-    let countQ = supabase.from("clauses").select("*", { count: "exact", head: true });
+    let countQ = supabase
+      .from("clauses")
+      .select("*", { count: "exact", head: true });
+
     if (regId) countQ = countQ.eq("regulation_id", regId);
     if (risk) countQ = countQ.eq("risk_area", risk);
     if (obType) countQ = countQ.eq("obligation_type", obType);
@@ -115,12 +124,11 @@ export default function ClausesPage() {
         countQ = countQ.ilike("text_raw", like);
       }
     }
-    const { count } = await countQ;
+
+    const { count } = await withRetry(() => countQ);
     setTotal(Number(count || 0));
 
     // ----- DATA -----
-    const { count } = await withRetry(() =>
-        countQ
     let q = supabase
       .from("clauses")
       .select(
@@ -146,14 +154,19 @@ export default function ClausesPage() {
     const to = from + pageSize - 1;
     q = q.range(from, to);
 
-    const { data, error } = await q;
+    const { data, error } = await withRetry(() => q);
     setRows(!error && data ? (data as Clause[]) : []);
     setLoading(false);
   }, [regId, risk, obType, debouncedQ, searchIn, page, pageSize]);
 
   // Reset page when filters/search change
-  useEffect(() => { setPage(1); }, [regId, risk, obType, debouncedQ, searchIn]);
-  useEffect(() => { fetchData(); }, [fetchData, page, pageSize]);
+  useEffect(() => {
+    setPage(1);
+  }, [regId, risk, obType, debouncedQ, searchIn]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData, page, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -267,7 +280,9 @@ export default function ClausesPage() {
               onChange={(e) => setPageSize(Number(e.target.value))}
             >
               {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>{n}</option>
+                <option key={n} value={n}>
+                  {n}
+                </option>
               ))}
             </select>
           </div>
@@ -283,17 +298,27 @@ export default function ClausesPage() {
             <Card key={cl.id} className="p-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
                 <span className="px-2 py-1 rounded bg-muted">{cl.path_hierarchy}</span>
-                {cl.risk_area && <span className="px-2 py-1 rounded bg-muted">{cl.risk_area}</span>}
-                {cl.obligation_type && <span className="px-2 py-1 rounded bg-muted">{cl.obligation_type}</span>}
+                {cl.risk_area && (
+                  <span className="px-2 py-1 rounded bg-muted">{cl.risk_area}</span>
+                )}
+                {cl.obligation_type && (
+                  <span className="px-2 py-1 rounded bg-muted">{cl.obligation_type}</span>
+                )}
                 {cl.themes?.slice(0, 3).map((t) => (
-                  <span key={t} className="px-2 py-1 rounded bg-muted">#{t}</span>
+                  <span key={t} className="px-2 py-1 rounded bg-muted">
+                    #{t}
+                  </span>
                 ))}
-                <span className="ml-auto">{new Date(cl.created_at).toLocaleString()}</span>
+                <span className="ml-auto">
+                  {new Date(cl.created_at).toLocaleString()}
+                </span>
               </div>
 
               {showSummary && cl.summary_plain && (
                 <div className="mb-2">
-                  <div className="text-xs font-medium text-muted-foreground mb-1">Summary</div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">
+                    Summary
+                  </div>
                   <div className="leading-relaxed">
                     {highlightText(cl.summary_plain, debouncedQ)}
                   </div>
@@ -302,7 +327,9 @@ export default function ClausesPage() {
 
               {showText && (
                 <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1">Clause text</div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">
+                    Clause text
+                  </div>
                   <div className="leading-relaxed line-clamp-6">
                     {highlightText(cl.text_raw, debouncedQ)}
                   </div>
@@ -322,13 +349,33 @@ export default function ClausesPage() {
       {/* Pager */}
       <div className="flex items-center justify-between pt-2">
         <div className="text-sm text-muted-foreground">
-          Page {page} / {totalPages}
+          Page {page} / {Math.max(1, Math.ceil(total / pageSize))}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setPage(1)} disabled={page <= 1}>« First</Button>
-          <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>‹ Prev</Button>
-          <Button variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next ›</Button>
-          <Button variant="outline" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>Last »</Button>
+          <Button variant="outline" onClick={() => setPage(1)} disabled={page <= 1}>
+            « First
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+          >
+            ‹ Prev
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPage((p) => Math.min(Math.max(1, Math.ceil(total / pageSize)), p + 1))}
+            disabled={page >= Math.max(1, Math.ceil(total / pageSize))}
+          >
+            Next ›
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPage(Math.max(1, Math.ceil(total / pageSize)))}
+            disabled={page >= Math.max(1, Math.ceil(total / pageSize))}
+          >
+            Last »
+          </Button>
         </div>
       </div>
     </div>
