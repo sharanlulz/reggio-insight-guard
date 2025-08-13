@@ -11,6 +11,7 @@ import Clauses from "./pages/Clauses";
 import BoardBrief from "./pages/BoardBrief";
 import Debug from "@/pages/Debug";
 import Regs from "@/pages/Regs";
+import OperatorDashboard from "@/pages/OperatorDashboard";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/brief" element={<BoardBrief />} />
           <Route path="/regs" element={<Regs />} />
           <Route path="/debug" element={<Debug />} />
+          <Route path="/operator" element={<OperatorDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
