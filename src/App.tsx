@@ -12,6 +12,7 @@ import BoardBrief from "./pages/BoardBrief";
 import Debug from "@/pages/Debug";
 import Regs from "@/pages/Regs";
 import OperatorDashboard from "@/pages/OperatorDashboard";
+import operator-versions from "@/pages/operator-versions";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/regs" element={<Regs />} />
           <Route path="/debug" element={<Debug />} />
           <Route path="/operator" element={<OperatorDashboard />} />
+           <Route path="/operator" element={<operator-version />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
