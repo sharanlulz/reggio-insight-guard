@@ -7,11 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 
+/** ---------- Types ---------- */
 type VersionRow = {
   document_id: string;
   regulation_id: string;
   regulation_title: string;
-  regulation_short_code?: string; // in case your view exposes it later
+  regulation_short_code?: string; // if your view exposes it
   short_code: string;             // from regulation_documents_v
   version_label: string;
   created_at: string;
@@ -32,37 +33,67 @@ type CoverageRow = {
   obligation_pct: number;
 };
 
+/** ---------- Helpers (local) ---------- */
 function getFunctionsBaseUrl() {
-  // Use the project ID directly from the env
-  const projectRef = "plktjrbfnzyelwkyyssz";
-  return `https://${projectRef}.functions.supabase.co`;
+  const url = import.meta.env.VITE_SUPABASE_URL as string;
+  const m = url?.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co$/i);
+  const ref = m ? m[1] : "";
+  return `https://${ref}.functions.supabase.co`;
 }
 
+async function safeFetchJson(url: string, init?: RequestInit) {
+  const res = await fetch(url, init);
+  const text = await res.text();
+  let data: any;
+  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  if (!res.ok) {
+    const msg = data?.error?.message || data?.message || (typeof data?.error === "string" ? data.error : text);
+    const err: any = new Error(msg || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.payload = data;
+    throw err;
+  }
+  return data;
+}
+
+function errMsg(e: any) {
+  if (e?.payload?.error?.message) return String(e.payload.error.message);
+  if (e?.payload?.message) return String(e.payload.message);
+  if (e?.error?.message) return String(e.error.message);
+  if (typeof e?.error === "string") return e.error;
+  if (e?.message) return String(e.message);
+  try { return JSON.stringify(e); } catch { return String(e); }
+}
+
+/** ---------- Component ---------- */
 export default function OperatorVersions() {
   const [rows, setRows] = useState<VersionRow[]>([]);
   const [coverage, setCoverage] = useState<Record<string, CoverageRow>>({});
   const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function load() {
+    setLoading(true);
     try {
       const [v1, v2] = await Promise.all([
-        withRetry(async () => {
-          const response = await supabase.from("regulation_documents_v")
+        withRetry(async () =>
+          await supabase
+            .from("regulation_documents_v")
             .select("*")
-            .order("created_at", { ascending: false });
-          return response;
-        }),
-        withRetry(async () => {
-          const response = await supabase.from("clause_coverage_by_document_v").select("*");
-          return response;
-        }),
+            .order("created_at", { ascending: false })
+        ),
+        withRetry(async () =>
+          await supabase
+            .from("clause_coverage_by_document_v")
+            .select("*")
+        ),
       ]);
 
       if (v1.error) {
         toast({
           variant: "destructive",
           title: "Load versions failed",
-          description: v1.error.message
+          description: v1.error.message,
         });
       } else {
         setRows((v1.data || []) as VersionRow[]);
@@ -72,7 +103,7 @@ export default function OperatorVersions() {
         toast({
           variant: "destructive",
           title: "Load coverage failed",
-          description: v2.error.message
+          description: v2.error.message,
         });
       } else {
         const map: Record<string, CoverageRow> = {};
@@ -80,98 +111,96 @@ export default function OperatorVersions() {
         setCoverage(map);
       }
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Load failed", description: error.message });
+      toast({ variant: "destructive", title: "Load failed", description: errMsg(error) });
+    } finally {
+      setLoading(false);
     }
   }
 
   useEffect(() => { load(); }, []);
 
-  async function softDeleteDoc(docId: string) {
-    try {
-      const result = await withRetry(async () => {
-        const response = await supabase.rpc("soft_delete_document", { p_doc_id: docId });
-        return response;
-      });
-      if (result.error) {
-        toast({ variant: "destructive", title: "Delete failed", description: result.error.message });
-      } else {
-        toast({ title: "Document hidden" });
-        load();
-      }
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Delete failed", description: error.message });
-    }
-  }
-
-  async function hardDeleteDoc(docId: string) {
-    const ok = window.confirm("Hard delete will permanently remove this version and its clauses/obligations. Continue?");
-    if (!ok) return;
-    try {
-      const result = await withRetry(async () => {
-        const response = await supabase.rpc("hard_delete_document", { p_doc_id: docId });
-        return response;
-      });
-      if (result.error) {
-        toast({ variant: "destructive", title: "Hard delete failed", description: result.error.message });
-      } else {
-        toast({ title: "Document removed" });
-        load();
-      }
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Hard delete failed", description: error.message });
-    }
-  }
+  /** ---------- Actions via Edge Functions ---------- */
 
   async function reIngest(regId: string, docId: string, versionLabel: string) {
     try {
-      // Read the source_url from the public view
-      const result = await withRetry(async () => {
-        const response = await supabase
+      // 1) Load source_url from public detail view
+      const result = await withRetry(async () =>
+        await supabase
           .from("regulation_documents_detail_v")
           .select("source_url")
           .eq("document_id", docId)
-          .single();
-        return response;
-      });
+          .single()
+      );
       if (result.error) {
         toast({ variant: "destructive", title: "Load doc failed", description: result.error.message });
         return;
       }
-      const doc = result.data;
-
-      let source = (doc?.source_url as string) || "";
+      let source = (result.data?.source_url as string) || "";
       if (!source) {
         source = window.prompt("Enter source URL to ingest:") || "";
         if (!source) return;
       }
 
-      // Call the Edge Function
+      // 2) Call the ingestion function (idempotent + progress heartbeat)
       const fnUrl = `${getFunctionsBaseUrl()}/reggio-ingest`;
-      const res = await fetch(fnUrl, {
+      const json = await safeFetchJson(fnUrl, {
         method: "POST",
         headers: {
-          Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsa3RqcmJmbnp5ZWx3a3l5c3N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NDg1ODEsImV4cCI6MjA3MDQyNDU4MX0.od0uTP1PV4iALtJLB79fOCZ5g7ACJew0FzL5CJlzZ20`,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           regulationId: regId,
           source_url: source,
-          document: { versionLabel }, // function will find/create version safely
-          chunks: [],                  // let the function fetch & chunk
+          document: { versionLabel, docType: "Regulation", language: "EN", source_url: source },
+          // chunks omitted → function will fetch & chunk
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.text();
-        toast({ variant: "destructive", title: "Re-ingest failed", description: err.slice(0, 240) });
-      } else {
-        toast({ title: "Re-ingestion started" });
-      }
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Re-ingest failed", description: error.message });
+      toast({ title: "Re-ingestion started", description: `Doc ${json.regulation_document_id}` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Re-ingest failed", description: errMsg(e) });
+      console.error("reingest error", e?.status, e?.payload || e);
     }
   }
 
+  async function softDeleteDoc(docId: string) {
+    try {
+      const fn = `${getFunctionsBaseUrl()}/reggio-admin`;
+      await safeFetchJson(fn, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "delete_document", id: docId }),
+      });
+      toast({ title: "Document deleted (soft)" });
+      load();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Delete failed", description: errMsg(e) });
+    }
+  }
+
+  async function restoreDoc(docId: string) {
+    try {
+      const fn = `${getFunctionsBaseUrl()}/reggio-admin`;
+      await safeFetchJson(fn, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "restore_document", id: docId }),
+      });
+      toast({ title: "Document restored" });
+      load();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Restore failed", description: errMsg(e) });
+    }
+  }
+
+  /** ---------- Filtering ---------- */
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return rows;
@@ -195,16 +224,23 @@ export default function OperatorVersions() {
         />
       </div>
 
+      {loading && (
+        <Card className="p-3 text-sm text-muted-foreground">Loading…</Card>
+      )}
+
       <div className="space-y-3">
         {filtered.map((v) => {
           const cov = coverage[v.document_id];
           const deleted = v.is_deleted ?? v.deleted ?? false;
+
           return (
             <Card key={v.document_id} className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Left: titles */}
                 <div>
                   <div className="font-semibold">
-                    {v.regulation_title} <span className="text-muted-foreground">({v.short_code})</span>
+                    {v.regulation_title}{" "}
+                    <span className="text-muted-foreground">({v.short_code})</span>
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Version: {v.version_label} · Created {new Date(v.created_at).toLocaleString()}
@@ -212,13 +248,16 @@ export default function OperatorVersions() {
                   {deleted && <Badge variant="destructive" className="mt-1">DELETED</Badge>}
                 </div>
 
+                {/* Middle: coverage */}
                 <div className="text-right text-sm">
                   {cov ? (
                     <>
-                      <div>Clauses: <span className="font-medium">{cov.clauses_total}</span></div>
                       <div>
-                        Risk: <span className="font-medium">{cov.risk_pct}%</span> ·
-                        Obligation: <span className="font-medium"> {cov.obligation_pct}%</span>
+                        Clauses: <span className="font-medium">{cov.clauses_total}</span>
+                      </div>
+                      <div>
+                        Risk: <span className="font-medium">{cov.risk_pct}%</span> ·{" "}
+                        Obligation: <span className="font-medium">{cov.obligation_pct}%</span>
                       </div>
                     </>
                   ) : (
@@ -226,22 +265,31 @@ export default function OperatorVersions() {
                   )}
                 </div>
 
+                {/* Right: actions */}
                 <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => reIngest(v.regulation_id, v.document_id, v.version_label)}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => reIngest(v.regulation_id, v.document_id, v.version_label)}
+                  >
                     Re-ingest
                   </Button>
-                  <Button variant="outline" onClick={() => softDeleteDoc(v.document_id)} disabled={deleted}>
-                    Soft Delete
-                  </Button>
-                  <Button variant="destructive" onClick={() => hardDeleteDoc(v.document_id)}>
-                    Hard Delete
-                  </Button>
+
+                  {!deleted ? (
+                    <Button variant="outline" onClick={() => softDeleteDoc(v.document_id)}>
+                      Delete
+                    </Button>
+                  ) : (
+                    <Button variant="outline" onClick={() => restoreDoc(v.document_id)}>
+                      Restore
+                    </Button>
+                  )}
                 </div>
               </div>
             </Card>
           );
         })}
-        {!filtered.length && (
+
+        {!loading && !filtered.length && (
           <Card className="p-6 text-sm text-muted-foreground">
             No versions match your search.
           </Card>
