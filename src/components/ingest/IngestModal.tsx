@@ -9,215 +9,231 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "../../lib/supabase";
-import { AlertCircle, CheckCircle2, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface IngestModalProps {
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
-  onIngestComplete: () => void;
 }
 
-interface RegulationOption {
+interface Regulation {
   id: string;
-  name: string;
-  regulator: string;
-  jurisdiction: string;
+  title: string;
+  short_code: string;
 }
 
-interface AutoDetectedMetadata {
+interface DetectedMetadata {
   title?: string;
-  publication_date?: string;
-  version?: string;
-  document_type?: 'regulation' | 'guidance' | 'consultation' | 'policy';
   regulator?: string;
   jurisdiction?: string;
-  regulation_id?: string;
+  document_type?: string;
+  published_date?: string;
+  version?: string;
   confidence_score?: number;
 }
 
 const QUICK_URLS = [
   {
-    name: "PRA Rulebook - Liquidity",
-    url: "https://www.prarulebook.co.uk/rulebook/Content/Part/211138/22-12-2022",
-    regulation_id: "PRA_LIQ",
-    regulator: "PRA",
-    jurisdiction: "UK"
+    name: "UK PRA - Liquidity Rules",
+    url: "https://www.bankofengland.co.uk/prudential-regulation/publication/2015/liquidity-coverage-ratio-rules",
+    suggested_id: "PRA-LCR",
+    suggested_title: "PRA Liquidity Coverage Ratio Rules"
   },
   {
-    name: "PRA110 Instructions",
-    url: "https://www.bankofengland.co.uk/prudential-regulation/regulatory-reporting/regulatory-reporting-banking-sector/liquidity",
-    regulation_id: "PRA110",
-    regulator: "PRA", 
-    jurisdiction: "UK"
+    name: "UK PRA - PRA110 Instructions",
+    url: "https://www.bankofengland.co.uk/prudential-regulation/publication/2023/pra110-regulatory-return",
+    suggested_id: "PRA-PRA110",
+    suggested_title: "PRA110 Regulatory Return Instructions"
   },
   {
-    name: "FCA Handbook - PRIN",
-    url: "https://www.handbook.fca.org.uk/handbook/PRIN.pdf",
-    regulation_id: "FCA_PRIN",
-    regulator: "FCA",
-    jurisdiction: "UK"
+    name: "UK FCA - Handbook MIFIDPRU",
+    url: "https://www.handbook.fca.org.uk/handbook/MIFIDPRU/",
+    suggested_id: "FCA-MIFIDPRU",
+    suggested_title: "FCA MIFIDPRU Sourcebook"
   },
   {
-    name: "EBA CRR Guidelines",
-    url: "https://www.eba.europa.eu/regulation-and-policy/capital-requirements-regulation-crr",
-    regulation_id: "EBA_CRR",
-    regulator: "EBA",
-    jurisdiction: "EU"
+    name: "EU EBA - Capital Requirements Regulation",
+    url: "https://eba.europa.eu/regulation-and-policy/single-rulebook/interactive-single-rulebook/100",
+    suggested_id: "EBA-CRR",
+    suggested_title: "Capital Requirements Regulation"
   }
 ];
 
-const DOCUMENT_TYPES = [
-  { value: 'regulation', label: 'Regulation' },
-  { value: 'guidance', label: 'Guidance' },
-  { value: 'consultation', label: 'Consultation Paper' },
-  { value: 'policy', label: 'Policy Statement' }
-];
-
-export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalProps) {
+export default function IngestModal({ open, onClose }: IngestModalProps) {
   // Form state
   const [activeTab, setActiveTab] = useState("url");
   const [url, setUrl] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [manualText, setManualText] = useState("");
+  
+  // Regulation state
+  const [regulations, setRegulations] = useState<Regulation[]>([]);
   const [selectedRegulation, setSelectedRegulation] = useState("");
-  const [newRegulationName, setNewRegulationName] = useState("");
-  const [regulationId, setRegulationId] = useState("");
-  const [regulator, setRegulator] = useState("");
-  const [jurisdiction, setJurisdiction] = useState("");
-  const [documentType, setDocumentType] = useState<'regulation' | 'guidance' | 'consultation' | 'policy'>('regulation');
+  const [createNewReg, setCreateNewReg] = useState(false);
+  const [newRegTitle, setNewRegTitle] = useState("");
+  const [newRegShortCode, setNewRegShortCode] = useState("");
+  const [newRegJurisdiction, setNewRegJurisdiction] = useState("UK");
+  const [newRegRegulator, setNewRegRegulator] = useState("PRA");
+  
+  // Document metadata
+  const [versionLabel, setVersionLabel] = useState("");
+  const [docType, setDocType] = useState<"Regulation" | "Guidance">("Regulation");
   const [language, setLanguage] = useState("en");
   const [publishedDate, setPublishedDate] = useState("");
-  const [version, setVersion] = useState("");
-
-  // UI state
-  const [regulations, setRegulations] = useState<RegulationOption[]>([]);
-  const [isIngesting, setIsIngesting] = useState(false);
+  
+  // Auto-detection state
   const [isDetecting, setIsDetecting] = useState(false);
-  const [urlPreview, setUrlPreview] = useState<AutoDetectedMetadata | null>(null);
+  const [detectedMetadata, setDetectedMetadata] = useState<DetectedMetadata | null>(null);
+  const [detectionError, setDetectionError] = useState("");
+  
+  // Processing state
+  const [isIngesting, setIsIngesting] = useState(false);
   const [error, setError] = useState("");
-  const [createNewRegulation, setCreateNewRegulation] = useState(false);
 
-  // Load existing regulations
+  // Load regulations on mount
   useEffect(() => {
-    if (isOpen) {
+    if (open) {
       loadRegulations();
     }
-  }, [isOpen]);
+  }, [open]);
+
+  // Auto-detect metadata when URL changes
+  useEffect(() => {
+    if (url && activeTab === "url") {
+      detectMetadata(url);
+    }
+  }, [url]);
 
   const loadRegulations = async () => {
     try {
       const { data, error } = await supabase
-        .from('regulations')
-        .select('id, name, regulator, jurisdiction')
-        .order('name');
+        .from("regulations")
+        .select("id, title, short_code")
+        .order("title");
 
       if (error) throw error;
       setRegulations(data || []);
-    } catch (err) {
-      console.error('Error loading regulations:', err);
+    } catch (err: any) {
+      console.error("Failed to load regulations:", err);
     }
   };
 
-  const detectMetadata = async (inputUrl: string) => {
-    if (!inputUrl) return;
-
+  const detectMetadata = async (targetUrl: string) => {
+    if (!targetUrl.startsWith("http")) return;
+    
     setIsDetecting(true);
-    setError("");
-
+    setDetectionError("");
+    
     try {
-      const response = await supabase.functions.invoke('reggio-detect-metadata', {
-        body: { url: inputUrl }
+      // Call metadata detection function
+      const { data, error } = await supabase.functions.invoke('reggio-detect-metadata', {
+        body: { url: targetUrl }
       });
 
-      if (response.error) throw response.error;
+      if (error) throw error;
 
-      const metadata: AutoDetectedMetadata = response.data;
-      setUrlPreview(metadata);
-
-      // Auto-populate form fields with detected data
-      if (metadata.title && !newRegulationName) {
-        setNewRegulationName(metadata.title);
-      }
-      if (metadata.regulation_id && !regulationId) {
-        setRegulationId(metadata.regulation_id);
-      }
-      if (metadata.regulator && !regulator) {
-        setRegulator(metadata.regulator);
-      }
-      if (metadata.jurisdiction && !jurisdiction) {
-        setJurisdiction(metadata.jurisdiction);
-      }
-      if (metadata.publication_date && !publishedDate) {
-        setPublishedDate(metadata.publication_date);
-      }
-      if (metadata.version && !version) {
-        setVersion(metadata.version);
-      }
-      if (metadata.document_type) {
-        setDocumentType(metadata.document_type);
-      }
-
-      // Check if this regulation already exists
-      const existingReg = regulations.find(r => 
-        r.id.toLowerCase().includes(metadata.regulation_id?.toLowerCase() || '') ||
-        r.name.toLowerCase().includes(metadata.title?.toLowerCase() || '')
-      );
-
-      if (existingReg) {
-        setSelectedRegulation(existingReg.id);
-        setCreateNewRegulation(false);
+      if (data?.metadata) {
+        setDetectedMetadata(data.metadata);
         
-        // If existing regulation found, increment version
-        if (metadata.version) {
-          const versionNum = parseFloat(metadata.version);
-          if (!isNaN(versionNum)) {
-            setVersion((versionNum + 0.1).toFixed(1));
-          }
+        // Auto-populate form fields
+        if (data.metadata.title && !newRegTitle) {
+          setNewRegTitle(data.metadata.title);
         }
-      } else {
-        setCreateNewRegulation(true);
+        if (data.metadata.version && !versionLabel) {
+          setVersionLabel(data.metadata.version);
+        }
+        if (data.metadata.published_date && !publishedDate) {
+          setPublishedDate(data.metadata.published_date);
+        }
+        if (data.metadata.document_type) {
+          setDocType(data.metadata.document_type === "guidance" ? "Guidance" : "Regulation");
+        }
+        if (data.metadata.regulator && !newRegRegulator) {
+          setNewRegRegulator(data.metadata.regulator);
+        }
+        if (data.metadata.jurisdiction && !newRegJurisdiction) {
+          setNewRegJurisdiction(data.metadata.jurisdiction);
+        }
       }
-
     } catch (err: any) {
-      setError(`Failed to detect metadata: ${err.message}`);
-      setUrlPreview(null);
+      console.error("Metadata detection failed:", err);
+      setDetectionError(`Detection failed: ${err.message || "Unknown error"}`);
     } finally {
       setIsDetecting(false);
     }
   };
 
-  // Auto-detect when URL changes
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (url && isValidUrl(url)) {
-        detectMetadata(url);
-      } else {
-        setUrlPreview(null);
+  const handleQuickUrl = (quickUrl: typeof QUICK_URLS[0]) => {
+    setUrl(quickUrl.url);
+    setNewRegTitle(quickUrl.suggested_title);
+    setNewRegShortCode(quickUrl.suggested_id);
+    setCreateNewReg(true);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setUploadedFile(file);
+      // Auto-suggest version from filename
+      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+      if (!versionLabel) {
+        setVersionLabel(nameWithoutExt);
       }
-    }, 1000);
-
-    return () => clearTimeout(timeoutId);
-  }, [url]);
-
-  const isValidUrl = (string: string) => {
-    try {
-      new URL(string);
-      return true;
-    } catch (_) {
-      return false;
     }
   };
 
-  const handleQuickUrl = (quickUrl: any) => {
-    setUrl(quickUrl.url);
-    setRegulationId(quickUrl.regulation_id);
-    setRegulator(quickUrl.regulator);
-    setJurisdiction(quickUrl.jurisdiction);
-    setCreateNewRegulation(true);
+  const chunkText = (text: string): Array<{ path_hierarchy: string; text_raw: string; number_label?: string }> => {
+    const maxChunkSize = 2000;
+    const chunks = [];
+    let chunkIndex = 1;
+    
+    // Try to split on paragraphs first, then sentences
+    const paragraphs = text.split(/\n\s*\n/);
+    
+    for (const paragraph of paragraphs) {
+      if (paragraph.trim().length === 0) continue;
+      
+      if (paragraph.length <= maxChunkSize) {
+        chunks.push({
+          path_hierarchy: `Section ${chunkIndex}`,
+          text_raw: paragraph.trim(),
+          number_label: String(chunkIndex)
+        });
+        chunkIndex++;
+      } else {
+        // Split large paragraphs into sentences
+        const sentences = paragraph.match(/[^\.!?]+[\.!?]+/g) || [paragraph];
+        let currentChunk = "";
+        
+        for (const sentence of sentences) {
+          if ((currentChunk + sentence).length > maxChunkSize && currentChunk) {
+            chunks.push({
+              path_hierarchy: `Section ${chunkIndex}`,
+              text_raw: currentChunk.trim(),
+              number_label: String(chunkIndex)
+            });
+            chunkIndex++;
+            currentChunk = sentence;
+          } else {
+            currentChunk += sentence;
+          }
+        }
+        
+        if (currentChunk.trim()) {
+          chunks.push({
+            path_hierarchy: `Section ${chunkIndex}`,
+            text_raw: currentChunk.trim(),
+            number_label: String(chunkIndex)
+          });
+          chunkIndex++;
+        }
+      }
+    }
+    
+    return chunks;
   };
 
   const handleIngest = async () => {
@@ -229,80 +245,58 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
       let regulationToUse = selectedRegulation;
 
       // Create new regulation if needed
-      if (createNewRegulation || !selectedRegulation) {
-        if (!newRegulationName) {
-          throw new Error("Please provide a regulation name");
+      if (createNewReg || !selectedRegulation) {
+        if (!newRegTitle || !newRegShortCode) {
+          throw new Error("Please provide regulation title and short code");
         }
 
-        console.log('Creating new regulation:', {
-          name: newRegulationName,
-          regulation_id: regulationId,
-          regulator,
-          jurisdiction,
-          document_type: documentType,
-          language
-        });
-
+        console.log('Creating new regulation...');
         const { data: newReg, error: regError } = await supabase
-          .from('regulations')
+          .from("regulations")
           .insert({
-            name: newRegulationName,
-            regulation_id: regulationId,
-            regulator,
-            jurisdiction,
-            document_type: documentType,
-            language
+            title: newRegTitle,
+            short_code: newRegShortCode,
+            jurisdiction: newRegJurisdiction,
+            regulator: newRegRegulator
           })
-          .select()
+          .select("id")
           .single();
 
-        if (regError) {
-          console.error('Regulation creation error:', regError);
-          throw new Error(`Failed to create regulation: ${regError.message}`);
-        }
-        
-        console.log('New regulation created:', newReg);
+        if (regError) throw regError;
         regulationToUse = newReg.id;
+        console.log('New regulation created:', newReg.id);
       }
 
-      // Prepare ingestion payload
+      if (!regulationToUse) {
+        throw new Error("Please select or create a regulation");
+      }
+
+      // Prepare payload
       let payload: any = {
-        regulation_id: regulationToUse,
-        document_type: documentType,
-        language,
-        published_date: publishedDate,
-        version: version || "1.0",
-        source_url: activeTab === "url" ? url : null
+        regulationId: regulationToUse,
+        document: {
+          versionLabel: versionLabel || "v1.0",
+          docType,
+          language,
+          published_at: publishedDate || null
+        }
       };
 
-      if (activeTab === "url") {
-        if (!url) throw new Error("Please provide a URL");
-        payload.url = url;
-      } else if (activeTab === "file") {
-        if (!file) throw new Error("Please select a file");
-        
-        console.log('Processing file:', file.name, file.type, file.size);
-        
-        // Convert file to base64
-        const reader = new FileReader();
-        const fileContent = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error('Failed to read file'));
-          reader.readAsDataURL(file);
-        });
-        
-        payload.file_content = fileContent;
-        payload.file_name = file.name;
-      } else if (activeTab === "text") {
-        if (!manualText) throw new Error("Please provide text content");
-        payload.text_content = manualText;
+      // Handle different input types
+      if (activeTab === "url" && url) {
+        payload.source_url = url;
+        payload.document.source_url = url;
+      } else if (activeTab === "file" && uploadedFile) {
+        // For files, we need to convert to text first
+        const fileText = await uploadedFile.text();
+        payload.chunks = chunkText(fileText);
+      } else if (activeTab === "text" && manualText) {
+        payload.chunks = chunkText(manualText);
+      } else {
+        throw new Error("Please provide a URL, file, or text to ingest");
       }
 
-      console.log('Ingestion payload:', {
-        ...payload,
-        file_content: payload.file_content ? '[FILE_CONTENT]' : undefined,
-        text_content: payload.text_content ? '[TEXT_CONTENT]' : undefined
-      });
+      console.log('Calling ingestion function with payload:', payload);
 
       // Call ingestion function
       const response = await supabase.functions.invoke('reggio-ingest', {
@@ -313,17 +307,18 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
 
       if (response.error) {
         console.error('Supabase function error:', response.error);
-        throw new Error(response.error.message || JSON.stringify(response.error));
+        throw new Error(response.error.message || 'Ingestion function failed');
       }
 
-      if (!response.data || response.data.error) {
-        const errorMsg = response.data?.error || response.data?.message || 'Unknown ingestion error';
+      if (!response.data?.ok) {
+        const errorMsg = response.data?.error || 'Ingestion failed - unknown error';
         console.error('Function returned error:', errorMsg);
         throw new Error(errorMsg);
       }
 
-      console.log('Ingestion successful:', response.data);
-      onIngestComplete();
+      console.log('Ingestion completed successfully');
+      
+      // Reset form and close
       resetForm();
       onClose();
     } catch (err: any) {
@@ -335,10 +330,8 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
         errorMessage = err.message;
       } else if (typeof err === 'string') {
         errorMessage = err;
-      } else if (err.error) {
-        errorMessage = err.error.message || JSON.stringify(err.error);
-      } else {
-        errorMessage = JSON.stringify(err);
+      } else if (err.error?.message) {
+        errorMessage = err.error.message;
       }
       
       setError(errorMessage);
@@ -348,278 +341,308 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
   };
 
   const resetForm = () => {
+    setActiveTab("url");
     setUrl("");
-    setFile(null);
+    setUploadedFile(null);
     setManualText("");
     setSelectedRegulation("");
-    setNewRegulationName("");
-    setRegulationId("");
-    setRegulator("");
-    setJurisdiction("");
-    setDocumentType('regulation');
+    setCreateNewReg(false);
+    setNewRegTitle("");
+    setNewRegShortCode("");
+    setNewRegJurisdiction("UK");
+    setNewRegRegulator("PRA");
+    setVersionLabel("");
+    setDocType("Regulation");
     setLanguage("en");
     setPublishedDate("");
-    setVersion("");
-    setCreateNewRegulation(false);
-    setUrlPreview(null);
+    setDetectedMetadata(null);
+    setDetectionError("");
     setError("");
   };
 
-  const canSubmit = () => {
-    const hasInput = (activeTab === "url" && url) || 
-                     (activeTab === "file" && file) || 
-                     (activeTab === "text" && manualText);
-    
-    const hasRegulation = selectedRegulation || (createNewRegulation && newRegulationName);
-    
-    return hasInput && hasRegulation && !isIngesting && !isDetecting;
+  const handleClose = () => {
+    if (!isIngesting) {
+      resetForm();
+      onClose();
+    }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Smart Regulatory Document Ingestion</DialogTitle>
+          <DialogTitle>Ingest Regulatory Document</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Input Method Selection */}
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="url">URL (Recommended)</TabsTrigger>
-              <TabsTrigger value="file">File Upload</TabsTrigger>
-              <TabsTrigger value="text">Manual Text</TabsTrigger>
-            </TabsList>
-
-            {/* URL Tab */}
-            <TabsContent value="url" className="space-y-4">
-              <div>
-                <Label htmlFor="url">Document URL</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input
-                    id="url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://www.prarulebook.co.uk/..."
-                    className="flex-1"
-                  />
-                  {isDetecting && (
-                    <Button disabled size="icon">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    </Button>
-                  )}
-                  {url && isValidUrl(url) && !isDetecting && (
-                    <Button 
-                      onClick={() => detectMetadata(url)} 
-                      size="icon" 
-                      variant="outline"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Quick Access URLs */}
-              <div>
-                <Label>Quick Access (Common Regulatory Sources)</Label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {QUICK_URLS.map((quick, index) => (
-                    <Button
-                      key={index}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleQuickUrl(quick)}
-                      className="justify-start text-left h-auto p-3"
-                    >
-                      <div>
-                        <div className="font-medium text-sm">{quick.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {quick.regulator} • {quick.jurisdiction}
-                        </div>
-                      </div>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              {/* URL Preview */}
-              {urlPreview && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <CheckCircle2 className="h-5 w-5 text-green-600" />
-                      Auto-Detected Metadata
-                    </CardTitle>
-                    <CardDescription>
-                      Confidence: {((urlPreview.confidence_score || 0) * 100).toFixed(0)}%
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div><strong>Title:</strong> {urlPreview.title}</div>
-                      <div><strong>Type:</strong> {urlPreview.document_type}</div>
-                      <div><strong>Regulator:</strong> {urlPreview.regulator}</div>
-                      <div><strong>Jurisdiction:</strong> {urlPreview.jurisdiction}</div>
-                      <div><strong>Published:</strong> {urlPreview.publication_date}</div>
-                      <div><strong>Version:</strong> {urlPreview.version}</div>
+          {/* Source Input Tabs */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Document Source</CardTitle>
+              <CardDescription>Choose how to provide the document content</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="url">URL</TabsTrigger>
+                  <TabsTrigger value="file">File Upload</TabsTrigger>
+                  <TabsTrigger value="text">Manual Text</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="url" className="space-y-4">
+                  <div>
+                    <Label htmlFor="url">Document URL</Label>
+                    <Input
+                      id="url"
+                      type="url"
+                      placeholder="https://..."
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      disabled={isIngesting}
+                    />
+                  </div>
+                  
+                  {/* Quick Access Buttons */}
+                  <div>
+                    <Label>Quick Access</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                      {QUICK_URLS.map((quickUrl) => (
+                        <Button
+                          key={quickUrl.name}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleQuickUrl(quickUrl)}
+                          disabled={isIngesting}
+                        >
+                          {quickUrl.name}
+                        </Button>
+                      ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
+                  </div>
 
-            {/* File Tab */}
-            <TabsContent value="file" className="space-y-4">
-              <div>
-                <Label htmlFor="file">Select Document File</Label>
-                <Input
-                  id="file"
-                  type="file"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  accept=".pdf,.docx,.doc,.txt,.html"
-                  className="mt-1"
-                />
-                <p className="text-sm text-muted-foreground mt-1">
-                  Supported formats: PDF, DOCX, DOC, TXT, HTML
-                </p>
-              </div>
-            </TabsContent>
+                  {/* Metadata Detection Results */}
+                  {isDetecting && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Detecting document metadata...
+                    </div>
+                  )}
 
-            {/* Text Tab */}
-            <TabsContent value="text" className="space-y-4">
-              <div>
-                <Label htmlFor="text">Regulatory Text</Label>
-                <Textarea
-                  id="text"
-                  value={manualText}
-                  onChange={(e) => setManualText(e.target.value)}
-                  placeholder="Paste regulatory text here..."
-                  rows={6}
-                  className="mt-1"
-                />
-              </div>
-            </TabsContent>
-          </Tabs>
+                  {detectedMetadata && (
+                    <Alert>
+                      <CheckCircle2 className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>Auto-detected:</strong> {detectedMetadata.title} 
+                        {detectedMetadata.confidence_score && 
+                          ` (${Math.round(detectedMetadata.confidence_score * 100)}% confidence)`
+                        }
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {detectionError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{detectionError}</AlertDescription>
+                    </Alert>
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="file" className="space-y-4">
+                  <div>
+                    <Label htmlFor="file">Upload Document</Label>
+                    <Input
+                      id="file"
+                      type="file"
+                      accept=".pdf,.docx,.txt,.html"
+                      onChange={handleFileUpload}
+                      disabled={isIngesting}
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Supported formats: PDF, DOCX, TXT, HTML
+                    </p>
+                  </div>
+                  {uploadedFile && (
+                    <Alert>
+                      <CheckCircle2 className="h-4 w-4" />
+                      <AlertDescription>
+                        Ready to process: {uploadedFile.name} ({Math.round(uploadedFile.size / 1024)}KB)
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="text" className="space-y-4">
+                  <div>
+                    <Label htmlFor="text">Regulatory Text</Label>
+                    <Textarea
+                      id="text"
+                      placeholder="Paste regulatory text here..."
+                      value={manualText}
+                      onChange={(e) => setManualText(e.target.value)}
+                      disabled={isIngesting}
+                      rows={8}
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Text will be automatically chunked for processing ({Math.ceil(manualText.length / 2000)} estimated chunks)
+                    </p>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
 
           {/* Regulation Selection */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>Regulation Assignment</Label>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCreateNewRegulation(!createNewRegulation)}
-              >
-                {createNewRegulation ? "Select Existing" : "Create New"}
-              </Button>
-            </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Regulation</CardTitle>
+              <CardDescription>Select existing regulation or create new one</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="create-new"
+                  checked={createNewReg}
+                  onChange={(e) => setCreateNewReg(e.target.checked)}
+                  disabled={isIngesting}
+                />
+                <Label htmlFor="create-new">Create new regulation</Label>
+              </div>
 
-            {createNewRegulation ? (
-              <div className="grid grid-cols-2 gap-4">
+              {!createNewReg && (
                 <div>
-                  <Label htmlFor="reg-name">Regulation Name *</Label>
+                  <Label htmlFor="regulation">Select Regulation</Label>
+                  <Select value={selectedRegulation} onValueChange={setSelectedRegulation} disabled={isIngesting}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose regulation..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {regulations.map((reg) => (
+                        <SelectItem key={reg.id} value={reg.id}>
+                          {reg.title} ({reg.short_code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {createNewReg && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="reg-title">Regulation Title</Label>
+                    <Input
+                      id="reg-title"
+                      placeholder="e.g., PRA Liquidity Coverage Ratio Rules"
+                      value={newRegTitle}
+                      onChange={(e) => setNewRegTitle(e.target.value)}
+                      disabled={isIngesting}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="reg-code">Short Code</Label>
+                    <Input
+                      id="reg-code"
+                      placeholder="e.g., PRA-LCR"
+                      value={newRegShortCode}
+                      onChange={(e) => setNewRegShortCode(e.target.value)}
+                      disabled={isIngesting}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="jurisdiction">Jurisdiction</Label>
+                    <Select value={newRegJurisdiction} onValueChange={setNewRegJurisdiction} disabled={isIngesting}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="UK">United Kingdom</SelectItem>
+                        <SelectItem value="EU">European Union</SelectItem>
+                        <SelectItem value="US">United States</SelectItem>
+                        <SelectItem value="CA">Canada</SelectItem>
+                        <SelectItem value="AU">Australia</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="regulator">Regulator</Label>
+                    <Select value={newRegRegulator} onValueChange={setNewRegRegulator} disabled={isIngesting}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PRA">PRA</SelectItem>
+                        <SelectItem value="FCA">FCA</SelectItem>
+                        <SelectItem value="EBA">EBA</SelectItem>
+                        <SelectItem value="ECB">ECB</SelectItem>
+                        <SelectItem value="FED">Federal Reserve</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Document Metadata */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Document Metadata</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="version">Version Label</Label>
                   <Input
-                    id="reg-name"
-                    value={newRegulationName}
-                    onChange={(e) => setNewRegulationName(e.target.value)}
-                    placeholder="e.g., PRA Liquidity Rules"
+                    id="version"
+                    placeholder="e.g., v2.1, March 2024"
+                    value={versionLabel}
+                    onChange={(e) => setVersionLabel(e.target.value)}
+                    disabled={isIngesting}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="reg-id">Regulation ID</Label>
-                  <Input
-                    id="reg-id"
-                    value={regulationId}
-                    onChange={(e) => setRegulationId(e.target.value)}
-                    placeholder="e.g., PRA_LIQ"
-                  />
+                  <Label htmlFor="doc-type">Document Type</Label>
+                  <Select value={docType} onValueChange={(value) => setDocType(value as "Regulation" | "Guidance")} disabled={isIngesting}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Regulation">Regulation</SelectItem>
+                      <SelectItem value="Guidance">Guidance</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label htmlFor="regulator">Regulator</Label>
-                  <Input
-                    id="regulator"
-                    value={regulator}
-                    onChange={(e) => setRegulator(e.target.value)}
-                    placeholder="e.g., PRA, FCA, EBA"
-                  />
+                  <Label htmlFor="language">Language</Label>
+                  <Select value={language} onValueChange={setLanguage} disabled={isIngesting}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="fr">French</SelectItem>
+                      <SelectItem value="de">German</SelectItem>
+                      <SelectItem value="es">Spanish</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label htmlFor="jurisdiction">Jurisdiction</Label>
+                  <Label htmlFor="published">Published Date</Label>
                   <Input
-                    id="jurisdiction"
-                    value={jurisdiction}
-                    onChange={(e) => setJurisdiction(e.target.value)}
-                    placeholder="e.g., UK, EU, US"
+                    id="published"
+                    type="date"
+                    value={publishedDate}
+                    onChange={(e) => setPublishedDate(e.target.value)}
+                    disabled={isIngesting}
                   />
                 </div>
               </div>
-            ) : (
-              <Select value={selectedRegulation} onValueChange={setSelectedRegulation}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select existing regulation..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {regulations.map((reg) => (
-                    <SelectItem key={reg.id} value={reg.id}>
-                      {reg.name} ({reg.regulator} • {reg.jurisdiction})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          {/* Document Metadata */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="doc-type">Document Type</Label>
-              <Select value={documentType} onValueChange={(value: any) => setDocumentType(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DOCUMENT_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="language">Language</Label>
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="de">German</SelectItem>
-                  <SelectItem value="fr">French</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="pub-date">Published Date</Label>
-              <Input
-                id="pub-date"
-                type="date"
-                value={publishedDate}
-                onChange={(e) => setPublishedDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="version">Version</Label>
-              <Input
-                id="version"
-                value={version}
-                onChange={(e) => setVersion(e.target.value)}
-                placeholder="e.g., 1.0, 2.1"
-              />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Error Display */}
           {error && (
@@ -630,22 +653,13 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose} disabled={isIngesting}>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={handleClose} disabled={isIngesting}>
               Cancel
             </Button>
-            <Button 
-              onClick={handleIngest} 
-              disabled={!canSubmit()}
-            >
-              {isIngesting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Processing...
-                </>
-              ) : (
-                'Start Ingestion'
-              )}
+            <Button onClick={handleIngest} disabled={isIngesting}>
+              {isIngesting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isIngesting ? "Processing..." : "Start Ingestion"}
             </Button>
           </div>
         </div>
