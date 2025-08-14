@@ -45,15 +45,41 @@ const RISK_AREAS = [
 
 // -------- HELPERS --------
 async function fetchAndChunk(url: string): Promise<IngestPayload["chunks"]> {
-  const res = await fetch(url, { redirect: "follow" });
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+  console.log(`Fetching content from: ${url}`);
+  
+  const res = await fetch(url, { 
+    redirect: "follow",
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; ReggioBot/1.0)',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    }
+  });
+  
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "Unknown error");
+    console.error(`URL fetch error: ${res.status} ${res.statusText} - ${errorText}`);
+    throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
+  }
+  
   const html = await res.text();
+  
+  if (html.length < 100) {
+    console.warn(`Warning: Very short response (${html.length} chars) from ${url}`);
+  }
+  
   const text = html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+    
+  if (text.length < 50) {
+    throw new Error(`No meaningful content extracted from URL. Content length: ${text.length}`);
+  }
+  
+  console.log(`Extracted ${text.length} characters of text content`);
+  
   const max = 2000;
   const chunks: IngestPayload["chunks"] = [];
   let i = 0, idx = 0;
@@ -65,6 +91,8 @@ async function fetchAndChunk(url: string): Promise<IngestPayload["chunks"]> {
     });
     i += max;
   }
+  
+  console.log(`Created ${chunks.length} chunks from content`);
   return chunks;
 }
 
@@ -186,6 +214,12 @@ serve(async (req) => {
     }
 
     const payload = (await req.json()) as IngestPayload;
+    
+    console.log("Received ingestion request:", {
+      regulationId: payload.regulationId,
+      hasSourceUrl: !!payload.source_url,
+      chunksProvided: payload.chunks?.length || 0
+    });
 
     if (!payload.regulationId) {
       return new Response(JSON.stringify({ error: "regulationId required" }), {
@@ -195,8 +229,19 @@ serve(async (req) => {
     }
 
     if (payload.source_url && (!payload.chunks || payload.chunks.length === 0)) {
-      payload.chunks = await fetchAndChunk(payload.source_url);
-      if (!payload.document.source_url) payload.document.source_url = payload.source_url;
+      try {
+        payload.chunks = await fetchAndChunk(payload.source_url);
+        if (!payload.document.source_url) payload.document.source_url = payload.source_url;
+      } catch (fetchError) {
+        console.error("Failed to fetch and chunk URL:", fetchError);
+        return new Response(JSON.stringify({ 
+          error: `Failed to fetch content from URL: ${fetchError.message}`,
+          details: "The URL may be inaccessible, return a 404, or contain no meaningful content"
+        }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+          status: 400,
+        });
+      }
     }
 
     if (!payload.chunks || payload.chunks.length === 0) {
