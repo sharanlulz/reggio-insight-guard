@@ -1,328 +1,376 @@
-import { useEffect, useMemo, useState } from "react";
+// Enhanced Operator Dashboard with reliability features
+// REPLACE ENTIRE CONTENTS of: src/pages/OperatorDashboard.tsx
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { withRetry } from "@/lib/supaRetry";
+
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { toast } from "@/components/ui/use-toast";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, RefreshCw } from "lucide-react";
+import IngestModal from "@/components/ingest/IngestModal";
 
-/** ---------- Types from public views ---------- */
-type VersionRow = {
-  document_id: string;
-  regulation_id: string;
-  // MAY be missing in your view; we fill via regulations_v if needed:
-  regulation_title?: string | null;
-  short_code?: string | null;
-
-  version_label: string;
-  created_at: string;
-  is_deleted?: boolean;
-  deleted?: boolean; // backward-compat
-};
-
-type CoverageRow = {
-  document_id: string;
-  version_label: string;
+type IngestRow = {
+  id: string;
+  regulation_document_id: string;
+  status: "running" | "succeeded" | "failed";
+  chunks_total: number;
+  chunks_done: number;
+  ratio_tagged_count: number | null;
+  jurisdiction_tagged_count: number | null;
+  finished_at: string | null;
+  updated_at: string | null;
+  error: string | null;
+  version_label: string | null;
   regulation_id: string;
   regulation_title: string;
-  short_code: string;
-  clauses_total: number;
-  risk_tagged: number;
-  obligation_tagged: number;
-  risk_pct: number;
-  obligation_pct: number;
+  regulation_short_code: string;
 };
 
-type RegRow = {
+type SessionRow = {
   id: string;
-  title: string;
-  short_code: string | null;
+  regulation_document_id: string;
+  status: "pending" | "running" | "paused" | "succeeded" | "failed";
+  chunks_total: number;
+  chunks_processed: number;
+  chunks_succeeded: number;
+  chunks_failed: number;
+  retry_count: number;
+  max_retries: number;
+  error_message: string | null;
+  started_at: string;
+  updated_at: string;
+  finished_at: string | null;
+  // Joined data
+  regulation_title?: string;
+  regulation_short_code?: string;
+  version_label?: string;
 };
 
-/** ---------- Helpers ---------- */
-function getFunctionsBaseUrl() {
-  const url = import.meta.env.VITE_SUPABASE_URL as string;
-  const m = url?.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co$/i);
-  const ref = m ? m[1] : "";
-  return `https://${ref}.functions.supabase.co`;
+function StatusBadge({ status }: { status: IngestRow["status"] | SessionRow["status"] }) {
+  const variants = {
+    pending: "secondary" as const,
+    running: "secondary" as const,
+    paused: "outline" as const,
+    succeeded: "default" as const, // Using "default" instead of "success" for compatibility
+    failed: "destructive" as const,
+  };
+  
+  const colors = {
+    pending: "bg-yellow-100 text-yellow-800",
+    running: "bg-blue-100 text-blue-800",
+    paused: "bg-gray-100 text-gray-800",
+    succeeded: "bg-green-100 text-green-800",
+    failed: "bg-red-100 text-red-800",
+  };
+
+  return (
+    <Badge 
+      variant={variants[status as keyof typeof variants] || "outline"}
+      className={colors[status as keyof typeof colors]}
+    >
+      {status}
+    </Badge>
+  );
 }
 
-async function safeFetchJson(url: string, init?: RequestInit) {
-  const res = await fetch(url, init);
-  const text = await res.text();
-  let data: any;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
-  if (!res.ok) {
-    const msg =
-      data?.error?.message ||
-      data?.message ||
-      (typeof data?.error === "string" ? data.error : text);
-    const err: any = new Error(msg || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.payload = data;
-    throw err;
-  }
-  return data;
+function ErrorAlert({ error }: { error: string }) {
+  return (
+    <Alert variant="destructive" className="mt-2">
+      <AlertCircle className="h-4 w-4" />
+      <AlertDescription className="text-sm">
+        {error.length > 100 ? `${error.slice(0, 100)}...` : error}
+      </AlertDescription>
+    </Alert>
+  );
 }
 
-function errMsg(e: any) {
-  if (e?.payload?.error?.message) return String(e.payload.error.message);
-  if (e?.payload?.message) return String(e.payload.message);
-  if (e?.error?.message) return String(e.error.message);
-  if (typeof e?.error === "string") return e.error;
-  if (e?.message) return String(e.message);
-  try { return JSON.stringify(e); } catch { return String(e); }
-}
-
-function fmtDate(iso: string) {
-  try { return new Date(iso).toLocaleString(); }
-  catch { return iso; }
-}
-
-/** ---------- Component ---------- */
-export default function OperatorVersions() {
-  const [rows, setRows] = useState<VersionRow[]>([]);
-  const [coverage, setCoverage] = useState<Record<string, CoverageRow>>({});
-  const [regsMap, setRegsMap] = useState<Record<string, RegRow>>({});
-  const [q, setQ] = useState("");
+export default function OperatorDashboard() {
+  const [ingestions, setIngestions] = useState<IngestRow[]>([]);
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [workingId, setWorkingId] = useState<string | null>(null); // disables per-row buttons
+  const [ingestOpen, setIngestOpen] = useState(false);
+  const [useNewTracking, setUseNewTracking] = useState(true);
 
-  /** Load documents, coverage, and regulations (to fill missing titles/short_codes) */
-  async function load() {
+  // Track movement for backing off detection
+  const lastProgress = useRef<Record<string, number>>({});
+
+  async function loadOldIngestions() {
+    try {
+      const { data, error } = await supabase
+        .from("ingestions_v")
+        .select("*")
+        .order("finished_at", { ascending: false })
+        .limit(25);
+
+      if (!error && data) {
+        setIngestions(data as IngestRow[]);
+      }
+    } catch (error) {
+      console.error("Failed to load old ingestions:", error);
+    }
+  }
+
+  async function loadNewSessions() {
+    try {
+      // Load ingestion sessions with joined regulation data
+      const { data, error } = await supabase
+        .from("ingestion_sessions")
+        .select(`
+          *,
+          regulation_documents!inner (
+            version_label,
+            regulations!inner (
+              title,
+              short_code
+            )
+          )
+        `)
+        .order("started_at", { ascending: false })
+        .limit(25);
+
+      if (!error && data) {
+        const formatted = data.map((row: any) => ({
+          ...row,
+          regulation_title: row.regulation_documents?.regulations?.title || "Unknown",
+          regulation_short_code: row.regulation_documents?.regulations?.short_code || "UNK",
+          version_label: row.regulation_documents?.version_label || null,
+        }));
+        setSessions(formatted as SessionRow[]);
+      }
+    } catch (error) {
+      console.error("Failed to load sessions:", error);
+      // Fall back to old tracking if new tables don't exist yet
+      setUseNewTracking(false);
+    }
+  }
+
+  async function loadData() {
     setLoading(true);
     try {
-      const [vDocs, vCov, vRegs] = await Promise.all([
-        withRetry(() =>
-          supabase.from("regulation_documents_v")
-            .select("*")
-            .order("created_at", { ascending: false })
-        ),
-        withRetry(() =>
-          supabase.from("clause_coverage_by_document_v").select("*")
-        ),
-        withRetry(() =>
-          supabase.from("regulations_v").select("id, title, short_code")
-        ),
-      ]);
-
-      if (vDocs.error) {
-        toast({ variant: "destructive", title: "Load versions failed", description: vDocs.error.message });
+      if (useNewTracking) {
+        await loadNewSessions();
       } else {
-        setRows((vDocs.data || []) as VersionRow[]);
+        await loadOldIngestions();
       }
-
-      if (vCov.error) {
-        toast({ variant: "destructive", title: "Load coverage failed", description: vCov.error.message });
-      } else {
-        const map: Record<string, CoverageRow> = {};
-        (vCov.data as CoverageRow[]).forEach((r) => (map[r.document_id] = r));
-        setCoverage(map);
-      }
-
-      if (vRegs.error) {
-        toast({ variant: "destructive", title: "Load regulations failed", description: vRegs.error.message });
-      } else {
-        const map: Record<string, RegRow> = {};
-        (vRegs.data as RegRow[]).forEach((r) => (map[r.id] = r));
-        setRegsMap(map);
-      }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Load failed", description: errMsg(e) });
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, []);
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, [useNewTracking]);
 
-  /** ---------- Actions ---------- */
+  // Auto-refresh with adaptive polling
+  useEffect(() => {
+    const hasRunning = useNewTracking 
+      ? sessions.some(s => s.status === "running" || s.status === "pending")
+      : ingestions.some(i => i.status === "running");
+    
+    const intervalMs = hasRunning ? 3000 : 15000;
+    const timer = setInterval(loadData, intervalMs);
+    return () => clearInterval(timer);
+  }, [sessions, ingestions, useNewTracking]);
 
-  async function reIngest(regId: string, docId: string, versionLabel: string) {
-    setWorkingId(docId);
+  async function resumeSession(sessionId: string) {
     try {
-      // get the source_url from detail view (public)
-      const res = await withRetry(() =>
-        supabase
-          .from("regulation_documents_detail_v")
-          .select("source_url")
-          .eq("document_id", docId)
-          .single()
-      );
-      if (res.error) {
-        toast({ variant: "destructive", title: "Load doc failed", description: res.error.message });
-        return;
+      const { error } = await supabase.rpc("resume_ingestion_session", {
+        session_id: sessionId
+      });
+
+      if (error) {
+        console.error("Resume failed:", error);
+      } else {
+        loadData(); // Refresh the list
       }
-      let source = (res.data?.source_url as string) || "";
-      if (!source) {
-        source = window.prompt("Enter source URL to ingest:") || "";
-        if (!source) return;
-      }
-
-      const fnUrl = `${getFunctionsBaseUrl()}/reggio-ingest`;
-      const json = await safeFetchJson(fnUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          regulationId: regId,
-          source_url: source,
-          document: { versionLabel, docType: "Regulation", language: "EN", source_url: source },
-          // chunks omitted — function will fetch & chunk
-        }),
-      });
-
-      toast({ title: "Re-ingestion started", description: `Doc ${json.regulation_document_id}` });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Re-ingest failed", description: errMsg(e) });
-    } finally {
-      setWorkingId(null);
+    } catch (error) {
+      console.error("Resume error:", error);
     }
   }
 
-  async function deleteDoc(docId: string) {
-    setWorkingId(docId);
-    try {
-      const fn = `${getFunctionsBaseUrl()}/reggio-admin`;
-      await safeFetchJson(fn, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action: "delete_document", id: docId }),
-      });
-      toast({ title: "Document deleted (soft)" });
-      load();
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Delete failed", description: errMsg(e) });
-    } finally {
-      setWorkingId(null);
-    }
-  }
-
-  async function restoreDoc(docId: string) {
-    setWorkingId(docId);
-    try {
-      const fn = `${getFunctionsBaseUrl()}/reggio-admin`;
-      await safeFetchJson(fn, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action: "restore_document", id: docId }),
-      });
-      toast({ title: "Document restored" });
-      load();
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Restore failed", description: errMsg(e) });
-    } finally {
-      setWorkingId(null);
-    }
-  }
-
-  /** ---------- Search/filter ---------- */
-  const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return rows;
-
-    return rows.filter((r) => {
-      const reg = regsMap[r.regulation_id];
-      const title = (r.regulation_title || reg?.title || "").toLowerCase();
-      const sc = (r.short_code || reg?.short_code || "").toLowerCase();
-      const vl = (r.version_label || "").toLowerCase();
-      return title.includes(s) || sc.includes(s) || vl.includes(s);
-    });
-  }, [rows, regsMap, q]);
+  const displayData = useNewTracking ? sessions : ingestions;
+  const hasActive = displayData.some(row => 
+    row.status === "running" || row.status === "pending"
+  );
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Operator — Versions</h1>
-        <Input
-          placeholder="Search regulation, shortcode, version…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="max-w-sm"
-        />
+        <h1 className="text-3xl font-bold">Operator Dashboard</h1>
+        <div className="flex gap-2">
+          <Button onClick={() => setIngestOpen(true)}>
+            Ingest Document
+          </Button>
+          <Link to="/operator-versions">
+            <Button variant="outline">Manage Versions</Button>
+          </Link>
+          <Link to="/operator-ingestions">
+            <Button variant="outline">Ingestion Logs</Button>
+          </Link>
+        </div>
       </div>
 
-      {loading && <Card className="p-3 text-sm text-muted-foreground">Loading…</Card>}
+      {/* Tracking Mode Toggle */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium">Tracking Mode</h3>
+            <p className="text-sm text-muted-foreground">
+              {useNewTracking ? "Enhanced tracking with session management" : "Legacy ingestion tracking"}
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={() => setUseNewTracking(!useNewTracking)}
+          >
+            Switch to {useNewTracking ? "Legacy" : "Enhanced"}
+          </Button>
+        </div>
+      </Card>
 
-      <div className="space-y-3">
-        {filtered.map((v) => {
-          const reg = regsMap[v.regulation_id];
-          const title = v.regulation_title || reg?.title || "Untitled regulation";
-          const sc = v.short_code || reg?.short_code || "—";
-          const cov = coverage[v.document_id];
-          const deleted = v.is_deleted ?? v.deleted ?? false;
-          const busy = workingId === v.document_id;
+      <Card className="p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-lg font-semibold">
+            {useNewTracking ? "Ingestion Sessions" : "Recent Ingestions"}
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={loadData} 
+            disabled={loading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
 
-          return (
-            <Card key={v.document_id} className="p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                {/* Left: titles */}
-                <div>
-                  <div className="font-semibold">
-                    {title}{" "}
-                    <span className="text-muted-foreground">({sc})</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Version: {v.version_label} · Created {fmtDate(v.created_at)}
-                  </div>
-                  {deleted && <Badge variant="destructive" className="mt-1">DELETED</Badge>}
-                </div>
+        <div className="grid gap-3">
+          {displayData.map((row) => {
+            // Handle both old and new data structures
+            const isNewSession = 'chunks_processed' in row;
+            
+            let progress = 0;
+            let progressText = "";
+            let title = "";
+            let shortCode = "";
+            let versionLabel = "";
+            let finishedAt = "";
+            
+            if (isNewSession) {
+              const session = row as SessionRow;
+              progress = session.chunks_total > 0 
+                ? Math.round((session.chunks_processed / session.chunks_total) * 100)
+                : 0;
+              progressText = `${session.chunks_processed}/${session.chunks_total} (${session.chunks_succeeded} ✓, ${session.chunks_failed} ✗)`;
+              title = session.regulation_title || "Unknown";
+              shortCode = session.regulation_short_code || "UNK";
+              versionLabel = session.version_label || "—";
+              finishedAt = session.finished_at ? new Date(session.finished_at).toLocaleString() : "—";
+            } else {
+              const ingestion = row as IngestRow;
+              progress = ingestion.chunks_total > 0 
+                ? Math.round((ingestion.chunks_done / ingestion.chunks_total) * 100)
+                : 0;
+              progressText = `${ingestion.chunks_done}/${ingestion.chunks_total}`;
+              title = ingestion.regulation_title;
+              shortCode = ingestion.regulation_short_code;
+              versionLabel = ingestion.version_label || "—";
+              finishedAt = ingestion.finished_at ? new Date(ingestion.finished_at).toLocaleString() : "—";
+            }
 
-                {/* Middle: coverage */}
-                <div className="text-right text-sm">
-                  {cov ? (
-                    <>
-                      <div>Clauses: <span className="font-medium">{cov.clauses_total}</span></div>
-                      <div>
-                        Risk: <span className="font-medium">{cov.risk_pct}%</span> ·{" "}
-                        Obligation: <span className="font-medium">{cov.obligation_pct}%</span>
+            // Detect stalling
+            const key = row.id;
+            const currentProgress = isNewSession ? (row as SessionRow).chunks_processed : (row as IngestRow).chunks_done;
+            const prevProgress = lastProgress.current[key] ?? -1;
+            const isStalling = row.status === "running" && currentProgress === prevProgress && currentProgress > 0;
+            lastProgress.current[key] = currentProgress;
+
+            return (
+              <div key={row.id} className="border rounded-lg p-4">
+                <div className="grid items-start gap-3 md:grid-cols-12">
+                  {/* Title and metadata */}
+                  <div className="md:col-span-4">
+                    <div className="font-medium">
+                      {title} <span className="text-muted-foreground">({shortCode})</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Version: {versionLabel}
+                    </div>
+                    {isNewSession && (row as SessionRow).retry_count > 0 && (
+                      <div className="text-xs text-yellow-600">
+                        Retries: {(row as SessionRow).retry_count}/{(row as SessionRow).max_retries}
                       </div>
-                    </>
-                  ) : (
-                    <div className="text-muted-foreground">Coverage: n/a</div>
-                  )}
+                    )}
+                  </div>
+
+                  {/* Status */}
+                  <div className="md:col-span-2 flex items-center gap-2">
+                    <StatusBadge status={row.status} />
+                    {isStalling && (
+                      <span className="text-xs text-muted-foreground">stalled</span>
+                    )}
+                  </div>
+
+                  {/* Progress */}
+                  <div className="md:col-span-3">
+                    <Progress value={progress} className="h-2 mb-1" />
+                    <div className="text-xs text-muted-foreground">
+                      {progressText}
+                    </div>
+                  </div>
+
+                  {/* Finished time */}
+                  <div className="md:col-span-2 text-sm">
+                    {finishedAt}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="md:col-span-1">
+                    {isNewSession && row.status === "failed" && (row as SessionRow).retry_count < (row as SessionRow).max_retries && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => resumeSession(row.id)}
+                      >
+                        Resume
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
-                {/* Right: actions */}
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() => reIngest(v.regulation_id, v.document_id, v.version_label)}
-                  >
-                    {busy ? "Working…" : "Re-ingest"}
-                  </Button>
-
-                  {!deleted ? (
-                    <Button variant="outline" disabled={busy} onClick={() => deleteDoc(v.document_id)}>
-                      {busy ? "Working…" : "Delete"}
-                    </Button>
-                  ) : (
-                    <Button variant="outline" disabled={busy} onClick={() => restoreDoc(v.document_id)}>
-                      {busy ? "Working…" : "Restore"}
-                    </Button>
-                  )}
-                </div>
+                {/* Error display */}
+                {row.status === "failed" && (
+                  <ErrorAlert error={
+                    isNewSession 
+                      ? (row as SessionRow).error_message || "Unknown error" 
+                      : (row as IngestRow).error || "Unknown error"
+                  } />
+                )}
               </div>
-            </Card>
-          );
-        })}
+            );
+          })}
 
-        {!loading && !filtered.length && (
-          <Card className="p-6 text-sm text-muted-foreground">
-            No versions match your search.
-          </Card>
+          {displayData.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              {loading ? "Loading..." : "No ingestions found"}
+            </div>
+          )}
+        </div>
+
+        {hasActive && (
+          <div className="mt-4 text-xs text-muted-foreground flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+            Auto-refreshing every 3 seconds while processing...
+          </div>
         )}
-      </div>
+      </Card>
+
+      <IngestModal open={ingestOpen} onClose={() => setIngestOpen(false)} />
     </div>
   );
 }
