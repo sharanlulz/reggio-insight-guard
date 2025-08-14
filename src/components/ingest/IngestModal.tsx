@@ -285,13 +285,38 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
         body: payload
       });
 
-      if (response.error) throw response.error;
+      console.log('Ingestion response:', response);
+
+      if (response.error) {
+        console.error('Supabase function error:', response.error);
+        throw new Error(response.error.message || JSON.stringify(response.error));
+      }
+
+      if (!response.data || response.data.error) {
+        const errorMsg = response.data?.error || response.data?.message || 'Unknown ingestion error';
+        console.error('Function returned error:', errorMsg);
+        throw new Error(errorMsg);
+      }
 
       onIngestComplete();
       resetForm();
       onClose();
     } catch (err: any) {
-      setError(err.message);
+      console.error('Ingestion error details:', err);
+      
+      let errorMessage = 'Ingestion failed';
+      
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err.error) {
+        errorMessage = err.error.message || JSON.stringify(err.error);
+      } else {
+        errorMessage = JSON.stringify(err);
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsIngesting(false);
     }
