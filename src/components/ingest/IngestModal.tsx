@@ -128,42 +128,107 @@ export default function IngestModal({ open, onClose }: IngestModalProps) {
     setDetectionError("");
     
     try {
-      // Call metadata detection function
-      const { data, error } = await supabase.functions.invoke('reggio-detect-metadata', {
-        body: { url: targetUrl }
-      });
-
-      if (error) throw error;
-
-      if (data?.metadata) {
-        setDetectedMetadata(data.metadata);
+      // Simple client-side detection for known patterns
+      const basicMetadata = detectBasicMetadata(targetUrl);
+      
+      if (basicMetadata) {
+        setDetectedMetadata(basicMetadata);
         
         // Auto-populate form fields
-        if (data.metadata.title && !newRegTitle) {
-          setNewRegTitle(data.metadata.title);
+        if (basicMetadata.title && !newRegTitle) {
+          setNewRegTitle(basicMetadata.title);
         }
-        if (data.metadata.version && !versionLabel) {
-          setVersionLabel(data.metadata.version);
+        if (basicMetadata.version && !versionLabel) {
+          setVersionLabel(basicMetadata.version);
         }
-        if (data.metadata.published_date && !publishedDate) {
-          setPublishedDate(data.metadata.published_date);
+        if (basicMetadata.published_date && !publishedDate) {
+          setPublishedDate(basicMetadata.published_date);
         }
-        if (data.metadata.document_type) {
-          setDocType(data.metadata.document_type === "guidance" ? "Guidance" : "Regulation");
+        if (basicMetadata.document_type) {
+          setDocType(basicMetadata.document_type === "guidance" ? "Guidance" : "Regulation");
         }
-        if (data.metadata.regulator && !newRegRegulator) {
-          setNewRegRegulator(data.metadata.regulator);
+        if (basicMetadata.regulator && !newRegRegulator) {
+          setNewRegRegulator(basicMetadata.regulator);
         }
-        if (data.metadata.jurisdiction && !newRegJurisdiction) {
-          setNewRegJurisdiction(data.metadata.jurisdiction);
+        if (basicMetadata.jurisdiction && !newRegJurisdiction) {
+          setNewRegJurisdiction(basicMetadata.jurisdiction);
         }
       }
+      
+      // Try to call the edge function for enhanced detection (optional)
+      try {
+        const { data, error } = await supabase.functions.invoke('reggio-detect-metadata', {
+          body: { url: targetUrl }
+        });
+
+        if (!error && data?.metadata) {
+          // Merge with enhanced results
+          const enhancedMetadata = { ...basicMetadata, ...data.metadata };
+          setDetectedMetadata(enhancedMetadata);
+          
+          // Update form fields with enhanced data
+          if (data.metadata.title && data.metadata.title !== basicMetadata?.title) {
+            setNewRegTitle(data.metadata.title);
+          }
+        }
+      } catch (enhancedError) {
+        console.log("Enhanced detection not available, using basic detection only");
+        // Don't show this as an error since we have basic detection
+      }
+      
     } catch (err: any) {
       console.error("Metadata detection failed:", err);
       setDetectionError(`Detection failed: ${err.message || "Unknown error"}`);
     } finally {
       setIsDetecting(false);
     }
+  };
+
+  // Basic client-side metadata detection
+  const detectBasicMetadata = (url: string): DetectedMetadata | null => {
+    const lowerUrl = url.toLowerCase();
+    
+    if (lowerUrl.includes('bankofengland.co.uk') && lowerUrl.includes('prudential')) {
+      return {
+        regulator: "PRA",
+        jurisdiction: "UK",
+        document_type: "regulation",
+        confidence_score: 0.8
+      };
+    }
+    
+    if (lowerUrl.includes('handbook.fca.org.uk')) {
+      return {
+        regulator: "FCA",
+        jurisdiction: "UK", 
+        document_type: "regulation",
+        confidence_score: 0.8
+      };
+    }
+    
+    if (lowerUrl.includes('eba.europa.eu')) {
+      return {
+        regulator: "EBA",
+        jurisdiction: "EU",
+        document_type: "regulation", 
+        confidence_score: 0.8
+      };
+    }
+    
+    if (lowerUrl.includes('federalregister.gov')) {
+      return {
+        regulator: "Federal Register",
+        jurisdiction: "US",
+        document_type: "regulation",
+        confidence_score: 0.7
+      };
+    }
+    
+    // Generic detection
+    return {
+      document_type: lowerUrl.includes('guidance') ? "guidance" : "regulation",
+      confidence_score: 0.3
+    };
   };
 
   const handleQuickUrl = (quickUrl: typeof QUICK_URLS[0]) => {
