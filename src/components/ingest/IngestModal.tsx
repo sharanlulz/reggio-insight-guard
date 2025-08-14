@@ -221,6 +221,7 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
   };
 
   const handleIngest = async () => {
+    console.log('Starting ingestion process...');
     setIsIngesting(true);
     setError("");
 
@@ -232,6 +233,15 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
         if (!newRegulationName) {
           throw new Error("Please provide a regulation name");
         }
+
+        console.log('Creating new regulation:', {
+          name: newRegulationName,
+          regulation_id: regulationId,
+          regulator,
+          jurisdiction,
+          document_type: documentType,
+          language
+        });
 
         const { data: newReg, error: regError } = await supabase
           .from('regulations')
@@ -246,7 +256,12 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
           .select()
           .single();
 
-        if (regError) throw regError;
+        if (regError) {
+          console.error('Regulation creation error:', regError);
+          throw new Error(`Failed to create regulation: ${regError.message}`);
+        }
+        
+        console.log('New regulation created:', newReg);
         regulationToUse = newReg.id;
       }
 
@@ -261,15 +276,18 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
       };
 
       if (activeTab === "url") {
+        if (!url) throw new Error("Please provide a URL");
         payload.url = url;
       } else if (activeTab === "file") {
         if (!file) throw new Error("Please select a file");
+        
+        console.log('Processing file:', file.name, file.type, file.size);
         
         // Convert file to base64
         const reader = new FileReader();
         const fileContent = await new Promise<string>((resolve, reject) => {
           reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
+          reader.onerror = () => reject(new Error('Failed to read file'));
           reader.readAsDataURL(file);
         });
         
@@ -279,6 +297,12 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
         if (!manualText) throw new Error("Please provide text content");
         payload.text_content = manualText;
       }
+
+      console.log('Ingestion payload:', {
+        ...payload,
+        file_content: payload.file_content ? '[FILE_CONTENT]' : undefined,
+        text_content: payload.text_content ? '[TEXT_CONTENT]' : undefined
+      });
 
       // Call ingestion function
       const response = await supabase.functions.invoke('reggio-ingest', {
@@ -298,6 +322,7 @@ export function IngestModal({ isOpen, onClose, onIngestComplete }: IngestModalPr
         throw new Error(errorMsg);
       }
 
+      console.log('Ingestion successful:', response.data);
       onIngestComplete();
       resetForm();
       onClose();
