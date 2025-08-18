@@ -1,522 +1,376 @@
-import React, { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  AlertTriangle, 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  FileText, 
-  Clock, 
-  Target,
-  Download,
-  Eye,
-  Calculator,
-  Zap
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
 
-// Mock data demonstrating the Smart Regulatory Analysis in action
-const mockRegulatoryChanges = [
-  {
-    id: 'change_001',
-    regulation_title: 'PRA Liquidity Requirements Update 2024',
-    change_type: 'AMENDMENT',
-    change_date: '2024-01-15',
-    effective_date: '2024-04-01',
-    status: 'analyzing',
-    total_financial_impact: {
-      capital_impact: 0,
-      liquidity_impact: 75_000_000,
-      operational_cost_impact: 8_000_000,
-      total_one_time_cost: 1_500_000,
-      total_annual_cost: 8_000_000
-    },
-    strategic_assessment: {
-      overall_severity: 'HIGH',
-      implementation_complexity: 'MODERATE',
-      recommended_timeline: '6-9 months',
-      key_risks: [
-        'LCR requirement increases to 110%',
-        'Current position may fall below new threshold',
-        'Additional liquidity buffer needed'
-      ],
-      opportunities: [
-        'Optimize funding mix',
-        'Review HQLA portfolio composition',
-        'Competitive advantage through early compliance'
-      ]
-    },
-    affected_clauses: [
-      {
-        clause_id: 'clause_001',
-        path_hierarchy: 'Section 2.1.1',
-        summary_plain: 'Minimum LCR requirement increased from 100% to 110%',
-        financial_impact_type: 'LIQUIDITY_REQUIREMENT',
-        quantitative_impact: {
-          impact_metric: 'LCR_MINIMUM',
-          impact_value: 1.10,
-          confidence_score: 0.95,
-          effective_date: '2024-04-01'
-        },
-        calculated_impact: {
-          current_compliance_status: 'AT_RISK',
-          financial_shortfall_or_surplus: -50_000_000,
-          annual_cost_estimate: 5_000_000,
-          recommended_actions: [
-            'Increase HQLA by £50M',
-            'Review deposit mix to reduce outflow rates',
-            'Consider secured funding alternatives'
-          ]
-        }
+export default function RegulatoryIntelligence() {
+  const [selectedRegulation, setSelectedRegulation] = useState(null);
+  const [analysisResults, setAnalysisResults] = useState([]);
+
+  // Mock data for regulatory changes and their financial impact
+  const mockRegulatoryChanges = [
+    {
+      id: '1',
+      title: 'PRA Policy Statement PS15/25: LCR Requirements Update',
+      source: 'PRA',
+      jurisdiction: 'UK',
+      publishDate: '2025-08-15',
+      status: 'Active',
+      priority: 'High',
+      summary: 'Updates to Liquidity Coverage Ratio requirements for UK banks',
+      financialImpact: {
+        estimatedCost: '£45,000,000',
+        affectedRatios: ['LCR', 'NSFR'],
+        complianceDeadline: '2025-12-31',
+        confidence: 85
       },
-      {
-        clause_id: 'clause_002',
-        path_hierarchy: 'Section 2.3.4',
-        summary_plain: 'Enhanced stress testing requirements for liquidity planning',
-        financial_impact_type: 'OPERATIONAL_COST',
-        quantitative_impact: {
-          impact_metric: 'COST_PER_ANNUM',
-          impact_value: 3_000_000,
-          confidence_score: 0.80,
-          effective_date: '2024-04-01'
-        },
-        calculated_impact: {
-          current_compliance_status: 'COMPLIANT',
-          financial_shortfall_or_surplus: 0,
-          annual_cost_estimate: 3_000_000,
-          recommended_actions: [
-            'Budget for enhanced stress testing capabilities',
-            'Consider automated stress testing solutions',
-            'Review current stress testing processes'
-          ]
-        }
+      aiAnalysis: {
+        keyChanges: [
+          'LCR minimum increased from 100% to 105%',
+          'Enhanced reporting requirements for HQLA composition',
+          'New stress scenario parameters'
+        ],
+        recommendations: [
+          'Increase HQLA portfolio by £50M',
+          'Review funding strategy for retail deposits',
+          'Update internal stress testing models'
+        ],
+        implementationSteps: [
+          'Immediate: Review current LCR position',
+          'Month 1: Identify HQLA gap and funding sources', 
+          'Month 2: Execute portfolio rebalancing',
+          'Month 3: Update reporting systems'
+        ]
       }
-    ]
-  },
-  {
-    id: 'change_002',
-    regulation_title: 'Basel IV Capital Framework - Final Rules',
-    change_type: 'NEW_REGULATION',
-    change_date: '2024-01-20',
-    effective_date: '2025-01-01',
-    status: 'impact_calculated',
-    total_financial_impact: {
-      capital_impact: 120_000_000,
-      liquidity_impact: 0,
-      operational_cost_impact: 15_000_000,
-      total_one_time_cost: 8_000_000,
-      total_annual_cost: 15_000_000
     },
-    strategic_assessment: {
-      overall_severity: 'CRITICAL',
-      implementation_complexity: 'MAJOR_TRANSFORMATION',
-      recommended_timeline: '12-18 months',
-      key_risks: [
-        'Significant increase in RWA calculations',
-        'Major capital raising may be required',
-        'Complex systems implementation needed'
-      ],
-      opportunities: [
-        'Business model optimization',
-        'Competitive positioning through efficiency',
-        'Technology modernization'
-      ]
-    },
-    affected_clauses: [
-      {
-        clause_id: 'clause_003',
-        path_hierarchy: 'Article 92.1',
-        summary_plain: 'Standardised approach for credit risk - revised risk weights',
-        financial_impact_type: 'CAPITAL_REQUIREMENT',
-        quantitative_impact: {
-          impact_metric: 'RWA_MULTIPLIER',
-          impact_value: 1.15,
-          confidence_score: 0.85,
-          effective_date: '2025-01-01'
-        },
-        calculated_impact: {
-          current_compliance_status: 'NON_COMPLIANT',
-          financial_shortfall_or_surplus: -80_000_000,
-          annual_cost_estimate: 12_000_000,
-          recommended_actions: [
-            'Raise £80M in Tier 1 capital',
-            'Review loan portfolio composition',
-            'Consider asset optimization strategies'
-          ]
-        }
+    {
+      id: '2',
+      title: 'ECB Guide on Operational Resilience',
+      source: 'ECB',
+      jurisdiction: 'EU',
+      publishDate: '2025-08-12',
+      status: 'Consultation',
+      priority: 'Medium',
+      summary: 'New guidance on operational resilience framework for EU banks',
+      financialImpact: {
+        estimatedCost: '£12,500,000',
+        affectedRatios: ['Operational Risk Capital'],
+        complianceDeadline: '2026-06-30',
+        confidence: 70
+      },
+      aiAnalysis: {
+        keyChanges: [
+          'Enhanced business continuity requirements',
+          'New operational risk assessment framework',
+          'Increased outsourcing oversight'
+        ],
+        recommendations: [
+          'Establish dedicated operational resilience team',
+          'Review third-party dependencies',
+          'Enhance business continuity testing'
+        ],
+        implementationSteps: [
+          'Immediate: Gap analysis of current framework',
+          'Month 1: Design enhanced operational resilience framework',
+          'Month 3: Implement new processes and controls',
+          'Month 6: Complete staff training and testing'
+        ]
       }
-    ]
-  }
-];
+    },
+    {
+      id: '3',
+      title: 'EBA Guidelines on SREP Methodology',
+      source: 'EBA',
+      jurisdiction: 'EU',
+      publishDate: '2025-08-10',
+      status: 'Active',
+      priority: 'High',
+      summary: 'Updated Supervisory Review and Evaluation Process methodology',
+      financialImpact: {
+        estimatedCost: '£25,000,000',
+        affectedRatios: ['Tier 1 Capital', 'Total Capital'],
+        complianceDeadline: '2025-11-30',
+        confidence: 90
+      },
+      aiAnalysis: {
+        keyChanges: [
+          'Enhanced capital planning requirements',
+          'New stress testing scenarios',
+          'Updated governance expectations'
+        ],
+        recommendations: [
+          'Strengthen capital planning process',
+          'Enhance risk appetite framework',
+          'Update ICAAP documentation'
+        ],
+        implementationSteps: [
+          'Immediate: Review current ICAAP against new requirements',
+          'Month 1: Update capital planning models',
+          'Month 2: Enhance governance framework',
+          'Month 3: Submit updated ICAAP to supervisor'
+        ]
+      }
+    }
+  ];
 
-const mockRegulations = [
-  { id: 'reg_001', title: 'PRA Liquidity Requirements', status: 'monitoring', last_change: '2024-01-15' },
-  { id: 'reg_002', title: 'Basel IV Capital Framework', status: 'analyzing', last_change: '2024-01-20' },
-  { id: 'reg_003', title: 'CRD VI Implementation', status: 'stable', last_change: '2023-12-01' },
-  { id: 'reg_004', title: 'MREL and TLAC Requirements', status: 'stable', last_change: '2023-11-15' }
-];
-
-// Format currency
-const formatCurrency = (amount: number) => `£${(amount / 1_000_000).toFixed(1)}M`;
-
-// Format percentage
-const formatPercentage = (value: number) => `${(value * 100).toFixed(1)}%`;
-
-// Regulatory Change Impact Dashboard
-const RegulatoryChangeImpactDashboard: React.FC = () => {
-  const [selectedChange, setSelectedChange] = useState<string | null>(null);
-  const [analysisMode, setAnalysisMode] = useState<'overview' | 'detailed' | 'recommendations'>('overview');
-  const [analyzing, setAnalyzing] = useState(false);
-
-  const selectedChangeData = mockRegulatoryChanges.find(c => c.id === selectedChange);
-
-  const runNewAnalysis = async (regulationId: string) => {
-    setAnalyzing(true);
-    // Simulate AI analysis
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    setAnalyzing(false);
-  };
+  const mockAnalysisQueue = [
+    { regulation: 'FCA Consultation CP25/15', status: 'Processing', priority: 'High' },
+    { regulation: 'BoE Discussion Paper DP3/25', status: 'Pending', priority: 'Medium' },
+    { regulation: 'EBA Report on NPLs', status: 'Completed', priority: 'Low' }
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Regulatory Change Intelligence</h1>
-          <p className="text-muted-foreground">AI-powered financial impact analysis of regulatory changes</p>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            🧠 Regulatory Intelligence Center
+          </h1>
+          <p className="text-lg text-gray-600">
+            AI-powered regulatory change analysis with financial impact assessment
+          </p>
+        </header>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-blue-100">
+                <span className="text-2xl">📊</span>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Regulations Analyzed</p>
+                <p className="text-2xl font-bold text-gray-900">247</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-red-100">
+                <span className="text-2xl">🚨</span>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">High Priority</p>
+                <p className="text-2xl font-bold text-red-600">12</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-yellow-100">
+                <span className="text-2xl">💰</span>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Impact (Est.)</p>
+                <p className="text-2xl font-bold text-yellow-600">£125M</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-green-100">
+                <span className="text-2xl">⚡</span>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Auto-Analysis Queue</p>
+                <p className="text-2xl font-bold text-green-600">{mockAnalysisQueue.filter(a => a.status === 'Pending').length}</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export Reports
-          </Button>
-          <Button>
-            <Zap className="h-4 w-4 mr-2" />
-            Analyze New Regulation
-          </Button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Recent Regulatory Changes */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  📋 Recent Regulatory Changes
+                </h2>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  {mockRegulatoryChanges.map((reg) => (
+                    <div
+                      key={reg.id}
+                      className={`border rounded-lg p-4 cursor-pointer transition-all hover:shadow-md ${
+                        selectedRegulation?.id === reg.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                      }`}
+                      onClick={() => setSelectedRegulation(reg)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              reg.priority === 'High' ? 'bg-red-100 text-red-800' :
+                              reg.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {reg.priority}
+                            </span>
+                            <span className="text-sm text-gray-500">{reg.source}</span>
+                            <span className="text-sm text-gray-500">•</span>
+                            <span className="text-sm text-gray-500">{reg.jurisdiction}</span>
+                          </div>
+                          <h3 className="font-medium text-gray-900 mb-1">{reg.title}</h3>
+                          <p className="text-sm text-gray-600 mb-2">{reg.summary}</p>
+                          <div className="flex items-center space-x-4 text-sm">
+                            <span className="text-gray-500">Published: {reg.publishDate}</span>
+                            <span className="text-red-600 font-medium">Impact: {reg.financialImpact.estimatedCost}</span>
+                          </div>
+                        </div>
+                        <div className={`w-3 h-3 rounded-full ${
+                          reg.status === 'Active' ? 'bg-green-500' : 'bg-yellow-500'
+                        }`}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Analysis Queue & Actions */}
+          <div className="space-y-6">
+            {/* AI Analysis Queue */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  🤖 AI Analysis Queue
+                </h2>
+              </div>
+              <div className="p-6">
+                <div className="space-y-3">
+                  {mockAnalysisQueue.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{item.regulation}</p>
+                        <p className={`text-xs ${
+                          item.status === 'Processing' ? 'text-blue-600' :
+                          item.status === 'Pending' ? 'text-yellow-600' :
+                          'text-green-600'
+                        }`}>
+                          {item.status}
+                        </p>
+                      </div>
+                      <div className={`w-2 h-2 rounded-full ${
+                        item.status === 'Processing' ? 'bg-blue-500 animate-pulse' :
+                        item.status === 'Pending' ? 'bg-yellow-500' :
+                        'bg-green-500'
+                      }`}></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  ⚡ Quick Actions
+                </h2>
+              </div>
+              <div className="p-6 space-y-3">
+                <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                  Generate Executive Report
+                </button>
+                <button className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                  Export Financial Impact Summary
+                </button>
+                <button className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                  Schedule Board Briefing
+                </button>
+                <button className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
+                  Connect to Portfolio Model
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <AlertTriangle className="h-4 w-4 text-orange-600" />
-            <span className="text-sm font-medium">Active Changes</span>
-          </div>
-          <div className="space-y-2">
-            <div className="text-2xl font-bold">2</div>
-            <div className="text-xs text-muted-foreground">Requiring immediate attention</div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <DollarSign className="h-4 w-4 text-red-600" />
-            <span className="text-sm font-medium">Total Impact</span>
-          </div>
-          <div className="space-y-2">
-            <div className="text-2xl font-bold text-red-600">£218M</div>
-            <div className="text-xs text-muted-foreground">Capital + Liquidity requirements</div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <TrendingUp className="h-4 w-4 text-orange-600" />
-            <span className="text-sm font-medium">Annual Costs</span>
-          </div>
-          <div className="space-y-2">
-            <div className="text-2xl font-bold">£23M</div>
-            <div className="text-xs text-muted-foreground">Ongoing compliance costs</div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <Clock className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium">Urgent Actions</span>
-          </div>
-          <div className="space-y-2">
-            <div className="text-2xl font-bold">5</div>
-            <div className="text-xs text-muted-foreground">Due within 6 months</div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Regulatory Changes List */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Recent Regulatory Changes</h3>
-          <div className="space-y-4">
-            {mockRegulatoryChanges.map((change) => (
-              <div 
-                key={change.id} 
-                className={`border rounded-lg p-4 cursor-pointer transition-colors hover:bg-muted/50 ${
-                  selectedChange === change.id ? 'border-blue-500 bg-blue-50' : ''
-                }`}
-                onClick={() => setSelectedChange(change.id)}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="font-medium">{change.regulation_title}</div>
-                  <Badge variant={
-                    change.strategic_assessment.overall_severity === 'CRITICAL' ? 'destructive' :
-                    change.strategic_assessment.overall_severity === 'HIGH' ? 'secondary' : 'default'
-                  }>
-                    {change.strategic_assessment.overall_severity}
-                  </Badge>
-                </div>
-                
-                <div className="text-sm text-muted-foreground mb-3">
-                  Effective: {new Date(change.effective_date).toLocaleDateString()} • 
-                  Type: {change.change_type}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Financial Impact:</span>
-                    <div className="font-medium text-red-600">
-                      {formatCurrency(change.total_financial_impact.capital_impact + change.total_financial_impact.liquidity_impact)}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Annual Cost:</span>
-                    <div className="font-medium">
-                      {formatCurrency(change.total_financial_impact.total_annual_cost)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-3 pt-3 border-t">
-                  <div className="text-xs text-muted-foreground">
-                    Timeline: {change.strategic_assessment.recommended_timeline} • 
-                    Complexity: {change.strategic_assessment.implementation_complexity}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Regulation Monitoring */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Regulation Monitoring</h3>
-            <Badge variant="outline">4 Tracked</Badge>
-          </div>
-          
-          <div className="space-y-3">
-            {mockRegulations.map((reg) => (
-              <div key={reg.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <div className="font-medium text-sm">{reg.title}</div>
-                  <div className="text-xs text-muted-foreground">
-                    Last change: {new Date(reg.last_change).toLocaleDateString()}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={
-                    reg.status === 'analyzing' ? 'secondary' :
-                    reg.status === 'monitoring' ? 'default' : 'outline'
-                  } className="text-xs">
-                    {reg.status}
-                  </Badge>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => runNewAnalysis(reg.id)}
-                    disabled={analyzing}
-                  >
-                    <Calculator className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {analyzing && (
-            <Alert className="mt-4">
-              <Zap className="h-4 w-4 animate-pulse" />
-              <AlertDescription>
-                AI analyzing regulatory changes and calculating financial impact...
-              </AlertDescription>
-            </Alert>
-          )}
-        </Card>
-      </div>
-
-      {/* Detailed Analysis */}
-      {selectedChangeData && (
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">
-              {selectedChangeData.regulation_title} - Detailed Analysis
-            </h3>
-            <div className="flex gap-2">
-              <Button
-                variant={analysisMode === 'overview' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setAnalysisMode('overview')}
-              >
-                Overview
-              </Button>
-              <Button
-                variant={analysisMode === 'detailed' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setAnalysisMode('detailed')}
-              >
-                Clause Analysis
-              </Button>
-              <Button
-                variant={analysisMode === 'recommendations' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setAnalysisMode('recommendations')}
-              >
-                Recommendations
-              </Button>
+        {/* Detailed Analysis Panel */}
+        {selectedRegulation && (
+          <div className="mt-8 bg-white rounded-lg shadow">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">
+                📊 Detailed Analysis: {selectedRegulation.title}
+              </h2>
             </div>
-          </div>
-
-          {analysisMode === 'overview' && (
-            <div className="space-y-6">
-              {/* Financial Impact Summary */}
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="text-center p-4 border rounded-lg">
-                  <div className="text-sm text-muted-foreground mb-1">Capital Impact</div>
-                  <div className="text-2xl font-bold text-red-600">
-                    {formatCurrency(selectedChangeData.total_financial_impact.capital_impact)}
-                  </div>
-                </div>
-                <div className="text-center p-4 border rounded-lg">
-                  <div className="text-sm text-muted-foreground mb-1">Liquidity Impact</div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {formatCurrency(selectedChangeData.total_financial_impact.liquidity_impact)}
-                  </div>
-                </div>
-                <div className="text-center p-4 border rounded-lg">
-                  <div className="text-sm text-muted-foreground mb-1">Annual Costs</div>
-                  <div className="text-2xl font-bold text-orange-600">
-                    {formatCurrency(selectedChangeData.total_financial_impact.total_annual_cost)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Key Risks and Opportunities */}
-              <div className="grid gap-6 md:grid-cols-2">
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Financial Impact */}
                 <div>
-                  <h4 className="font-medium mb-3 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                    Key Risks
-                  </h4>
-                  <ul className="space-y-2">
-                    {selectedChangeData.strategic_assessment.key_risks.map((risk, index) => (
-                      <li key={index} className="text-sm flex items-start gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2"></div>
-                        {risk}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div>
-                  <h4 className="font-medium mb-3 flex items-center gap-2">
-                    <Target className="h-4 w-4 text-green-500" />
-                    Opportunities
-                  </h4>
-                  <ul className="space-y-2">
-                    {selectedChangeData.strategic_assessment.opportunities.map((opp, index) => (
-                      <li key={index} className="text-sm flex items-start gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2"></div>
-                        {opp}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {analysisMode === 'detailed' && (
-            <div className="space-y-4">
-              <h4 className="font-medium">Clause-by-Clause Financial Impact</h4>
-              {selectedChangeData.affected_clauses.map((clause, index) => (
-                <div key={index} className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <div className="font-medium">{clause.path_hierarchy}</div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {clause.summary_plain}
-                      </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">💰 Financial Impact Assessment</h3>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-red-50 rounded-lg">
+                      <p className="text-sm text-gray-600">Estimated Implementation Cost</p>
+                      <p className="text-2xl font-bold text-red-600">{selectedRegulation.financialImpact.estimatedCost}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={clause.calculated_impact?.current_compliance_status === 'NON_COMPLIANT' ? 'destructive' : 
-                                     clause.calculated_impact?.current_compliance_status === 'AT_RISK' ? 'secondary' : 'default'}>
-                        {clause.calculated_impact?.current_compliance_status}
-                      </Badge>
-                      <Badge variant="outline">
-                        {Math.round((clause.quantitative_impact?.confidence_score || 0) * 100)}% confident
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <div className="text-sm text-muted-foreground">Quantitative Impact</div>
-                      <div className="font-medium">
-                        {clause.quantitative_impact?.impact_metric}: {
-                          clause.quantitative_impact?.impact_metric.includes('MINIMUM') || 
-                          clause.quantitative_impact?.impact_metric.includes('MULTIPLIER') 
-                            ? formatPercentage(clause.quantitative_impact?.impact_value || 0)
-                            : formatCurrency(clause.quantitative_impact?.impact_value || 0)
-                        }
+                      <p className="text-sm font-medium text-gray-700 mb-2">Affected Ratios:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedRegulation.financialImpact.affectedRatios.map((ratio, index) => (
+                          <span key={index} className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                            {ratio}
+                          </span>
+                        ))}
                       </div>
                     </div>
                     <div>
-                      <div className="text-sm text-muted-foreground">Financial Shortfall</div>
-                      <div className={`font-medium ${
-                        (clause.calculated_impact?.financial_shortfall_or_surplus || 0) < 0 ? 'text-red-600' : 'text-green-600'
-                      }`}>
-                        {formatCurrency(Math.abs(clause.calculated_impact?.financial_shortfall_or_surplus || 0))}
-                        {(clause.calculated_impact?.financial_shortfall_or_surplus || 0) < 0 ? ' shortfall' : ' surplus'}
+                      <p className="text-sm font-medium text-gray-700">Compliance Deadline:</p>
+                      <p className="text-lg font-semibold text-orange-600">{selectedRegulation.financialImpact.complianceDeadline}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">AI Confidence Level:</p>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-green-600 h-2 rounded-full" 
+                          style={{ width: `${selectedRegulation.financialImpact.confidence}%` }}
+                        ></div>
                       </div>
+                      <p className="text-sm text-gray-600">{selectedRegulation.financialImpact.confidence}%</p>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
 
-          {analysisMode === 'recommendations' && (
-            <div className="space-y-4">
-              <h4 className="font-medium">AI-Generated Action Plan</h4>
-              {selectedChangeData.affected_clauses.map((clause, clauseIndex) => (
-                clause.calculated_impact?.recommended_actions.map((action, actionIndex) => (
-                  <div key={`${clauseIndex}-${actionIndex}`} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-600 mt-0.5">
-                      {clauseIndex + 1}.{actionIndex + 1}
+                {/* AI Analysis & Recommendations */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">🧠 AI Analysis & Recommendations</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-medium text-gray-800 mb-2">Key Changes Identified:</h4>
+                      <ul className="space-y-1">
+                        {selectedRegulation.aiAnalysis.keyChanges.map((change, index) => (
+                          <li key={index} className="text-sm text-gray-600">• {change}</li>
+                        ))}
+                      </ul>
                     </div>
-                    <div className="flex-1">
-                      <div className="text-sm">{action}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Related to: {clause.path_hierarchy}
-                      </div>
+                    <div>
+                      <h4 className="font-medium text-gray-800 mb-2">Strategic Recommendations:</h4>
+                      <ul className="space-y-1">
+                        {selectedRegulation.aiAnalysis.recommendations.map((rec, index) => (
+                          <li key={index} className="text-sm text-gray-600">✓ {rec}</li>
+                        ))}
+                      </ul>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">Schedule</Button>
-                      <Button size="sm">Assign</Button>
+                    <div>
+                      <h4 className="font-medium text-gray-800 mb-2">Implementation Timeline:</h4>
+                      <ul className="space-y-1">
+                        {selectedRegulation.aiAnalysis.implementationSteps.map((step, index) => (
+                          <li key={index} className="text-sm text-gray-600">
+                            <span className="font-medium">{index + 1}.</span> {step}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
-                ))
-              ))}
+                </div>
+              </div>
             </div>
-          )}
-        </Card>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
-};
-
-export default RegulatoryChangeImpactDashboard;
+}
