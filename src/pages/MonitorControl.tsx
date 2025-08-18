@@ -5,8 +5,23 @@ export default function MonitorControlPanel() {
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState([]);
 
-  // Replace with your actual Supabase project URL
-  const SUPABASE_URL = 'https://plktjrbfnzyelwkyyssz.supabase.co';
+  // Use existing Supabase environment variables (compatible approach)
+  const getEnvVar = (name) => {
+    // Try different ways to access environment variables
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env[`REACT_APP_${name}`] || process.env[`NEXT_PUBLIC_${name}`] || process.env[name];
+    }
+    if (typeof window !== 'undefined' && window.env) {
+      return window.env[name];
+    }
+    // Fallback for Lovable - you can set this manually if needed
+    if (name === 'SUPABASE_URL') {
+      return 'https://your-project-id.supabase.co'; // Replace with your actual URL
+    }
+    return null;
+  };
+
+  const SUPABASE_URL = getEnvVar('SUPABASE_URL');
   const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/realtime-monitor`;
 
   const callMonitorFunction = async (action) => {
@@ -105,6 +120,67 @@ export default function MonitorControlPanel() {
     }, 1000);
   };
 
+  const runHistoricalBackfill = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/historical-backfill?action=start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action: 'start' })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Enhanced backfill failed');
+      }
+
+      setLogs(prev => [...prev, `🧠 Enhanced backfill started: ${new Date().toLocaleTimeString()}`]);
+      setLogs(prev => [...prev, `📄 ${data.message}`]);
+      if (data.details) {
+        setLogs(prev => [...prev, `📊 Added: ${data.details.regulationsAdded} regulations`]);
+        setLogs(prev => [...prev, `🔍 Analyzed: ${data.details.clausesAnalyzed} clauses`]);
+        setLogs(prev => [...prev, `✨ Features: AI summaries, cross-references, key requirements`]);
+      }
+    } catch (error) {
+      setLogs(prev => [...prev, `❌ Enhanced backfill error: ${error.message}`]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkBackfillStatus = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/historical-backfill?action=status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Status check failed');
+      }
+
+      setLogs(prev => [...prev, `📊 Enhanced status: ${new Date().toLocaleTimeString()}`]);
+      if (data.status) {
+        setLogs(prev => [...prev, `📚 Total regulations: ${data.status.totalRegulations || 0}`]);
+        setLogs(prev => [...prev, `📄 Total clauses: ${data.status.totalClauses || 0}`]);
+        setLogs(prev => [...prev, `🧠 AI summaries: ${data.status.withAISummaries || 0}`]);
+        setLogs(prev => [...prev, `🚨 Critical clauses: ${data.status.criticalClauses || 0}`]);
+      }
+    } catch (error) {
+      setLogs(prev => [...prev, `❌ Status check error: ${error.message}`]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold mb-6 text-gray-800">
@@ -197,6 +273,42 @@ export default function MonitorControlPanel() {
         </div>
       </div>
 
+      <div className="mb-6 p-4 rounded-lg bg-purple-50 border border-purple-200">
+        <h3 className="text-sm font-semibold mb-2 text-purple-800">
+          🧠 Enhanced Historical Repository Builder:
+        </h3>
+        <p className="text-sm text-purple-700 mb-3">
+          Build a complete regulatory database with AI-analyzed clauses, cross-reference resolution, and plain English summaries
+        </p>
+        <div className="mb-3 p-3 bg-purple-100 rounded text-sm">
+          <h4 className="font-medium text-purple-800 mb-1">✨ Enhanced Features:</h4>
+          <ul className="text-purple-700 space-y-1">
+            <li>• AI summaries for every clause in simple English</li>
+            <li>• Key requirements extracted and highlighted</li>
+            <li>• Cross-references resolved (no jumping between sections)</li>
+            <li>• Financial impact keywords identified</li>
+            <li>• Compliance deadlines extracted</li>
+            <li>• Critical vs. standard importance levels</li>
+          </ul>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={runHistoricalBackfill}
+            disabled={loading}
+            className="px-4 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+          >
+            {loading ? 'Processing...' : 'Start Enhanced Backfill'}
+          </button>
+          <button
+            onClick={checkBackfillStatus}
+            disabled={loading}
+            className="px-3 py-2 bg-purple-100 text-purple-700 rounded text-sm hover:bg-purple-200 disabled:opacity-50"
+          >
+            Check Status
+          </button>
+        </div>
+      </div>
+
       <div className="mb-6 p-4 rounded-lg bg-blue-50">
         <h3 className="text-lg font-semibold mb-3 text-blue-800">
           📡 Monitoring Sources:
@@ -247,6 +359,7 @@ export default function MonitorControlPanel() {
           <li>2. Deploy realtime-monitor edge function to your Supabase</li>
           <li>3. Update SUPABASE_URL in the code with your project URL</li>
           <li>4. Use "Start Monitoring" for real regulatory feeds</li>
+          <li>5. Run "Enhanced Backfill" to add AI analysis to all clauses</li>
         </ol>
       </div>
     </div>
