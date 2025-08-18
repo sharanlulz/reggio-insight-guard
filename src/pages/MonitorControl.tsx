@@ -1,3 +1,6 @@
+// Fixed MonitorControl Component
+// File: src/pages/MonitorControl.tsx
+
 import { useState } from 'react';
 
 export default function MonitorControlPanel() {
@@ -5,32 +8,37 @@ export default function MonitorControlPanel() {
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState([]);
 
-  // Use existing Supabase environment variables (compatible approach)
-  const getEnvVar = (name) => {
-    // Try different ways to access environment variables
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env[`REACT_APP_${name}`] || process.env[`NEXT_PUBLIC_${name}`] || process.env[name];
-    }
-    if (typeof window !== 'undefined' && window.env) {
-      return window.env[name];
-    }
-    // Fallback for Lovable - you can set this manually if needed
-    if (name === 'SUPABASE_URL') {
-      return 'https://your-project-id.supabase.co'; // Replace with your actual URL
-    }
-    return null;
+  // FIXED: Use import.meta.env directly for Vite/Lovable
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  // Add debugging function
+  const debugEnvironment = () => {
+    console.log('🔍 Environment Debug:');
+    console.log('SUPABASE_URL:', SUPABASE_URL);
+    console.log('SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? 'Found (*****)' : 'Missing');
+    console.log('import.meta.env:', import.meta.env);
+    
+    setLogs(prev => [...prev, `🔍 SUPABASE_URL: ${SUPABASE_URL ? 'Found' : 'MISSING'}`]);
+    setLogs(prev => [...prev, `🔍 SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY ? 'Found' : 'MISSING'}`]);
   };
 
-  const SUPABASE_URL = getEnvVar('SUPABASE_URL');
   const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/realtime-monitor`;
+  const BACKFILL_URL = `${SUPABASE_URL}/functions/v1/historical-backfill`;
 
   const callMonitorFunction = async (action) => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      throw new Error('Missing environment variables. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+    }
+
     setLoading(true);
     try {
       const response = await fetch(`${FUNCTION_URL}?action=${action}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY
         },
         body: JSON.stringify({ action })
       });
@@ -38,7 +46,7 @@ export default function MonitorControlPanel() {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Function call failed');
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 
       return data;
@@ -89,6 +97,105 @@ export default function MonitorControlPanel() {
     }
   };
 
+  // FIXED: Enhanced backfill function with proper error handling
+  const runHistoricalBackfill = async () => {
+    setLoading(true);
+    
+    try {
+      // Check environment variables first
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        throw new Error('Environment variables missing. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Lovable settings.');
+      }
+
+      setLogs(prev => [...prev, `🧠 Starting enhanced backfill: ${new Date().toLocaleTimeString()}`]);
+      setLogs(prev => [...prev, `🎯 Function URL: ${BACKFILL_URL}`]);
+
+      const response = await fetch(BACKFILL_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ 
+          action: 'start',
+          debug: true // Enable debug mode
+        })
+      });
+
+      // Log response details for debugging
+      setLogs(prev => [...prev, `📡 Response status: ${response.status} ${response.statusText}`]);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      setLogs(prev => [...prev, `✅ Enhanced backfill completed: ${new Date().toLocaleTimeString()}`]);
+      setLogs(prev => [...prev, `📄 ${data.message}`]);
+      
+      if (data.details) {
+        setLogs(prev => [...prev, `📊 Regulations added: ${data.details.regulationsAdded}`]);
+        setLogs(prev => [...prev, `🔍 Clauses analyzed: ${data.details.clausesAnalyzed}`]);
+        setLogs(prev => [...prev, `📚 Existing regulations: ${data.details.existingRegulations}`]);
+        setLogs(prev => [...prev, `📄 Existing clauses: ${data.details.existingClauses}`]);
+        setLogs(prev => [...prev, `✨ Features: ${data.details.features?.join(', ')}`]);
+      }
+
+      if (data.details.regulationsAdded === 0 && data.details.clausesAnalyzed === 0) {
+        setLogs(prev => [...prev, `ℹ️ No new data to process. Database already contains analyzed clauses.`]);
+        setLogs(prev => [...prev, `💡 To see enhanced analysis, try ingesting a new regulation first.`]);
+      }
+
+    } catch (error) {
+      console.error('Enhanced backfill error:', error);
+      setLogs(prev => [...prev, `❌ Enhanced backfill error: ${error.message}`]);
+      
+      // Add helpful debugging info
+      if (error.message.includes('Failed to fetch')) {
+        setLogs(prev => [...prev, `🔍 Network error - check environment variables and function deployment`]);
+        setLogs(prev => [...prev, `🔧 Try the debug button to diagnose the issue`]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkBackfillStatus = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(BACKFILL_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ action: 'status' })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      setLogs(prev => [...prev, `📊 Enhanced status: ${new Date().toLocaleTimeString()}`]);
+      if (data.status) {
+        setLogs(prev => [...prev, `📚 Total regulations: ${data.status.totalRegulations || 0}`]);
+        setLogs(prev => [...prev, `📄 Total clauses: ${data.status.totalClauses || 0}`]);
+        setLogs(prev => [...prev, `🧠 AI summaries: ${data.status.withAISummaries || 0}`]);
+        setLogs(prev => [...prev, `🚨 Critical clauses: ${data.status.criticalClauses || 0}`]);
+      }
+    } catch (error) {
+      setLogs(prev => [...prev, `❌ Status check error: ${error.message}`]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const simulateStart = () => {
     setLoading(true);
     setTimeout(() => {
@@ -120,73 +227,13 @@ export default function MonitorControlPanel() {
     }, 1000);
   };
 
-  const runHistoricalBackfill = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/historical-backfill?action=start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action: 'start' })
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Enhanced backfill failed');
-      }
-
-      setLogs(prev => [...prev, `🧠 Enhanced backfill started: ${new Date().toLocaleTimeString()}`]);
-      setLogs(prev => [...prev, `📄 ${data.message}`]);
-      if (data.details) {
-        setLogs(prev => [...prev, `📊 Added: ${data.details.regulationsAdded} regulations`]);
-        setLogs(prev => [...prev, `🔍 Analyzed: ${data.details.clausesAnalyzed} clauses`]);
-        setLogs(prev => [...prev, `✨ Features: AI summaries, cross-references, key requirements`]);
-      }
-    } catch (error) {
-      setLogs(prev => [...prev, `❌ Enhanced backfill error: ${error.message}`]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const checkBackfillStatus = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/historical-backfill?action=status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Status check failed');
-      }
-
-      setLogs(prev => [...prev, `📊 Enhanced status: ${new Date().toLocaleTimeString()}`]);
-      if (data.status) {
-        setLogs(prev => [...prev, `📚 Total regulations: ${data.status.totalRegulations || 0}`]);
-        setLogs(prev => [...prev, `📄 Total clauses: ${data.status.totalClauses || 0}`]);
-        setLogs(prev => [...prev, `🧠 AI summaries: ${data.status.withAISummaries || 0}`]);
-        setLogs(prev => [...prev, `🚨 Critical clauses: ${data.status.criticalClauses || 0}`]);
-      }
-    } catch (error) {
-      setLogs(prev => [...prev, `❌ Status check error: ${error.message}`]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold mb-6 text-gray-800">
         🎯 Regulatory Monitor Control Panel
       </h2>
       
+      {/* Environment Status */}
       <div className="mb-6 p-4 rounded-lg bg-gray-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -197,8 +244,19 @@ export default function MonitorControlPanel() {
               Monitor Status: <span className="capitalize">{status}</span>
             </span>
           </div>
-          <div className="text-sm text-gray-600">
-            Monitoring UK/EU Regulatory Sources
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600">Environment:</span>
+            <span className={`px-2 py-1 text-xs rounded ${
+              SUPABASE_URL && SUPABASE_ANON_KEY ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}>
+              {SUPABASE_URL && SUPABASE_ANON_KEY ? 'Connected' : 'Config Missing'}
+            </span>
+            <button 
+              onClick={debugEnvironment}
+              className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+            >
+              Debug
+            </button>
           </div>
         </div>
       </div>
@@ -244,9 +302,10 @@ export default function MonitorControlPanel() {
         </button>
       </div>
 
+      {/* Test Mode */}
       <div className="mb-6 p-4 rounded-lg bg-yellow-50 border border-yellow-200">
         <h3 className="text-sm font-semibold mb-2 text-yellow-800">
-          🧪 Test Mode (if edge function not deployed yet):
+          🧪 Test Mode (if edge functions not deployed yet):
         </h3>
         <div className="flex space-x-2">
           <button
@@ -273,6 +332,7 @@ export default function MonitorControlPanel() {
         </div>
       </div>
 
+      {/* Enhanced Historical Repository Builder */}
       <div className="mb-6 p-4 rounded-lg bg-purple-50 border border-purple-200">
         <h3 className="text-sm font-semibold mb-2 text-purple-800">
           🧠 Enhanced Historical Repository Builder:
@@ -309,6 +369,7 @@ export default function MonitorControlPanel() {
         </div>
       </div>
 
+      {/* Monitoring Sources */}
       <div className="mb-6 p-4 rounded-lg bg-blue-50">
         <h3 className="text-lg font-semibold mb-3 text-blue-800">
           📡 Monitoring Sources:
@@ -331,6 +392,7 @@ export default function MonitorControlPanel() {
         </div>
       </div>
 
+      {/* Activity Log */}
       <div className="p-4 rounded-lg bg-gray-50">
         <h3 className="text-lg font-semibold mb-3 text-gray-800">
           📝 Activity Log:
@@ -340,7 +402,7 @@ export default function MonitorControlPanel() {
             <p className="text-gray-500 text-sm">No activity yet. Start monitoring to see logs.</p>
           ) : (
             <div className="space-y-1">
-              {logs.slice(-10).reverse().map((log, index) => (
+              {logs.slice(-15).reverse().map((log, index) => (
                 <div key={index} className="text-sm font-mono text-gray-700">
                   {log}
                 </div>
@@ -350,17 +412,30 @@ export default function MonitorControlPanel() {
         </div>
       </div>
 
+      {/* Quick Start Guide */}
       <div className="mt-6 p-4 rounded-lg bg-green-50 border border-green-200">
         <h3 className="text-lg font-semibold mb-2 text-green-800">
-          🚀 Quick Start:
+          🚀 Quick Start & Troubleshooting:
         </h3>
         <ol className="text-sm text-green-700 space-y-1">
-          <li>1. Try "Simulate Start" to test the interface</li>
-          <li>2. Deploy realtime-monitor edge function to your Supabase</li>
-          <li>3. Update SUPABASE_URL in the code with your project URL</li>
-          <li>4. Use "Start Monitoring" for real regulatory feeds</li>
-          <li>5. Run "Enhanced Backfill" to add AI analysis to all clauses</li>
+          <li>1. Check environment status above - should show "Connected"</li>
+          <li>2. If missing config, set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Lovable</li>
+          <li>3. Try "Simulate Start" to test the interface</li>
+          <li>4. Deploy edge functions to your Supabase project</li>
+          <li>5. Use "Start Enhanced Backfill" for AI analysis of existing clauses</li>
+          <li>6. Check logs above for detailed error messages</li>
         </ol>
+        
+        {!SUPABASE_URL && (
+          <div className="mt-3 p-3 bg-red-100 border border-red-200 rounded">
+            <p className="text-red-800 font-medium">❌ Environment Setup Required:</p>
+            <p className="text-red-700 text-sm mt-1">
+              In Lovable, go to Settings → Environment Variables and add:
+              <br />• VITE_SUPABASE_URL = your-project-url.supabase.co
+              <br />• VITE_SUPABASE_ANON_KEY = your-anon-key
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
