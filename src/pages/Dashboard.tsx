@@ -33,62 +33,101 @@ type FundingProfile = {
   deposit_concentration: Record<string, number>;
 };
 
-// Sample portfolio data - replace with real data from your database
+// Realistic banking portfolio data - typical mid-tier bank
 const samplePortfolio: PortfolioAsset[] = [
+  // HQLA Level 1 - Government bonds (small portion)
   {
     id: '1',
     assetClass: 'SOVEREIGN',
-    market_value: 180_000_000,
-    notional_value: 180_000_000,
+    market_value: 120_000_000,
+    notional_value: 120_000_000,
     rating: 'AAA',
     jurisdiction: 'UK',
     basel_risk_weight: 0.0,
     liquidity_classification: 'HQLA_L1'
   },
+  // HQLA Level 2A - High-grade corporate bonds
   {
     id: '2',
     assetClass: 'CORPORATE',
-    market_value: 40_000_000,
-    notional_value: 40_000_000,
+    market_value: 80_000_000,
+    notional_value: 80_000_000,
     rating: 'AA',
     jurisdiction: 'UK',
     sector: 'Financial',
     basel_risk_weight: 0.2,
     liquidity_classification: 'HQLA_L2A'
   },
+  // HQLA Level 2B - Lower grade assets
   {
     id: '3',
-    assetClass: 'PROPERTY',
-    market_value: 10_000_000,
-    notional_value: 10_000_000,
+    assetClass: 'CORPORATE',
+    market_value: 30_000_000,
+    notional_value: 30_000_000,
+    rating: 'BBB',
     jurisdiction: 'UK',
-    sector: 'Commercial',
-    basel_risk_weight: 1.0,
+    sector: 'Utilities',
+    basel_risk_weight: 0.5,
     liquidity_classification: 'HQLA_L2B'
   },
+  // Main loan book - Corporate lending (largest portion)
   {
     id: '4',
     assetClass: 'CORPORATE',
-    market_value: 120_000_000,
-    notional_value: 120_000_000,
+    market_value: 800_000_000,
+    notional_value: 800_000_000,
     rating: 'BBB',
     jurisdiction: 'UK',
     sector: 'Manufacturing',
     basel_risk_weight: 1.0,
     liquidity_classification: 'NON_HQLA'
+  },
+  // Retail mortgages
+  {
+    id: '5',
+    assetClass: 'PROPERTY',
+    market_value: 500_000_000,
+    notional_value: 500_000_000,
+    jurisdiction: 'UK',
+    sector: 'Residential',
+    basel_risk_weight: 0.35, // Typical mortgage risk weight
+    liquidity_classification: 'NON_HQLA'
+  },
+  // SME lending
+  {
+    id: '6',
+    assetClass: 'CORPORATE',
+    market_value: 300_000_000,
+    notional_value: 300_000_000,
+    rating: 'BB',
+    jurisdiction: 'UK',
+    sector: 'SME',
+    basel_risk_weight: 1.0,
+    liquidity_classification: 'NON_HQLA'
+  },
+  // Cash and central bank reserves
+  {
+    id: '7',
+    assetClass: 'CASH',
+    market_value: 170_000_000,
+    notional_value: 170_000_000,
+    jurisdiction: 'UK',
+    basel_risk_weight: 0.0,
+    liquidity_classification: 'HQLA_L1'
   }
 ];
 
 const sampleFunding: FundingProfile = {
-  retail_deposits: 200_000_000,
-  corporate_deposits: 100_000_000,
-  wholesale_funding: 50_000_000,
-  secured_funding: 25_000_000,
+  retail_deposits: 1_200_000_000, // Much larger deposit base
+  corporate_deposits: 400_000_000,
+  wholesale_funding: 200_000_000,
+  secured_funding: 100_000_000,
   stable_funding_ratio: 0.85,
   deposit_concentration: {
-    'Major Corp A': 20_000_000,
-    'Major Corp B': 15_000_000,
-    'Pension Fund X': 25_000_000
+    'Major Corp A': 50_000_000,
+    'Major Corp B': 40_000_000,
+    'Pension Fund X': 60_000_000,
+    'Local Authority': 80_000_000
   }
 };
 
@@ -137,10 +176,15 @@ class SimplifiedLCRCalculator {
   }
 
   private calculateNetCashOutflows(): number {
-    const retailOutflows = this.funding.retail_deposits * 0.03;
-    const corporateOutflows = this.funding.corporate_deposits * 0.20;
-    const wholesaleOutflows = this.funding.wholesale_funding * 1.0;
-    return retailOutflows + corporateOutflows + wholesaleOutflows;
+    // More realistic LCR outflow rates
+    const retailOutflows = this.funding.retail_deposits * 0.05; // 5% for stable retail
+    const corporateOutflows = this.funding.corporate_deposits * 0.25; // 25% for operational corporate
+    const wholesaleOutflows = this.funding.wholesale_funding * 1.0; // 100% for wholesale
+    
+    // Add inflows (negative outflows)
+    const securedFundingInflows = this.funding.secured_funding * 0.0; // Secured funding stays
+    
+    return retailOutflows + corporateOutflows + wholesaleOutflows - securedFundingInflows;
   }
 }
 
@@ -227,8 +271,8 @@ function useFinancialData() {
   const [stressResults, setStressResults] = useState<any[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  const tier1Capital = 60_000_000;
-  const tier2Capital = 15_000_000;
+  const tier1Capital = 150_000_000; // £150M - realistic for £2B bank
+  const tier2Capital = 35_000_000;  // £35M - realistic Tier 2 capital
 
   const calculateFinancials = async () => {
     setLoading(true);
@@ -245,36 +289,36 @@ function useFinancialData() {
       const capitalCalculator = new SimplifiedCapitalCalculator(samplePortfolio);
       const capitalResult = capitalCalculator.calculateCapitalRatios(tier1Capital, tier2Capital);
 
-      // Simulate stress test results
+      // Simulate stress test results with realistic portfolio impact
       const mockStressResults = [
         {
           scenario_name: 'Bank of England Stress Test 2024',
           lcr_result: { 
-            lcr_ratio: 0.95, 
+            lcr_ratio: 0.98, // Just below 100% under severe stress
             compliance_status: 'NON_COMPLIANT' as const
           },
           capital_result: { 
-            tier1_capital_ratio: 0.08,
-            compliance_status: { tier1_compliant: true }
+            tier1_capital_ratio: 0.089, // Just below 9% under stress
+            compliance_status: { tier1_compliant: true } // Still above 6% minimum
           },
           overall_assessment: { 
             overall_severity: 'HIGH' as const, 
-            risk_factors: ['LCR breach under severe stress', 'Reduced liquidity buffer'] 
+            risk_factors: ['LCR falls below 100% under severe stress', 'Capital buffer reduced to 2.9%'] 
           }
         },
         {
           scenario_name: 'Moderate Economic Downturn',
           lcr_result: { 
-            lcr_ratio: 1.08, 
+            lcr_ratio: 1.12, // Stays above 100%
             compliance_status: 'COMPLIANT' as const
           },
           capital_result: { 
-            tier1_capital_ratio: 0.10,
+            tier1_capital_ratio: 0.105, // Moderate reduction
             compliance_status: { tier1_compliant: true }
           },
           overall_assessment: { 
             overall_severity: 'MEDIUM' as const, 
-            risk_factors: ['Reduced capital buffer'] 
+            risk_factors: ['Reduced capital and liquidity buffers but remains compliant'] 
           }
         }
       ];
@@ -331,8 +375,8 @@ function useFinancialData() {
       type: 'warning',
       title: 'PRA Liquidity Requirements Increase',
       description: 'LCR minimum increasing to 110% from Q2 2024',
-      financial_impact: 'Additional £25M liquidity buffer required',
-      annual_cost: 2500000,
+      financial_impact: 'Additional £50M liquidity buffer required',
+      annual_cost: 5_000_000, // 25bps on £50M * 4 = £5M
       timeline_days: 120,
       current_position: lcrData ? `${Math.round(lcrData.lcr_ratio * 100)}%` : 'Calculating...'
     },
@@ -340,8 +384,8 @@ function useFinancialData() {
       type: 'info',
       title: 'Basel IV Implementation Timeline',
       description: 'Final calibration released. RWA impact assessment required',
-      financial_impact: 'Estimated +£15M Tier 1 requirement',
-      annual_cost: 1200000,
+      financial_impact: 'Estimated +£60M Tier 1 requirement',
+      annual_cost: 12_000_000, // 20% cost of equity on £60M
       timeline_days: 365,
       current_position: capitalData ? `${Math.round(capitalData.tier1_capital_ratio * 100)}% Tier 1` : 'Calculating...'
     },
@@ -349,8 +393,8 @@ function useFinancialData() {
       type: 'success',
       title: 'MREL Buffer Optimization Opportunity',
       description: 'Recent subordinated debt issuance creates optimization potential',
-      financial_impact: '£3M annual funding cost reduction',
-      annual_cost: -3000000,
+      financial_impact: '£8M annual funding cost reduction',
+      annual_cost: -8_000_000,
       timeline_days: 30,
       current_position: 'Optimization available'
     }
@@ -361,23 +405,23 @@ function useFinancialData() {
 
     const recommendations = [];
 
-    if (lcrData.buffer_or_deficit < 50_000_000) {
+    if (lcrData.buffer_or_deficit < 100_000_000) { // Less than £100M buffer for larger bank
       recommendations.push({
         priority: 'high',
-        action: `Increase HQLA allocation by £${Math.abs(50_000_000 - lcrData.buffer_or_deficit) / 1_000_000}M to strengthen liquidity buffer`,
-        rationale: 'Current buffer may be insufficient for upcoming regulatory changes',
-        estimated_cost: Math.abs(50_000_000 - lcrData.buffer_or_deficit) * 0.0025,
+        action: `Increase HQLA allocation by £${Math.abs(100_000_000 - lcrData.buffer_or_deficit) / 1_000_000}M to strengthen liquidity buffer`,
+        rationale: 'Current buffer may be insufficient for upcoming regulatory changes and stress scenarios',
+        estimated_cost: Math.abs(100_000_000 - lcrData.buffer_or_deficit) * 0.0025, // 25bps cost
         timeline: '60 days'
       });
     }
 
-    if (capitalData.tier1_capital_ratio < 0.10) {
-      const shortfall = (0.10 - capitalData.tier1_capital_ratio) * capitalData.risk_weighted_assets;
+    if (capitalData.tier1_capital_ratio < 0.12) { // Target 12% for stronger buffer
+      const shortfall = (0.12 - capitalData.tier1_capital_ratio) * capitalData.risk_weighted_assets;
       recommendations.push({
         priority: 'medium',
         action: `Consider raising £${Math.round(shortfall / 1_000_000)}M additional Tier 1 capital`,
-        rationale: 'Strengthen capital position ahead of Basel IV implementation',
-        estimated_cost: shortfall * 0.08,
+        rationale: 'Strengthen capital position ahead of Basel IV implementation and maintain competitive buffer',
+        estimated_cost: shortfall * 0.12, // 12% cost of equity
         timeline: '120 days'
       });
     }
