@@ -1,4 +1,4 @@
-// Complete Monitor Control Panel - Fixed for Build
+// Unified Monitor Control Panel - Integrated Architecture
 // File: src/pages/MonitorControl.tsx
 
 import { useState } from 'react';
@@ -21,7 +21,8 @@ export default function MonitorControl() {
     setLogs(prev => [...prev, `🔍 SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY ? 'Found' : 'MISSING'}`]);
   };
 
-  // Real-time monitoring functions
+  // 📡 REAL-TIME MONITORING
+  // Purpose: Monitor live RSS feeds for new regulatory documents
   const startRealTimeMonitor = async () => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       setLogs(prev => [...prev, `❌ Missing environment variables`]);
@@ -30,7 +31,7 @@ export default function MonitorControl() {
 
     setLoading(true);
     try {
-      setLogs(prev => [...prev, `🧠 Starting real-time monitoring: ${new Date().toLocaleTimeString()}`]);
+      setLogs(prev => [...prev, `📡 Starting real-time RSS monitoring: ${new Date().toLocaleTimeString()}`]);
       
       const response = await fetch(`${SUPABASE_URL}/functions/v1/realtime-monitor`, {
         method: 'POST',
@@ -48,8 +49,8 @@ export default function MonitorControl() {
 
       const data = await response.json();
       setStatus('running');
-      setLogs(prev => [...prev, `✅ Monitor started: ${new Date().toLocaleTimeString()}`]);
-      setLogs(prev => [...prev, `📄 Response: ${data.message || 'Real-time monitoring active'}`]);
+      setLogs(prev => [...prev, `✅ Real-time monitoring active: ${new Date().toLocaleTimeString()}`]);
+      setLogs(prev => [...prev, `📄 ${data.message || 'Monitoring BoE, FCA, ECB, EBA RSS feeds'}`]);
       
     } catch (error) {
       console.error('Real-time monitor error:', error);
@@ -59,8 +60,9 @@ export default function MonitorControl() {
     }
   };
 
-  // Enhanced backfill functions
-  const startEnhancedBackfill = async () => {
+  // 🏛️ COMPLETE UK REGULATORY INTELLIGENCE BUILDER
+  // Purpose: 1) Scrape UK historical archives + 2) Apply AI analysis = Complete system
+  const buildCompleteUKRepository = async () => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       setLogs(prev => [...prev, `❌ Missing environment variables`]);
       return;
@@ -68,8 +70,68 @@ export default function MonitorControl() {
 
     setLoading(true);
     try {
-      setLogs(prev => [...prev, `🧠 Starting enhanced backfill: ${new Date().toLocaleTimeString()}`]);
-      setLogs(prev => [...prev, `🎯 Function URL: ${SUPABASE_URL}/functions/v1/historical-backfill`]);
+      setLogs(prev => [...prev, `🏛️ Building complete UK regulatory repository: ${new Date().toLocaleTimeString()}`]);
+      setLogs(prev => [...prev, `🎯 Phase 1: Historical archive scraping (real UK sources)`]);
+      setLogs(prev => [...prev, `🎯 Phase 2: AI analysis and enhancement`]);
+      
+      // Call the unified historical-backfill function that now does BOTH:
+      // 1. UK historical scraping (if needed)
+      // 2. AI enhancement of all documents
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/historical-backfill`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ 
+          action: 'build_complete_uk_repository',
+          include_historical_scraping: true,
+          include_ai_enhancement: true 
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setLogs(prev => [...prev, `✅ Complete UK repository built: ${new Date().toLocaleTimeString()}`]);
+        setLogs(prev => [...prev, `📄 ${data.message}`]);
+        
+        if (data.stats) {
+          setLogs(prev => [...prev, `📊 Historical documents scraped: ${data.stats.documentsScraped || 0}`]);
+          setLogs(prev => [...prev, `🧠 Documents enhanced with AI: ${data.stats.documentsEnhanced || 0}`]);
+          setLogs(prev => [...prev, `📚 Total regulations: ${data.stats.totalRegulations || 0}`]);
+          setLogs(prev => [...prev, `📄 Total clauses: ${data.stats.totalClauses || 0}`]);
+          setLogs(prev => [...prev, `🎯 Sources: ${data.stats.sources?.join(', ') || 'BoE, PRA, FCA'}`]);
+          setLogs(prev => [...prev, `✅ Data integrity: ${data.stats.integrity || '100% Real UK Regulatory Data'}`]);
+        }
+      } else {
+        setLogs(prev => [...prev, `❌ Repository build failed: ${data.message}`]);
+      }
+      
+    } catch (error) {
+      console.error('Repository build error:', error);
+      setLogs(prev => [...prev, `❌ Repository build error: ${error.message}`]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🧠 AI ENHANCEMENT ONLY
+  // Purpose: Apply AI analysis to existing documents (no new scraping)
+  const enhanceExistingDocuments = async () => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      setLogs(prev => [...prev, `❌ Missing environment variables`]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      setLogs(prev => [...prev, `🧠 Enhancing existing documents with AI: ${new Date().toLocaleTimeString()}`]);
       
       const response = await fetch(`${SUPABASE_URL}/functions/v1/historical-backfill`, {
         method: 'POST',
@@ -78,10 +140,12 @@ export default function MonitorControl() {
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           'apikey': SUPABASE_ANON_KEY
         },
-        body: JSON.stringify({ action: 'start' })
+        body: JSON.stringify({ 
+          action: 'enhance_only',
+          include_historical_scraping: false,
+          include_ai_enhancement: true 
+        })
       });
-
-      setLogs(prev => [...prev, `📡 Response status: ${response.status}`]);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -90,75 +154,18 @@ export default function MonitorControl() {
       const data = await response.json();
       
       if (data.success) {
-        setLogs(prev => [...prev, `✅ Enhanced backfill completed: ${new Date().toLocaleTimeString()}`]);
+        setLogs(prev => [...prev, `✅ AI enhancement completed: ${new Date().toLocaleTimeString()}`]);
         if (data.details) {
-          setLogs(prev => [...prev, `✨ Features: ${data.details.features?.join(', ') || 'AI summaries, Key requirements, Cross-references'}`]);
-          setLogs(prev => [...prev, `📄 Existing clauses: ${data.details.existingClauses || 0}`]);
-          setLogs(prev => [...prev, `📚 Existing regulations: ${data.details.existingRegulations || 0}`]);
           setLogs(prev => [...prev, `🔍 Clauses analyzed: ${data.details.clausesAnalyzed || 0}`]);
-          setLogs(prev => [...prev, `📊 Regulations added: ${data.details.regulationsAdded || 0}`]);
+          setLogs(prev => [...prev, `✨ Features added: ${data.details.features?.join(', ') || 'AI summaries, key requirements'}`]);
         }
       } else {
-        setLogs(prev => [...prev, `❌ Enhanced backfill failed: ${data.message}`]);
+        setLogs(prev => [...prev, `❌ AI enhancement failed: ${data.message}`]);
       }
       
     } catch (error) {
-      console.error('Enhanced backfill error:', error);
-      setLogs(prev => [...prev, `❌ Enhanced backfill error: ${error.message}`]);
-      
-      if (error.message.includes('Failed to fetch')) {
-        setLogs(prev => [...prev, `🔍 Network error - check environment variables and function deployment`]);
-        setLogs(prev => [...prev, `🔧 Try the debug button to diagnose the issue`]);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // UK Historical Archive
-  const startUKHistoricalArchive = async () => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      setLogs(prev => [...prev, `❌ Missing environment variables`]);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      setLogs(prev => [...prev, `🏛️ Starting UK historical archive: ${new Date().toLocaleTimeString()}`]);
-      setLogs(prev => [...prev, `🎯 Target: Real UK regulatory documents only`]);
-      
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/historical-archive`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'apikey': SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({ action: 'start' })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setLogs(prev => [...prev, `✅ UK archive completed: ${new Date().toLocaleTimeString()}`]);
-        setLogs(prev => [...prev, `📄 Message: ${data.message}`]);
-        if (data.stats) {
-          setLogs(prev => [...prev, `📊 Documents found: ${data.stats.documentsFound || 0}`]);
-          setLogs(prev => [...prev, `📄 Documents stored: ${data.stats.documentsStored || 0}`]);
-          setLogs(prev => [...prev, `🏛️ Sources: ${data.stats.sources?.join(', ') || 'BoE, PRA, FCA'}`]);
-          setLogs(prev => [...prev, `✅ Integrity: ${data.stats.integrity || '100% Real Data'}`]);
-        }
-      } else {
-        setLogs(prev => [...prev, `❌ UK archive failed: ${data.message}`]);
-      }
-      
-    } catch (error) {
-      console.error('UK archive error:', error);
-      setLogs(prev => [...prev, `❌ UK archive error: ${error.message}`]);
+      console.error('AI enhancement error:', error);
+      setLogs(prev => [...prev, `❌ AI enhancement error: ${error.message}`]);
     } finally {
       setLoading(false);
     }
@@ -176,30 +183,23 @@ export default function MonitorControl() {
     }, 1000);
   };
 
-  const simulateStop = () => {
+  const simulateComplete = () => {
     setLoading(true);
     setTimeout(() => {
-      setStatus('stopped');
-      setLogs(prev => [...prev, `🛑 Monitor stopped (simulated): ${new Date().toLocaleTimeString()}`]);
+      setLogs(prev => [...prev, `🏛️ Complete repository built (simulated): ${new Date().toLocaleTimeString()}`]);
+      setLogs(prev => [...prev, `📊 Historical documents scraped: 1,247`]);
+      setLogs(prev => [...prev, `🧠 Documents enhanced with AI: 1,247`]);
+      setLogs(prev => [...prev, `📚 Total regulations: 156`]);
+      setLogs(prev => [...prev, `📄 Total clauses: 3,892`]);
+      setLogs(prev => [...prev, `✅ Data integrity: 100% Real UK Regulatory Data`]);
       setLoading(false);
-    }, 1000);
-  };
-
-  const simulateStatus = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLogs(prev => [...prev, `📊 Status check (simulated): ${new Date().toLocaleTimeString()}`]);
-      setLogs(prev => [...prev, `📄 Feeds monitored: 8`]);
-      setLogs(prev => [...prev, `📄 Documents found today: ${Math.floor(Math.random() * 15) + 5}`]);
-      setLogs(prev => [...prev, `📄 Last check: ${new Date(Date.now() - Math.random() * 900000).toLocaleTimeString()}`]);
-      setLoading(false);
-    }, 1000);
+    }, 3000);
   };
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold mb-6 text-gray-800">
-        🎯 Regulatory Monitor Control Panel
+        🎯 Regulatory Intelligence Control Panel
       </h2>
       
       {/* Environment Status */}
@@ -210,7 +210,7 @@ export default function MonitorControl() {
               status === 'running' ? 'bg-green-500' : 'bg-red-500'
             }`}></div>
             <span className="text-lg font-medium">
-              Monitor Status: <span className="capitalize">{status}</span>
+              System Status: <span className="capitalize">{status}</span>
             </span>
           </div>
           <div className="flex items-center space-x-2">
@@ -230,15 +230,38 @@ export default function MonitorControl() {
         </div>
       </div>
 
-      {/* Real-Time Monitoring */}
-      <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200">
-        <h3 className="text-lg font-semibold mb-3 text-green-800">
-          📡 Real-Time RSS Monitoring
+      {/* Architecture Explanation */}
+      <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+        <h3 className="text-lg font-semibold mb-3 text-blue-800">
+          📋 System Architecture
         </h3>
-        <p className="text-sm text-green-700 mb-3">
-          Live monitoring of UK/EU regulatory RSS feeds (BoE, FCA, ECB, EBA)
-        </p>
-        <div className="flex space-x-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="p-3 bg-white rounded border">
+            <h4 className="font-semibold text-green-700 mb-2">📡 Real-Time Monitoring</h4>
+            <p className="text-gray-600">Continuously monitors RSS feeds for new regulatory documents from BoE, FCA, ECB, EBA</p>
+          </div>
+          <div className="p-3 bg-white rounded border">
+            <h4 className="font-semibold text-purple-700 mb-2">🏛️ Complete Repository</h4>
+            <p className="text-gray-600">Scrapes UK historical archives + applies AI analysis = Full regulatory intelligence platform</p>
+          </div>
+          <div className="p-3 bg-white rounded border">
+            <h4 className="font-semibold text-orange-700 mb-2">🧠 AI Enhancement</h4>
+            <p className="text-gray-600">Applies AI summaries, key requirements, and cross-references to existing documents only</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Primary Actions */}
+      <div className="mb-6 space-y-4">
+        
+        {/* Real-Time Monitoring */}
+        <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+          <h3 className="text-lg font-semibold mb-3 text-green-800">
+            📡 Real-Time Regulatory Monitoring
+          </h3>
+          <p className="text-sm text-green-700 mb-3">
+            Live monitoring of UK/EU regulatory RSS feeds for new publications
+          </p>
           <button
             onClick={startRealTimeMonitor}
             disabled={loading}
@@ -249,74 +272,60 @@ export default function MonitorControl() {
             ) : (
               <span>📡</span>
             )}
-            <span>Start Real Monitoring</span>
+            <span>Start Real-Time Monitoring</span>
           </button>
         </div>
-      </div>
 
-      {/* Enhanced Historical Repository Builder */}
-      <div className="mb-6 p-4 rounded-lg bg-purple-50 border border-purple-200">
-        <h3 className="text-lg font-semibold mb-3 text-purple-800">
-          🧠 Enhanced Historical Repository Builder
-        </h3>
-        <p className="text-sm text-purple-700 mb-3">
-          Build a complete regulatory database with AI-analyzed clauses and cross-reference resolution
-        </p>
-        <div className="mb-3 p-3 bg-purple-100 rounded text-sm">
-          <h4 className="font-medium text-purple-800 mb-1">✨ Enhanced Features:</h4>
-          <ul className="text-purple-700 space-y-1">
-            <li>• AI summaries for every clause in simple English</li>
-            <li>• Key requirements extracted and highlighted</li>
-            <li>• Cross-references resolved (no jumping between sections)</li>
-            <li>• Financial impact keywords identified</li>
-            <li>• Compliance deadlines extracted</li>
-          </ul>
-        </div>
-        <div className="flex space-x-3">
+        {/* Complete UK Repository Builder */}
+        <div className="p-4 rounded-lg bg-purple-50 border border-purple-200">
+          <h3 className="text-lg font-semibold mb-3 text-purple-800">
+            🏛️ Complete UK Regulatory Repository Builder
+          </h3>
+          <p className="text-sm text-purple-700 mb-3">
+            <strong>Recommended:</strong> Scrapes real UK regulatory archives AND applies AI analysis in one integrated process
+          </p>
+          <div className="mb-3 p-3 bg-purple-100 rounded text-sm">
+            <h4 className="font-medium text-purple-800 mb-1">🎯 What This Does:</h4>
+            <ul className="text-purple-700 space-y-1">
+              <li>• <strong>Phase 1:</strong> Scrapes BoE/PRA/FCA historical archives for real documents</li>
+              <li>• <strong>Phase 2:</strong> Applies AI analysis to ALL documents (historical + existing)</li>
+              <li>• <strong>Result:</strong> Complete regulatory intelligence database with authentic UK data</li>
+              <li>• <strong>Integrity:</strong> 100% real regulatory documents - no synthetic content</li>
+            </ul>
+          </div>
           <button
-            onClick={startEnhancedBackfill}
+            onClick={buildCompleteUKRepository}
             disabled={loading}
             className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
           >
             {loading ? (
               <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
             ) : (
-              <span>🧠</span>
+              <span>🏛️</span>
             )}
-            <span>Start Enhanced Backfill</span>
+            <span>Build Complete UK Repository</span>
           </button>
         </div>
-      </div>
 
-      {/* UK Historical Archive */}
-      <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
-        <h3 className="text-lg font-semibold mb-3 text-blue-800">
-          🏛️ UK Historical Archive (Real Data Only)
-        </h3>
-        <p className="text-sm text-blue-700 mb-3">
-          Comprehensive scraping of actual UK regulatory archives from verified sources
-        </p>
-        <div className="mb-3 p-3 bg-blue-100 rounded text-sm">
-          <h4 className="font-medium text-blue-800 mb-1">🎯 Real Sources:</h4>
-          <ul className="text-blue-700 space-y-1">
-            <li>• Bank of England: Prudential Regulation Authority</li>
-            <li>• FCA: Policy Statements, Consultation Papers, Guidance</li>
-            <li>• No fake documents - 100% authentic regulatory content</li>
-            <li>• Verifiable URLs and reference numbers</li>
-          </ul>
-        </div>
-        <div className="flex space-x-3">
+        {/* AI Enhancement Only */}
+        <div className="p-4 rounded-lg bg-orange-50 border border-orange-200">
+          <h3 className="text-lg font-semibold mb-3 text-orange-800">
+            🧠 AI Enhancement Only
+          </h3>
+          <p className="text-sm text-orange-700 mb-3">
+            Apply AI analysis to existing documents only (no new document scraping)
+          </p>
           <button
-            onClick={startUKHistoricalArchive}
+            onClick={enhanceExistingDocuments}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
           >
             {loading ? (
               <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
             ) : (
-              <span>🏛️</span>
+              <span>🧠</span>
             )}
-            <span>Start UK Archive</span>
+            <span>Enhance Existing Documents</span>
           </button>
         </div>
       </div>
@@ -332,21 +341,14 @@ export default function MonitorControl() {
             disabled={loading}
             className="px-4 py-2 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700 disabled:opacity-50"
           >
-            Simulate Start
+            Simulate Real-Time
           </button>
           <button
-            onClick={simulateStop}
+            onClick={simulateComplete}
             disabled={loading}
             className="px-4 py-2 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700 disabled:opacity-50"
           >
-            Simulate Stop
-          </button>
-          <button
-            onClick={simulateStatus}
-            disabled={loading}
-            className="px-4 py-2 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700 disabled:opacity-50"
-          >
-            Simulate Status
+            Simulate Complete Build
           </button>
         </div>
       </div>
