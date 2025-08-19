@@ -362,3 +362,5 @@ Export Report
 
 );
 };
+
+export default EnhancedExecutiveDashboard;
