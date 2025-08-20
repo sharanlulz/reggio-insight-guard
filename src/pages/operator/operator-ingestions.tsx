@@ -83,9 +83,9 @@ export default function OperatorIngestions() {
     setLoading(true);
     try {
       const [ing, dv, rv] = await Promise.all([
-        withRetry(() => supabase.from("ingestions_v").select("*").order("updated_at", { ascending: false })),
-        withRetry(() => supabase.from("regulation_documents_v").select("document_id, regulation_id, version_label")),
-        withRetry(() => supabase.from("regulations_v").select("id, title, short_code")),
+        supabase.from("ingestions_v").select("*").order("updated_at", { ascending: false }),
+        supabase.from("regulation_documents_v").select("document_id, regulation_id, version_label"),
+        supabase.from("regulations_v").select("id, title, short_code"),
       ]);
 
       if (ing.error) throw new Error(ing.error.message);

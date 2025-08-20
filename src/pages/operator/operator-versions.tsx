@@ -94,17 +94,11 @@ export default function OperatorVersions() {
     setLoading(true);
     try {
       const [vDocs, vCov, vRegs] = await Promise.all([
-        withRetry(() =>
-          supabase.from("regulation_documents_v")
-            .select("*")
-            .order("created_at", { ascending: false })
-        ),
-        withRetry(() =>
-          supabase.from("clause_coverage_by_document_v").select("*")
-        ),
-        withRetry(() =>
-          supabase.from("regulations_v").select("id, title, short_code")
-        ),
+        supabase.from("regulation_documents_v")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        supabase.from("clause_coverage_by_document_v").select("*"),
+        supabase.from("regulations_v").select("id, title, short_code"),
       ]);
 
       if (vDocs.error) {
@@ -143,13 +137,11 @@ export default function OperatorVersions() {
     setWorkingId(docId);
     try {
       // get the source_url from detail view (public)
-      const res = await withRetry(() =>
-        supabase
-          .from("regulation_documents_detail_v")
-          .select("source_url")
-          .eq("document_id", docId)
-          .single()
-      );
+      const res = await supabase
+        .from("regulation_documents_detail_v")
+        .select("source_url")
+        .eq("document_id", docId)
+        .single();
       if (res.error) {
         toast({ variant: "destructive", title: "Load doc failed", description: res.error.message });
         return;
