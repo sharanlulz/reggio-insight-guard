@@ -81,8 +81,8 @@ export default function StressTestDashboard() {
         console.log(`📊 Calculating: ${scenario.name}`);
         
         // Realistic baseline values for £2.2B bank
-        const baselineHQLA = 420_000_000; // £520M high quality liquid assets
-        const baselineOutflows = 280_000_000; // £180M baseline outflows
+        const baselineHQLA = 420_000_000; // £420M high quality liquid assets
+        const baselineOutflows = 280_000_000; // £280M baseline outflows
         const baselineTier1Capital = 150_000_000; // £150M Tier 1 capital
         const baselineRWA = 1_500_000_000; // £1.5B risk weighted assets
         
@@ -101,7 +101,7 @@ export default function StressTestDashboard() {
         const tier1Ratio = stressedTier1 / baselineRWA; // Should be 4-10% range
         
         // Determine compliance
-        const lcrCompliant = lcrRatio >= 1.05; // 105% requirement
+        const lcrCompliant = lcrRatio >= 1.00; // 105% requirement
         const tier1Compliant = tier1Ratio >= 0.06; // 6% minimum
         const overallPass = lcrCompliant && tier1Compliant;
         
@@ -110,14 +110,14 @@ export default function StressTestDashboard() {
         const riskFactors: string[] = [];
         
         if (!lcrCompliant) {
-          riskFactors.push('LCR below 105% requirement');
+          riskFactors.push('LCR below 100% requirement');
           severity = 'HIGH';
         }
         if (!tier1Compliant) {
           riskFactors.push('Tier 1 capital below 6% minimum');
           severity = 'HIGH';
         }
-        if (lcrRatio < 1.10 && lcrRatio >= 1.05) {
+        if (lcrRatio < 1.10 && lcrRatio >= 1) {
           riskFactors.push('LCR buffer reduced');
           severity = severity === 'HIGH' ? 'HIGH' : 'MEDIUM';
         }
@@ -128,7 +128,7 @@ export default function StressTestDashboard() {
         // Generate recommendations
         const recommendations: string[] = [];
         if (!lcrCompliant) {
-          const shortfall = (1.05 * stressedOutflows) - stressedHQLA;
+          const shortfall = (1.00 * stressedOutflows) - stressedHQLA;
           recommendations.push(`Increase HQLA by £${(shortfall / 1_000_000).toFixed(0)}M to meet LCR requirements`);
         }
         if (!tier1Compliant) {
@@ -145,7 +145,7 @@ export default function StressTestDashboard() {
           lcr_result: {
             lcr_ratio: lcrRatio,
             compliance_status: lcrCompliant ? 'COMPLIANT' : 'NON_COMPLIANT',
-            requirement: 1.05
+            requirement: 1.00
           },
           capital_result: {
             tier1_capital_ratio: tier1Ratio,
@@ -290,7 +290,7 @@ export default function StressTestDashboard() {
             </div>
             <div className="mt-2">
               <Badge variant={summaryMetrics.worst_lcr >= 1.05 ? "default" : "destructive"}>
-                {summaryMetrics.worst_lcr >= 1.05 ? 'Above 105%' : 'Below 105%'}
+                {summaryMetrics.worst_lcr >= 1.05 ? 'Above 100%' : 'Below 100%'}
               </Badge>
             </div>
           </Card>
