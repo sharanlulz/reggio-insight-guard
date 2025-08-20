@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.4"
@@ -198,7 +198,1030 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      clause_coverage_by_document_v: {
+        Row: {
+          clauses_total: number | null
+          document_id: string | null
+          obligation_pct: number | null
+          obligation_tagged: number | null
+          regulation_id: string | null
+          regulation_title: string | null
+          risk_pct: number | null
+          risk_tagged: number | null
+          short_code: string | null
+          version_label: string | null
+        }
+        Relationships: []
+      }
+      clause_coverage_by_regulation_v: {
+        Row: {
+          clauses_total: number | null
+          obligation_pct: number | null
+          obligation_tagged: number | null
+          regulation_id: string | null
+          regulation_title: string | null
+          risk_pct: number | null
+          risk_tagged: number | null
+          short_code: string | null
+        }
+        Relationships: []
+      }
+      clauses: {
+        Row: {
+          citations_json: Json | null
+          created_at: string | null
+          created_by: string | null
+          document_id: string | null
+          id: string | null
+          importance_score: number | null
+          industries: string[] | null
+          number_label: string | null
+          obligation_type:
+            | "MANDATORY"
+            | "RECOMMENDED"
+            | "REPORTING"
+            | "DISCLOSURE"
+            | "RESTRICTION"
+            | "GOVERNANCE"
+            | "RISK_MANAGEMENT"
+            | "RECORD_KEEPING"
+            | null
+          path_hierarchy: string | null
+          regulation_id: string | null
+          risk_area: string | null
+          risk_area_text: string | null
+          summary_plain: string | null
+          text_raw: string | null
+          themes: string[] | null
+        }
+        Insert: {
+          citations_json?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          document_id?: string | null
+          id?: string | null
+          importance_score?: number | null
+          industries?: string[] | null
+          number_label?: string | null
+          obligation_type?:
+            | "MANDATORY"
+            | "RECOMMENDED"
+            | "REPORTING"
+            | "DISCLOSURE"
+            | "RESTRICTION"
+            | "GOVERNANCE"
+            | "RISK_MANAGEMENT"
+            | "RECORD_KEEPING"
+            | null
+          path_hierarchy?: string | null
+          regulation_id?: string | null
+          risk_area?: string | null
+          risk_area_text?: string | null
+          summary_plain?: string | null
+          text_raw?: string | null
+          themes?: string[] | null
+        }
+        Update: {
+          citations_json?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          document_id?: string | null
+          id?: string | null
+          importance_score?: number | null
+          industries?: string[] | null
+          number_label?: string | null
+          obligation_type?:
+            | "MANDATORY"
+            | "RECOMMENDED"
+            | "REPORTING"
+            | "DISCLOSURE"
+            | "RESTRICTION"
+            | "GOVERNANCE"
+            | "RISK_MANAGEMENT"
+            | "RECORD_KEEPING"
+            | null
+          path_hierarchy?: string | null
+          regulation_id?: string | null
+          risk_area?: string | null
+          risk_area_text?: string | null
+          summary_plain?: string | null
+          text_raw?: string | null
+          themes?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clauses_doc_fk"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_doc_fk"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_doc_fk"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_detail_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_doc_fk"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_detail_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "clauses_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "clauses_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "clauses_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "clauses_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clauses_change_log_v: {
+        Row: {
+          after: Json | null
+          before: Json | null
+          changed_at: string | null
+          changed_by: string | null
+          clause_id: string | null
+          id: string | null
+        }
+        Insert: {
+          after?: Json | null
+          before?: Json | null
+          changed_at?: string | null
+          changed_by?: string | null
+          clause_id?: string | null
+          id?: string | null
+        }
+        Update: {
+          after?: Json | null
+          before?: Json | null
+          changed_at?: string | null
+          changed_by?: string | null
+          clause_id?: string | null
+          id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clauses_change_log_clause_id_fkey"
+            columns: ["clause_id"]
+            isOneToOne: false
+            referencedRelation: "clauses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_change_log_clause_id_fkey"
+            columns: ["clause_id"]
+            isOneToOne: false
+            referencedRelation: "clauses_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clauses_v: {
+        Row: {
+          created_at: string | null
+          document_id: string | null
+          id: string | null
+          industries: string[] | null
+          number_label: string | null
+          obligation_type:
+            | "MANDATORY"
+            | "RECOMMENDED"
+            | "REPORTING"
+            | "DISCLOSURE"
+            | "RESTRICTION"
+            | "GOVERNANCE"
+            | "RISK_MANAGEMENT"
+            | "RECORD_KEEPING"
+            | null
+          path_hierarchy: string | null
+          regulation_id: string | null
+          regulation_short_code: string | null
+          regulation_title: string | null
+          risk_area: string | null
+          summary_plain: string | null
+          text_raw: string | null
+          themes: string[] | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clauses_doc_fk"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_doc_fk"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_doc_fk"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_detail_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_doc_fk"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_detail_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "clauses_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "clauses_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "clauses_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "clauses_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "clauses_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clauses_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ingestions: {
+        Row: {
+          chunks_done: number | null
+          chunks_total: number | null
+          error: string | null
+          finished_at: string | null
+          id: string | null
+          regulation_document_id: string | null
+          started_at: string | null
+          status: string | null
+        }
+        Insert: {
+          chunks_done?: number | null
+          chunks_total?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string | null
+          regulation_document_id?: string | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          chunks_done?: number | null
+          chunks_total?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string | null
+          regulation_document_id?: string | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ingestions_regulation_document_id_fkey"
+            columns: ["regulation_document_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "ingestions_regulation_document_id_fkey"
+            columns: ["regulation_document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ingestions_regulation_document_id_fkey"
+            columns: ["regulation_document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_detail_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "ingestions_regulation_document_id_fkey"
+            columns: ["regulation_document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_v"
+            referencedColumns: ["document_id"]
+          },
+        ]
+      }
+      ingestions_v: {
+        Row: {
+          chunks_done: number | null
+          chunks_total: number | null
+          error: string | null
+          finished_at: string | null
+          id: string | null
+          jurisdiction_tagged_count: number | null
+          ratio_tagged_count: number | null
+          regulation_document_id: string | null
+          regulation_id: string | null
+          regulation_short_code: string | null
+          regulation_title: string | null
+          status: string | null
+          updated_at: string | null
+          version_label: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ingestions_regulation_document_id_fkey"
+            columns: ["regulation_document_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "ingestions_regulation_document_id_fkey"
+            columns: ["regulation_document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ingestions_regulation_document_id_fkey"
+            columns: ["regulation_document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_detail_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "ingestions_regulation_document_id_fkey"
+            columns: ["regulation_document_id"]
+            isOneToOne: false
+            referencedRelation: "regulation_documents_v"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      obligations: {
+        Row: {
+          action_text: string | null
+          clause_id: string | null
+          created_at: string | null
+          due_date_estimate: string | null
+          evidence_required: string | null
+          frequency: string | null
+          id: string | null
+          obligation_text: string | null
+          penalty_summary: string | null
+          related_clause_path: string | null
+          responsible_role: string | null
+        }
+        Insert: {
+          action_text?: string | null
+          clause_id?: string | null
+          created_at?: string | null
+          due_date_estimate?: string | null
+          evidence_required?: string | null
+          frequency?: string | null
+          id?: string | null
+          obligation_text?: string | null
+          penalty_summary?: string | null
+          related_clause_path?: string | null
+          responsible_role?: string | null
+        }
+        Update: {
+          action_text?: string | null
+          clause_id?: string | null
+          created_at?: string | null
+          due_date_estimate?: string | null
+          evidence_required?: string | null
+          frequency?: string | null
+          id?: string | null
+          obligation_text?: string | null
+          penalty_summary?: string | null
+          related_clause_path?: string | null
+          responsible_role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obligations_clause_fk"
+            columns: ["clause_id"]
+            isOneToOne: false
+            referencedRelation: "clauses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obligations_clause_fk"
+            columns: ["clause_id"]
+            isOneToOne: false
+            referencedRelation: "clauses_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obligations_clause_id_fkey"
+            columns: ["clause_id"]
+            isOneToOne: false
+            referencedRelation: "clauses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obligations_clause_id_fkey"
+            columns: ["clause_id"]
+            isOneToOne: false
+            referencedRelation: "clauses_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      obligations_v: {
+        Row: {
+          clause_id: string | null
+          created_at: string | null
+          description: string | null
+          due_date_estimate: string | null
+          id: string | null
+          obligation_text: string | null
+          related_clause_path: string | null
+        }
+        Insert: {
+          clause_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date_estimate?: string | null
+          id?: string | null
+          obligation_text?: string | null
+          related_clause_path?: string | null
+        }
+        Update: {
+          clause_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date_estimate?: string | null
+          id?: string | null
+          obligation_text?: string | null
+          related_clause_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obligations_clause_fk"
+            columns: ["clause_id"]
+            isOneToOne: false
+            referencedRelation: "clauses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obligations_clause_fk"
+            columns: ["clause_id"]
+            isOneToOne: false
+            referencedRelation: "clauses_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obligations_clause_id_fkey"
+            columns: ["clause_id"]
+            isOneToOne: false
+            referencedRelation: "clauses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obligations_clause_id_fkey"
+            columns: ["clause_id"]
+            isOneToOne: false
+            referencedRelation: "clauses_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      regulation_documents: {
+        Row: {
+          checksum_sha256: string | null
+          created_at: string | null
+          doc_type: string | null
+          id: string | null
+          language: string | null
+          published_at: string | null
+          regulation_id: string | null
+          source_url: string | null
+          version_label: string | null
+        }
+        Insert: {
+          checksum_sha256?: string | null
+          created_at?: string | null
+          doc_type?: string | null
+          id?: string | null
+          language?: string | null
+          published_at?: string | null
+          regulation_id?: string | null
+          source_url?: string | null
+          version_label?: string | null
+        }
+        Update: {
+          checksum_sha256?: string | null
+          created_at?: string | null
+          doc_type?: string | null
+          id?: string | null
+          language?: string | null
+          published_at?: string | null
+          regulation_id?: string | null
+          source_url?: string | null
+          version_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      regulation_documents_detail_v: {
+        Row: {
+          created_at: string | null
+          deleted: boolean | null
+          doc_type: string | null
+          document_id: string | null
+          is_deleted: boolean | null
+          language: string | null
+          published_at: string | null
+          regulation_id: string | null
+          regulation_title: string | null
+          short_code: string | null
+          source_url: string | null
+          version_label: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      regulation_documents_v: {
+        Row: {
+          created_at: string | null
+          deleted: boolean | null
+          doc_type: string | null
+          document_id: string | null
+          is_deleted: boolean | null
+          language: string | null
+          published_at: string | null
+          regulation_id: string | null
+          regulation_title: string | null
+          short_code: string | null
+          source_url: string | null
+          version_label: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regdoc_reg_fk"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_document_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "clause_coverage_by_regulation_v"
+            referencedColumns: ["regulation_id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulation_documents_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "regulations_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      regulations: {
+        Row: {
+          citation: string | null
+          created_at: string | null
+          created_by: string | null
+          effective_date: string | null
+          id: string | null
+          jurisdiction: string | null
+          last_updated_at: string | null
+          org_id: string | null
+          regulator: string | null
+          short_code: string | null
+          source_url: string | null
+          status: string | null
+          title: string | null
+        }
+        Insert: {
+          citation?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          effective_date?: string | null
+          id?: string | null
+          jurisdiction?: string | null
+          last_updated_at?: string | null
+          org_id?: string | null
+          regulator?: string | null
+          short_code?: string | null
+          source_url?: string | null
+          status?: string | null
+          title?: string | null
+        }
+        Update: {
+          citation?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          effective_date?: string | null
+          id?: string | null
+          jurisdiction?: string | null
+          last_updated_at?: string | null
+          org_id?: string | null
+          regulator?: string | null
+          short_code?: string | null
+          source_url?: string | null
+          status?: string | null
+          title?: string | null
+        }
+        Relationships: []
+      }
+      regulations_v: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          jurisdiction: string | null
+          org_id: string | null
+          regulator: string | null
+          short_code: string | null
+          title: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          jurisdiction?: string | null
+          org_id?: string | null
+          regulator?: string | null
+          short_code?: string | null
+          title?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          jurisdiction?: string | null
+          org_id?: string | null
+          regulator?: string | null
+          short_code?: string | null
+          title?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       binary_quantize: {
