@@ -1,126 +1,108 @@
-// Dashboard Real Data Connector
-// This replaces mock data with real financial calculations
-// File: src/hooks/useFinancialData.ts
+// src/hooks/useFinancialData.ts
+// Unified demo data + calculators (stable, realistic, consistent)
 
-import { useState, useEffect } from 'react';
-import { 
+import { useState, useEffect } from "react";
+import {
   LiquidityCoverageRatioCalculator,
-  CapitalAdequacyCalculator,
   StressTestingEngine,
   type PortfolioAsset,
   type FundingProfile,
   type RegulatoryParameters,
   type CapitalBase,
-  type StressScenario
-} from '@/lib/financial-modeling';
+} from "@/lib/financial-modeling";
+import {
+  REGULATORY_SCENARIOS,
+  type StressScenario,
+} from "@/lib/stress-test-engine";
 
-// Sample portfolio data (replace with real data from your database later)
+// ---------- Realistic demo inputs (GBP) ----------
 const samplePortfolio: PortfolioAsset[] = [
+  // Level 1 HQLA (gilts)
   {
-    id: '1',
-    assetClass: 'SOVEREIGN',
+    id: "1",
+    assetClass: "SOVEREIGN",
     market_value: 180_000_000,
     notional_value: 180_000_000,
-    rating: 'AAA',
-    jurisdiction: 'UK',
+    rating: "AAA",
+    jurisdiction: "UK",
     basel_risk_weight: 0.0,
-    liquidity_classification: 'HQLA_L1'
+    liquidity_classification: "HQLA_L1",
   },
+  // Level 2A HQLA (AA corporates)
   {
-    id: '2',
-    assetClass: 'CORPORATE',
+    id: "2",
+    assetClass: "CORPORATE",
     market_value: 40_000_000,
     notional_value: 40_000_000,
-    rating: 'AA',
-    jurisdiction: 'UK',
-    sector: 'Financial',
+    rating: "AA",
+    jurisdiction: "UK",
+    sector: "Financial",
     basel_risk_weight: 0.2,
-    liquidity_classification: 'HQLA_L2A'
+    liquidity_classification: "HQLA_L2A",
   },
+  // Level 2B (low-vol asset kept small)
   {
-    id: '3',
-    assetClass: 'PROPERTY',
+    id: "3",
+    assetClass: "PROPERTY",
     market_value: 10_000_000,
     notional_value: 10_000_000,
-    jurisdiction: 'UK',
-    sector: 'Commercial',
+    jurisdiction: "UK",
+    sector: "Commercial",
     basel_risk_weight: 1.0,
-    liquidity_classification: 'HQLA_L2B'
+    liquidity_classification: "HQLA_L2B",
   },
+  // Non-HQLA risk assets (BBB corporates)
   {
-    id: '4',
-    assetClass: 'CORPORATE',
+    id: "4",
+    assetClass: "CORPORATE",
     market_value: 120_000_000,
     notional_value: 120_000_000,
-    rating: 'BBB',
-    jurisdiction: 'UK',
-    sector: 'Manufacturing',
+    rating: "BBB",
+    jurisdiction: "UK",
+    sector: "Manufacturing",
     basel_risk_weight: 1.0,
-    liquidity_classification: 'NON_HQLA'
-  }
+    liquidity_classification: "NON_HQLA",
+  },
 ];
 
 const sampleFunding: FundingProfile = {
-  retail_deposits: 200_000_000,
-  corporate_deposits: 100_000_000,
-  wholesale_funding: 50_000_000,
-  secured_funding: 25_000_000,
+  retail_deposits: 200_000_000,     // stable retail
+  corporate_deposits: 100_000_000,  // operational corporate
+  wholesale_funding: 50_000_000,    // short-term wholesale
+  secured_funding: 25_000_000,      // repos etc.
   stable_funding_ratio: 0.85,
-  deposit_concentration: 0.15
+  deposit_concentration: {
+    "Major Corp A": 20_000_000,
+    "Major Corp B": 15_000_000,
+    "Pension Fund X": 25_000_000,
+  },
 };
 
 const ukRegulatoryParams: RegulatoryParameters = {
-  jurisdiction: 'UK',
-  applicable_date: '2024-01-01',
-  lcr_requirement: 1.0, // 100%
+  jurisdiction: "UK",
+  applicable_date: "2024-01-01",
+  lcr_requirement: 1.05,        // ✅ 105% (was 1.00)
   nsfr_requirement: 1.0,
-  tier1_minimum: 0.06, // 6%
-  total_capital_minimum: 0.08, // 8%
-  leverage_ratio_minimum: 0.03, // 3%
-  large_exposure_limit: 0.25, // 25%
-  stress_test_scenarios: []
+  tier1_minimum: 0.06,
+  total_capital_minimum: 0.08,
+  leverage_ratio_minimum: 0.03,
+  large_exposure_limit: 0.25,
+  stress_test_scenarios: [],
 };
 
 const currentCapital: CapitalBase = {
   tier1_capital: 60_000_000,
-  tier2_capital: 15_000_000
+  tier2_capital: 15_000_000,
 };
 
-// Stress test scenarios
-const stressScenarios: StressScenario[] = [
-  {
-    name: 'Bank of England Stress Test 2024',
-    asset_shocks: {
-      'SOVEREIGN': -0.05,
-      'CORPORATE': -0.25,
-      'EQUITY': -0.40,
-      'PROPERTY': -0.30
-    },
-    funding_shocks: {
-      'RETAIL_DEPOSITS': -0.05,
-      'CORPORATE_DEPOSITS': -0.20,
-      'WHOLESALE_FUNDING': -0.50
-    },
-    capital_base: currentCapital
-  },
-  {
-    name: 'Moderate Economic Downturn',
-    asset_shocks: {
-      'SOVEREIGN': -0.02,
-      'CORPORATE': -0.15,
-      'EQUITY': -0.25,
-      'PROPERTY': -0.20
-    },
-    funding_shocks: {
-      'RETAIL_DEPOSITS': -0.03,
-      'CORPORATE_DEPOSITS': -0.10,
-      'WHOLESALE_FUNDING': -0.30
-    },
-    capital_base: currentCapital
-  }
-];
+// Zero-shock scenario for base capital calc (keeps math consistent with engine)
+const zeroShockScenario: StressScenario = {
+  name: "Base (No Shock)",
+  asset_shocks: {}, // no price shocks
+  funding_shocks: {}, // no outflow shocks
+  capital_base: currentCapital,
+};
 
-// Hook to provide real financial data
 export function useFinancialData() {
   const [loading, setLoading] = useState(true);
   const [lcrData, setLcrData] = useState<any>(null);
@@ -128,161 +110,156 @@ export function useFinancialData() {
   const [stressResults, setStressResults] = useState<any[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  const calculateFinancials = async () => {
+  async function calculateFinancials() {
     setLoading(true);
-    
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Small artificial delay to mimic I/O
+      await new Promise((r) => setTimeout(r, 300));
 
-      // Calculate LCR
-      const lcrCalculator = new LiquidityCoverageRatioCalculator(
+      // --- Base LCR (LiquidityCoverageRatioCalculator) ---
+      const lcrCalc = new LiquidityCoverageRatioCalculator(
         samplePortfolio,
         sampleFunding,
         ukRegulatoryParams
       );
-      const lcrResult = lcrCalculator.calculateLCR();
-
-      // Calculate Capital Adequacy
-      const capitalCalculator = new CapitalAdequacyCalculator(
-        ukRegulatoryParams
-      );
-      const capitalResult = capitalCalculator.calculateCapitalRatios(samplePortfolio, currentCapital);
-
-      // Run Stress Tests
-      const stressEngine = new StressTestingEngine(
-        samplePortfolio,
-        sampleFunding,
-        ukRegulatoryParams
-      );
-      
-      const stressTestResults = stressScenarios.map(scenario => 
-        stressEngine.runStressScenario(scenario)
-      );
-
-      // Update state
+      const lcrResult = lcrCalc.calculateLCR();
       setLcrData(lcrResult);
-      setCapitalData(capitalResult);
-      setStressResults(stressTestResults);
+
+      // --- Capital (via StressTestingEngine, zero-shock) ---
+      const engine = new StressTestingEngine(
+        samplePortfolio,
+        sampleFunding,
+        ukRegulatoryParams
+      );
+      const base = engine.runStressScenario(zeroShockScenario);
+      // This returns { capital_result: { tier1_capital_ratio, total_capital_ratio, ... } }
+      setCapitalData(base.capital_result);
+
+      // --- Regulatory Scenarios (force your capital base for consistency) ---
+      const regResults = REGULATORY_SCENARIOS.map((s) =>
+        engine.runStressScenario({
+          ...s,
+          capital_base: currentCapital, // ✅ do not vary Tier 1 unexpectedly
+        } as StressScenario)
+      );
+      setStressResults(regResults);
+
       setLastUpdated(new Date());
-      
-    } catch (error) {
-      console.error('Financial calculation error:', error);
+    } catch (e) {
+      console.error("Financial calculation error:", e);
+      // Keep state graceful; dashboard guards undefined
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   useEffect(() => {
     calculateFinancials();
   }, []);
 
-  // Helper functions to format data for dashboard
+  // --------- Helpers surfaced to the dashboard ---------
   const getKeyMetrics = () => {
     if (!lcrData || !capitalData) return null;
 
+    const failed =
+      stressResults.filter(
+        (r) =>
+          r?.lcr_result?.compliance_status === "NON_COMPLIANT" ||
+          !r?.capital_result?.compliance_status?.tier1_compliant
+      ).length ?? 0;
+
+    const worstLcr =
+      stressResults.length > 0
+        ? Math.min(
+            ...stressResults.map((r) => Number(r?.lcr_result?.lcr_ratio ?? Infinity))
+          )
+        : Number(lcrData?.lcr_ratio ?? 0);
+
     return {
       lcr: {
-        ratio: lcrData.lcr_ratio,
-        percentage: Math.round(lcrData.lcr_ratio * 100),
-        status: lcrData.compliance_status,
-        buffer: lcrData.buffer_or_deficit
+        ratio: Number(lcrData?.lcr_ratio ?? 0), // decimal (e.g., 1.62)
+        status: lcrData?.compliance_status,
+        buffer: Number(lcrData?.buffer_or_deficit ?? 0),
       },
       capital: {
-        tier1_ratio: capitalData.tier1_capital_ratio,
-        tier1_percentage: Math.round(capitalData.tier1_capital_ratio * 100),
-        total_ratio: capitalData.total_capital_ratio,
-        total_percentage: Math.round(capitalData.total_capital_ratio * 100),
-        leverage_ratio: capitalData.leverage_ratio,
-        leverage_percentage: Math.round(capitalData.leverage_ratio * 100),
-        compliance: capitalData.compliance_status
+        tier1_ratio: Number(capitalData?.tier1_capital_ratio ?? 0), // decimal
+        total_ratio: Number(capitalData?.total_capital_ratio ?? 0), // decimal
+        leverage_ratio: Number(capitalData?.leverage_ratio ?? 0),   // decimal
+        rwa: Number(capitalData?.risk_weighted_assets ?? 0),
+        compliance: capitalData?.compliance_status,
       },
       stress: {
         total_scenarios: stressResults.length,
-        failed_scenarios: stressResults.filter(r => 
-          r.lcr_result.compliance_status === 'NON_COMPLIANT' ||
-          !r.capital_result.compliance_status?.tier1_compliant
-        ).length,
-        worst_lcr: stressResults.length > 0 ? 
-          Math.min(...stressResults.map(r => r.lcr_result.lcr_ratio)) : 0
-      }
+        failed_scenarios: failed,
+        worst_lcr: worstLcr, // decimal
+      },
     };
   };
 
   const getRegulatoryAlerts = () => [
     {
-      type: 'warning',
-      title: 'PRA Liquidity Requirements Increase',
-      description: 'LCR minimum increasing to 110% from Q2 2024',
-      financial_impact: 'Additional £25M liquidity buffer required',
-      annual_cost: 2500000,
+      type: "warning",
+      title: "PRA Liquidity Requirements",
+      description: "Internal target set to 105% LCR buffer.",
+      financial_impact: "Additional £25M HQLA suggested",
+      annual_cost: 2_500_000,
       timeline_days: 120,
-      current_position: lcrData ? `${Math.round(lcrData.lcr_ratio * 100)}%` : 'Calculating...'
+      current_position: lcrData ? `${(Number(lcrData.lcr_ratio) * 100).toFixed(0)}%` : "—",
     },
     {
-      type: 'info',
-      title: 'Basel IV Implementation Timeline',
-      description: 'Final calibration released. RWA impact assessment required',
-      financial_impact: 'Estimated +£15M Tier 1 requirement',
-      annual_cost: 1200000,
-      timeline_days: 365,
-      current_position: capitalData ? `${Math.round(capitalData.tier1_capital_ratio * 100)}% Tier 1` : 'Calculating...'
+      type: "info",
+      title: "Basel III.1 Calibration",
+      description: "Re-evaluate RWA treatment for BBB corporates.",
+      financial_impact: "Potential +£10–15M Tier 1",
+      annual_cost: 1_200_000,
+      timeline_days: 180,
+      current_position: capitalData
+        ? `${(Number(capitalData.tier1_capital_ratio) * 100).toFixed(1)}% Tier 1`
+        : "—",
     },
-    {
-      type: 'success',
-      title: 'MREL Buffer Optimization Opportunity',
-      description: 'Recent subordinated debt issuance creates optimization potential',
-      financial_impact: '£3M annual funding cost reduction',
-      annual_cost: -3000000,
-      timeline_days: 30,
-      current_position: 'Optimization available'
-    }
   ];
 
   const getStrategicRecommendations = () => {
     if (!lcrData || !capitalData) return [];
 
-    const recommendations = [];
+    const recs: any[] = [];
 
-    // LCR-based recommendations
-    if (lcrData.buffer_or_deficit < 50_000_000) { // Less than £50M buffer
-      recommendations.push({
-        priority: 'high',
-        action: `Increase HQLA allocation by £${Math.abs(50_000_000 - lcrData.buffer_or_deficit) / 1_000_000}M to strengthen liquidity buffer`,
-        rationale: 'Current buffer may be insufficient for upcoming regulatory changes',
-        estimated_cost: Math.abs(50_000_000 - lcrData.buffer_or_deficit) * 0.0025, // 25bps cost
-        timeline: '60 days'
+    // LCR buffer
+    if (Number(lcrData.buffer_or_deficit ?? 0) < 50_000_000) {
+      const gap = 50_000_000 - Number(lcrData.buffer_or_deficit ?? 0);
+      if (gap > 0) {
+        recs.push({
+          priority: "high",
+          action: `Add ~£${(gap / 1_000_000).toFixed(0)}M HQLA (gilts)`,
+          rationale: "Strengthen buffer to internal target.",
+          timeline: "60 days",
+        });
+      }
+    }
+
+    // Tier 1 headroom vs 6%
+    const rwa = Number(capitalData.risk_weighted_assets ?? 0);
+    const t1 = Number(capitalData.tier1_capital_ratio ?? 0);
+    const shortfall = Math.max(0, 0.06 * rwa - t1 * rwa);
+    if (shortfall > 0) {
+      recs.push({
+        priority: "high",
+        action: `Consider £${(shortfall / 1_000_000).toFixed(0)}M AT1 issuance`,
+        rationale: "Close Tier 1 gap to 6% minimum.",
+        timeline: "90 days",
       });
     }
 
-    // Capital-based recommendations
-    if (capitalData.tier1_capital_ratio < 0.10) { // Less than 10%
-      const shortfall = (0.10 - capitalData.tier1_capital_ratio) * capitalData.risk_weighted_assets;
-      recommendations.push({
-        priority: 'medium',
-        action: `Consider raising £${Math.round(shortfall / 1_000_000)}M additional Tier 1 capital`,
-        rationale: 'Strengthen capital position ahead of Basel IV implementation',
-        estimated_cost: shortfall * 0.08, // 8% cost of equity
-        timeline: '120 days'
+    if (recs.length === 0) {
+      recs.push({
+        priority: "low",
+        action: "Maintain current buffers; monitor wholesale markets",
+        rationale: "All thresholds met under base case.",
+        timeline: "Ongoing",
       });
     }
 
-    // Stress test-based recommendations
-    const failedStress = stressResults.filter(r => 
-      r.lcr_result.compliance_status === 'NON_COMPLIANT'
-    );
-    
-    if (failedStress.length > 0) {
-      recommendations.push({
-        priority: 'high',
-        action: 'Review asset composition to improve stress test resilience',
-        rationale: `${failedStress.length} stress scenario(s) show LCR breach`,
-        estimated_cost: 0,
-        timeline: '30 days'
-      });
-    }
-
-    return recommendations;
+    return recs;
   };
 
   return {
@@ -294,6 +271,6 @@ export function useFinancialData() {
     regulatoryAlerts: getRegulatoryAlerts(),
     strategicRecommendations: getStrategicRecommendations(),
     lastUpdated,
-    refresh: calculateFinancials
+    refresh: calculateFinancials,
   };
 }
