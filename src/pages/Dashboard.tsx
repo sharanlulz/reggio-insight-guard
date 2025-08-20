@@ -1,410 +1,495 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
-  CheckCircle, 
-  Clock, 
-  DollarSign,
+  Database, 
+  Wifi, 
+  WifiOff, 
+  AlertCircle, 
+  CheckCircle,
+  RefreshCw,
+  TrendingUp,
   BarChart3,
-  FileText,
-  Shield,
-  Zap,
-  RefreshCw
+  FileText
 } from 'lucide-react';
 
-// Types from your existing code
-type MetricTriple = {
-  current: number;
-  required: number;
-  buffer: number; // difference (+/-)
-};
+// Real data service with fallback logic
+class RegulatoryDataService {
+  private static instance: RegulatoryDataService;
+  private connectionStatus: 'live' | 'cached' | 'mock' = 'mock';
+  private lastSyncTime: Date | null = null;
 
-type Metrics = {
-  lcr: MetricTriple;
-  tier1: MetricTriple;
-  leverage: MetricTriple;
-  totalImpact: number;
-  confidence: number;
-};
+  static getInstance(): RegulatoryDataService {
+    if (!RegulatoryDataService.instance) {
+      RegulatoryDataService.instance = new RegulatoryDataService();
+    }
+    return RegulatoryDataService.instance;
+  }
 
-// Enhanced regulatory data that connects to your financial metrics
-const mockRegulatoryData = {
-  totalRegulations: 23,
-  totalClauses: 1247,
-  financialImpactClauses: 342,
-  lastUpdated: "2025-01-20T14:30:00Z",
-  complianceScore: 87,
-  
-  financialImpacts: {
-    capitalRequirements: {
-      count: 89,
-      avgConfidence: 0.92,
-      keyChanges: [
-        { 
-          metric: "Tier 1 Minimum", 
-          current: "11.7%", 
-          proposed: "12.0%", 
-          impact: "£67M additional capital needed",
-          regulation: "Basel 3.1 Implementation",
-          daysUntil: 365
-        },
-        { 
-          metric: "Leverage Ratio", 
-          current: "3.15%", 
-          proposed: "3.0%", 
-          impact: "Currently compliant with buffer",
-          regulation: "CRR Article 429",
-          daysUntil: 90
+  async fetchRegulatoryMetrics() {
+    try {
+      // Attempt real data fetch
+      const realData = await this.fetchFromSupabase();
+      this.connectionStatus = 'live';
+      this.lastSyncTime = new Date();
+      return realData;
+    } catch (error) {
+      console.warn('Live data unavailable, using fallback:', error.message);
+      
+      try {
+        // Try cached data
+        const cachedData = this.getCachedData();
+        if (cachedData) {
+          this.connectionStatus = 'cached';
+          return cachedData;
         }
-      ]
-    },
-    liquidityRequirements: {
-      count: 156,
-      avgConfidence: 0.89,
-      keyChanges: [
-        { 
-          metric: "LCR Minimum", 
-          current: "108.2%", 
-          proposed: "110%", 
-          impact: "£52M additional liquidity required",
-          regulation: "ILAAP Requirements",
-          daysUntil: 90
+      } catch (cacheError) {
+        console.warn('Cache unavailable:', cacheError.message);
+      }
+      
+      // Fall back to intelligent mock data
+      this.connectionStatus = 'mock';
+      return this.getIntelligentMockData();
+    }
+  }
+
+  private async fetchFromSupabase() {
+    // Simulated Supabase query - replace with actual when limits reset
+    const response = await fetch('/api/regulatory-metrics', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Supabase error: ${response.status}`);
+    }
+    
+    return await response.json();
+  }
+
+  private getCachedData() {
+    // Try to get cached data from localStorage or IndexedDB
+    const cached = localStorage.getItem('reggio_regulatory_cache');
+    if (cached) {
+      const data = JSON.parse(cached);
+      const cacheAge = Date.now() - data.timestamp;
+      
+      // Use cache if less than 4 hours old
+      if (cacheAge < 4 * 60 * 60 * 1000) {
+        return data.metrics;
+      }
+    }
+    return null;
+  }
+
+  private getIntelligentMockData() {
+    // Enhanced mock data that simulates what real ingested data would look like
+    const now = new Date();
+    
+    return {
+      dataSource: 'mock',
+      timestamp: now.toISOString(),
+      metrics: {
+        totalRegulations: 23,
+        totalClauses: 1247,
+        financialImpactClauses: 342,
+        lastIngestion: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+        
+        // Simulated real analysis results
+        clauseAnalysis: {
+          capitalRequirements: {
+            count: 89,
+            avgConfidence: 0.92,
+            sources: ['Basel 3.1', 'CRD V', 'PRA CP3/23'],
+            lastAnalyzed: new Date(now.getTime() - 30 * 60 * 1000).toISOString()
+          },
+          liquidityRequirements: {
+            count: 156,
+            avgConfidence: 0.89,
+            sources: ['CRR Part Six', 'ILAAP Rules', 'LCR Delegated Act'],
+            lastAnalyzed: new Date(now.getTime() - 45 * 60 * 1000).toISOString()
+          }
         },
-        { 
-          metric: "NSFR Target", 
-          current: "98%", 
-          proposed: "100%", 
-          impact: "Funding profile adjustment needed",
-          regulation: "CRR Part Six",
-          daysUntil: 180
-        }
-      ]
+
+        // Real financial calculations (would be computed from ingested data)
+        financialImpacts: {
+          totalEstimatedCost: 127500000,
+          confidence: 87,
+          breakdown: {
+            capital: { amount: 67000000, confidence: 95, regulations: 8 },
+            liquidity: { amount: 52000000, confidence: 89, regulations: 12 },
+            operational: { amount: 8500000, confidence: 78, regulations: 15 }
+          }
+        },
+
+        // Would be extracted from actual ingested regulatory documents
+        upcomingDeadlines: [
+          {
+            regulation: 'Basel 3.1 Implementation',
+            source: 'PRA CP3/23',
+            deadline: '2025-07-01',
+            impact: 67000000,
+            confidence: 95,
+            clauses: 23
+          },
+          {
+            regulation: 'ILAAP Annual Review', 
+            source: 'PRA Rulebook Chapter 13',
+            deadline: '2025-03-31',
+            impact: 1500000,
+            confidence: 92,
+            clauses: 8
+          }
+        ]
+      }
+    };
+  }
+
+  getConnectionStatus() {
+    return {
+      status: this.connectionStatus,
+      lastSync: this.lastSyncTime,
+      isLive: this.connectionStatus === 'live'
+    };
+  }
+
+  // Cache data for offline use
+  cacheData(data: any) {
+    try {
+      localStorage.setItem('reggio_regulatory_cache', JSON.stringify({
+        timestamp: Date.now(),
+        metrics: data
+      }));
+    } catch (error) {
+      console.warn('Could not cache data:', error);
     }
-  },
+  }
+}
 
-  criticalAlerts: [
-    {
-      id: 1,
-      type: "liquidity",
-      severity: "high",
-      title: "LCR Breach Risk",
-      description: "Current trajectory shows potential LCR breach in Q3 2024",
-      impact: "£52M additional liquidity required",
-      probability: 78,
-      timeline: "90 days",
-      regulation: "CRR Article 412 - Liquidity Coverage Requirement",
-      status: "action_required",
-      confidence: 92
-    },
-    {
-      id: 2,
-      type: "capital",
-      severity: "high", 
-      title: "Basel 3.1 Implementation",
-      description: "Final calibration increases RWA by estimated 12%",
-      impact: "£67M additional Tier 1 capital",
-      probability: 95,
-      timeline: "365 days",
-      regulation: "Basel 3.1 Final Standards",
-      status: "planning",
-      confidence: 88
-    }
-  ],
+const RealDataIntegration: React.FC = () => {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState<any>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  strategicRecommendations: [
-    {
-      id: 1,
-      title: "Immediate HQLA Rebalancing",
-      priority: "high",
-      confidence: 92,
-      description: "Current liquid asset composition insufficient for stress scenarios",
-      financialImpact: 1300000,
-      timeline: "60 days",
-      status: "pending",
-      regulation: "ILAAP Stress Testing Requirements",
-      details: "Increase Level 1 assets by £52M to meet enhanced LCR requirements"
-    },
-    {
-      id: 2,
-      title: "Strategic Capital Planning",
-      priority: "high",
-      confidence: 88,
-      description: "Basel 3.1 implementation requires proactive capital management",
-      financialImpact: 8000000,
-      timeline: "120 days",
-      status: "in-progress",
-      regulation: "Basel 3.1 Capital Requirements",
-      details: "Optimize capital structure ahead of new minimum requirements"
-    }
-  ]
-};
+  const dataService = RegulatoryDataService.getInstance();
 
-const IntegratedExecutiveDashboard: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [selectedTimeframe, setSelectedTimeframe] = useState('quarterly');
-
-  // Your existing financial metrics
-  const metrics: Metrics = {
-    lcr: { current: 108.2, required: 110, buffer: -1.8 },
-    tier1: { current: 11.7, required: 12.0, buffer: -0.3 },
-    leverage: { current: 3.15, required: 3.0, buffer: 0.15 },
-    totalImpact: 127_500_000,
-    confidence: 87,
-  };
-
-  const formatCurrency = (amount: number) => {
-    if (amount >= 1_000_000) return `£${(amount / 1_000_000).toFixed(1)}M`;
-    if (amount >= 1_000) return `£${(amount / 1_000).toFixed(0)}K`;
-    return `£${amount.toFixed(0)}`;
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch(severity) {
-      case 'high': return 'bg-red-100 text-red-800 border-red-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200'; 
-      case 'low': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const regulatoryData = await dataService.fetchRegulatoryMetrics();
+      setData(regulatoryData);
+      setConnectionStatus(dataService.getConnectionStatus());
+      
+      // Cache successful data fetch
+      if (regulatoryData.dataSource !== 'mock') {
+        dataService.cacheData(regulatoryData);
+      }
+    } catch (error) {
+      console.error('Failed to load regulatory data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'action_required': return 'text-red-600';
-      case 'planning': return 'text-yellow-600';
-      case 'in-progress': return 'text-blue-600';
-      case 'pending': return 'text-gray-600';
-      default: return 'text-gray-600';
+  const refreshData = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  useEffect(() => {
+    loadData();
+    
+    // Set up periodic refresh (every 5 minutes)
+    const interval = setInterval(loadData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getStatusBadge = () => {
+    if (!connectionStatus) return null;
+    
+    switch (connectionStatus.status) {
+      case 'live':
+        return (
+          <Badge className="bg-green-100 text-green-800 border-green-200">
+            <Wifi className="h-3 w-3 mr-1" />
+            Live Data
+          </Badge>
+        );
+      case 'cached':
+        return (
+          <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
+            <Database className="h-3 w-3 mr-1" />
+            Cached Data
+          </Badge>
+        );
+      case 'mock':
+        return (
+          <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Demo Mode
+          </Badge>
+        );
+      default:
+        return null;
     }
   };
 
-  const getMetricStatusColor = (buffer: number) => {
-    if (buffer < 0) return { bg: 'bg-red-500', text: 'text-red-600', badge: 'bg-red-100 text-red-800', label: 'Below Target', arrow: '↓' };
-    if (buffer < 0.5) return { bg: 'bg-orange-500', text: 'text-orange-600', badge: 'bg-orange-100 text-orange-800', label: 'At Risk', arrow: '↓' };
-    return { bg: 'bg-green-500', text: 'text-green-600', badge: 'bg-green-100 text-green-800', label: 'Compliant', arrow: '↑' };
+  const getStatusMessage = () => {
+    if (!connectionStatus) return '';
+    
+    switch (connectionStatus.status) {
+      case 'live':
+        return `Connected to live regulatory database. Last sync: ${connectionStatus.lastSync?.toLocaleTimeString()}`;
+      case 'cached':
+        return 'Using cached regulatory data. Live connection will resume automatically.';
+      case 'mock':
+        return 'Demo mode active. Connect to Supabase for live regulatory analysis.';
+      default:
+        return '';
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 flex items-center justify-center">
+        <Card className="w-96">
+          <CardContent className="pt-6 text-center">
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
+            <h3 className="text-lg font-semibold mb-2">Loading Regulatory Intelligence</h3>
+            <p className="text-gray-600">Connecting to regulatory data sources...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* Header - keeping your functionality */}
-        <div className="flex items-center justify-between">
+        {/* Header with Connection Status */}
+        <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Executive Dashboard</h1>
-            <p className="mt-1 text-gray-600">
-              Real-time regulatory intelligence and financial impact analysis
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900">Regulatory Intelligence Platform</h1>
+            <p className="text-gray-600 mt-2">Real-time regulatory analysis with intelligent fallbacks</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center space-x-3">
+            {getStatusBadge()}
             <Button
               variant="outline"
-              onClick={() => setLoading((s) => !s)}
-              disabled={loading}
+              onClick={refreshData}
+              disabled={refreshing}
               className="flex items-center"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? "Calculating..." : "Refresh Analytics"}
-            </Button>
-            <Button>
-              <FileText className="h-4 w-4 mr-2" />
-              Export Report
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
           </div>
         </div>
 
-        {/* Live Status Banner - enhanced with regulatory context */}
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Zap className="mr-2 h-5 w-5 text-blue-600" />
-              <span>
-                <strong>Live Analysis Active:</strong> Connected to portfolio data and regulatory feeds
+        {/* Connection Status Alert */}
+        <Alert className={
+          connectionStatus?.status === 'live' ? 'border-green-200 bg-green-50' :
+          connectionStatus?.status === 'cached' ? 'border-yellow-200 bg-yellow-50' :
+          'border-blue-200 bg-blue-50'
+        }>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {getStatusMessage()}
+            {connectionStatus?.status !== 'live' && (
+              <span className="block mt-1 text-sm">
+                System will automatically connect to live data when available.
               </span>
-            </div>
-            <div className="text-sm text-blue-600">
-              Last updated: {new Date().toLocaleTimeString()} • {mockRegulatoryData.totalClauses} clauses analyzed • Confidence: {metrics.confidence}%
-            </div>
-          </div>
-        </div>
+            )}
+          </AlertDescription>
+        </Alert>
 
-        {/* Key Financial Metrics - your existing layout enhanced */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-          {/* LCR Metric */}
-          <Card className="border-l-4 border-l-red-500">
+        {/* Data Overview Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="border-l-4 border-l-blue-500">
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Liquidity Coverage Ratio</p>
-                  <div className="mt-2 flex items-center">
-                    <span className="text-2xl font-bold text-red-600">{metrics.lcr.current}%</span>
-                    <span className="ml-2 text-red-500">↓</span>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">Required: {metrics.lcr.required}%</p>
+                  <p className="text-sm font-medium text-gray-600">Regulations Analyzed</p>
+                  <p className="text-2xl font-bold text-gray-900">{data?.metrics?.totalRegulations || 0}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {data?.metrics?.totalClauses || 0} total clauses
+                  </p>
                 </div>
-                <div className="text-right">
-                  <Badge className="bg-red-100 text-red-800">Below Target</Badge>
-                  <p className="mt-1 text-xs text-gray-500">{metrics.lcr.buffer}% buffer</p>
-                </div>
-              </div>
-              
-              <div className="h-2 rounded-full bg-gray-200 mb-3">
-                <div
-                  className="h-2 rounded-full bg-red-500"
-                  style={{
-                    width: `${Math.max(0, (metrics.lcr.current / metrics.lcr.required) * 100)}%`,
-                  }}
-                />
-              </div>
-              
-              {/* Regulatory Context */}
-              <div className="bg-red-50 p-2 rounded text-xs">
-                <p className="font-medium text-red-800">Regulatory Driver:</p>
-                <p className="text-red-700">ILAAP Requirements - 156 clauses analyzed</p>
+                <FileText className="h-8 w-8 text-blue-500" />
               </div>
             </CardContent>
           </Card>
 
-          {/* Tier 1 Metric */}
-          <Card className="border-l-4 border-l-orange-500">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Tier 1 Capital Ratio</p>
-                  <div className="mt-2 flex items-center">
-                    <span className="text-2xl font-bold text-orange-600">{metrics.tier1.current}%</span>
-                    <span className="ml-2 text-orange-500">↓</span>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">Required: {metrics.tier1.required}%</p>
-                </div>
-                <div className="text-right">
-                  <Badge className="bg-orange-100 text-orange-800">At Risk</Badge>
-                  <p className="mt-1 text-xs text-gray-500">{metrics.tier1.buffer}% buffer</p>
-                </div>
-              </div>
-              
-              <div className="h-2 rounded-full bg-gray-200 mb-3">
-                <div
-                  className="h-2 rounded-full bg-orange-500"
-                  style={{
-                    width: `${Math.max(0, (metrics.tier1.current / metrics.tier1.required) * 100)}%`,
-                  }}
-                />
-              </div>
-              
-              {/* Regulatory Context */}
-              <div className="bg-orange-50 p-2 rounded text-xs">
-                <p className="font-medium text-orange-800">Regulatory Driver:</p>
-                <p className="text-orange-700">Basel 3.1 - 89 capital clauses analyzed</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Leverage Metric */}
           <Card className="border-l-4 border-l-green-500">
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Leverage Ratio</p>
-                  <div className="mt-2 flex items-center">
-                    <span className="text-2xl font-bold text-green-600">{metrics.leverage.current}%</span>
-                    <span className="ml-2 text-green-500">↑</span>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">Required: {metrics.leverage.required}%</p>
+                  <p className="text-sm font-medium text-gray-600">Financial Impact</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {data?.metrics?.financialImpactClauses || 0}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">clauses with quantified impact</p>
                 </div>
-                <div className="text-right">
-                  <Badge className="bg-green-100 text-green-800">Compliant</Badge>
-                  <p className="mt-1 text-xs text-gray-500">+{metrics.leverage.buffer}% buffer</p>
-                </div>
-              </div>
-              
-              <div className="h-2 rounded-full bg-gray-200 mb-3">
-                <div
-                  className="h-2 rounded-full bg-green-500"
-                  style={{
-                    width: `${Math.min(100, (metrics.leverage.current / metrics.leverage.required) * 100)}%`,
-                  }}
-                />
-              </div>
-              
-              {/* Regulatory Context */}
-              <div className="bg-green-50 p-2 rounded text-xs">
-                <p className="font-medium text-green-800">Regulatory Driver:</p>
-                <p className="text-green-700">CRR Article 429 - Compliant</p>
+                <TrendingUp className="h-8 w-8 text-green-500" />
               </div>
             </CardContent>
           </Card>
 
-          {/* Total Impact */}
+          <Card className="border-l-4 border-l-yellow-500">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Analysis Confidence</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {data?.metrics?.financialImpacts?.confidence || 0}%
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">AI analysis accuracy</p>
+                </div>
+                <BarChart3 className="h-8 w-8 text-yellow-500" />
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="border-l-4 border-l-purple-500">
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Regulatory Impact</p>
-                  <div className="mt-2 flex items-center">
-                    <span className="text-2xl font-bold text-purple-600">
-                      {formatCurrency(metrics.totalImpact)}
-                    </span>
-                    <span className="ml-2 text-purple-500">⚠️</span>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">Timeline: 9–12 months</p>
+                  <p className="text-sm font-medium text-gray-600">Total Cost Impact</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    £{Math.round((data?.metrics?.financialImpacts?.totalEstimatedCost || 0) / 1000000)}M
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">estimated regulatory costs</p>
                 </div>
-                <div className="text-right">
-                  <Badge className="bg-purple-100 text-purple-800">{metrics.confidence}% Confidence</Badge>
-                  <p className="mt-1 text-xs text-gray-500">AI Analysis</p>
-                </div>
-              </div>
-              
-              {/* Regulatory Context */}
-              <div className="bg-purple-50 p-2 rounded text-xs">
-                <p className="font-medium text-purple-800">Based on Analysis:</p>
-                <p className="text-purple-700">{mockRegulatoryData.financialImpactClauses} financial impact clauses</p>
+                <Database className="h-8 w-8 text-purple-500" />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Critical Alerts - enhanced with your format */}
+        {/* Data Source Details */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          {/* Capital Requirements Analysis */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Capital Requirements Analysis</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Clauses Analyzed:</span>
+                  <Badge variant="secondary">
+                    {data?.metrics?.clauseAnalysis?.capitalRequirements?.count || 0}
+                  </Badge>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Confidence Score:</span>
+                  <span className="text-sm text-gray-600">
+                    {Math.round((data?.metrics?.clauseAnalysis?.capitalRequirements?.avgConfidence || 0) * 100)}%
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Sources:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {(data?.metrics?.clauseAnalysis?.capitalRequirements?.sources || []).map((source: string, idx: number) => (
+                      <Badge key={idx} variant="outline" className="text-xs">
+                        {source}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="text-sm">
+                    <strong>Financial Impact:</strong> £
+                    {Math.round((data?.metrics?.financialImpacts?.breakdown?.capital?.amount || 0) / 1000000)}M
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Based on {data?.metrics?.financialImpacts?.breakdown?.capital?.regulations || 0} regulations
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Liquidity Requirements Analysis */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Liquidity Requirements Analysis</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Clauses Analyzed:</span>
+                  <Badge variant="secondary">
+                    {data?.metrics?.clauseAnalysis?.liquidityRequirements?.count || 0}
+                  </Badge>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Confidence Score:</span>
+                  <span className="text-sm text-gray-600">
+                    {Math.round((data?.metrics?.clauseAnalysis?.liquidityRequirements?.avgConfidence || 0) * 100)}%
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Sources:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {(data?.metrics?.clauseAnalysis?.liquidityRequirements?.sources || []).map((source: string, idx: number) => (
+                      <Badge key={idx} variant="outline" className="text-xs">
+                        {source}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <p className="text-sm">
+                    <strong>Financial Impact:</strong> £
+                    {Math.round((data?.metrics?.financialImpacts?.breakdown?.liquidity?.amount || 0) / 1000000)}M
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Based on {data?.metrics?.financialImpacts?.breakdown?.liquidity?.regulations || 0} regulations
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Upcoming Regulatory Deadlines */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <AlertTriangle className="h-5 w-5 mr-2 text-red-600" />
-              Critical Regulatory Alerts
-            </CardTitle>
+            <CardTitle>Upcoming Regulatory Deadlines</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockRegulatoryData.criticalAlerts.map((alert) => (
-                <div key={alert.id} className="rounded-lg border border-red-200 bg-red-50 p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="mb-2 flex items-center flex-wrap gap-2">
-                        <span className="font-semibold">{alert.title}</span>
-                        <Badge className="bg-red-100 text-red-800">
-                          {alert.probability}% probability
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {alert.confidence}% confidence
-                        </Badge>
-                      </div>
-                      <p className="mb-2 text-sm">{alert.description}</p>
-                      <p className="text-sm font-medium mb-2">{alert.impact}</p>
-                      <p className="text-xs text-gray-600">
-                        <strong>Regulatory Source:</strong> {alert.regulation}
+              {(data?.metrics?.upcomingDeadlines || []).map((deadline: any, idx: number) => (
+                <div key={idx} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div>
+                      <h3 className="font-medium text-gray-900">{deadline.regulation}</h3>
+                      <p className="text-sm text-gray-600">Source: {deadline.source}</p>
+                      <p className="text-xs text-gray-500">
+                        {deadline.clauses} clauses analyzed • {deadline.confidence}% confidence
                       </p>
                     </div>
-                    <div className="ml-4 text-right">
-                      <span className="mb-2 block rounded border bg-white px-2 py-1 text-xs">
-                        {alert.timeline}
-                      </span>
-                      <Button size="sm" variant="outline">
-                        Review
-                      </Button>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {new Date(deadline.deadline).toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      £{Math.round(deadline.impact / 1000000)}M impact
                     </div>
                   </div>
                 </div>
@@ -413,290 +498,31 @@ const IntegratedExecutiveDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Enhanced Tabs with Regulatory Intelligence */}
-        <Tabs defaultValue="recommendations" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="recommendations">AI Recommendations</TabsTrigger>
-            <TabsTrigger value="regulatory-impact">Regulatory Impact</TabsTrigger>
-            <TabsTrigger value="compliance-tracking">Compliance Tracking</TabsTrigger>
-            <TabsTrigger value="financial-modeling">Financial Modeling</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="recommendations">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Zap className="h-5 w-5 mr-2 text-purple-600" />
-                  AI-Generated Strategic Recommendations
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {mockRegulatoryData.strategicRecommendations.map((rec) => (
-                    <div key={rec.id} className="rounded-lg border p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="mb-2 flex items-center flex-wrap gap-2">
-                            <span className="text-lg font-semibold">{rec.title}</span>
-                            <Badge className={rec.priority === 'high' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}>
-                              {rec.priority} priority
-                            </Badge>
-                            <Badge variant="outline">
-                              {rec.confidence}% confidence
-                            </Badge>
-                          </div>
-                          <p className="mb-3 text-gray-600">{rec.description}</p>
-                          <p className="text-sm text-gray-600 mb-3">
-                            <strong>Regulatory Driver:</strong> {rec.regulation}
-                          </p>
-                          <p className="text-xs text-gray-500 mb-3">{rec.details}</p>
-
-                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            <div>
-                              <p className="text-sm text-gray-500">Financial Impact</p>
-                              <p className="font-semibold text-red-600">Cost {formatCurrency(rec.financialImpact)}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-500">Timeline</p>
-                              <p className="font-semibold">{rec.timeline}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-500">Status</p>
-                              <Badge variant="outline">{rec.status}</Badge>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="ml-4 space-y-2">
-                          <Button size="sm" variant="outline" className="w-full">
-                            View Details
-                          </Button>
-                          <Button size="sm" className="w-full">
-                            Implement
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="regulatory-impact">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Capital Requirements Analysis</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Analyzed Clauses:</span>
-                    <Badge variant="secondary">{mockRegulatoryData.financialImpacts.capitalRequirements.count}</Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Confidence Score:</span>
-                    <div className="flex items-center space-x-2">
-                      <Progress value={mockRegulatoryData.financialImpacts.capitalRequirements.avgConfidence * 100} className="w-20" />
-                      <span className="text-sm text-gray-600">{Math.round(mockRegulatoryData.financialImpacts.capitalRequirements.avgConfidence * 100)}%</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3 pt-4 border-t">
-                    <h4 className="text-sm font-semibold text-gray-700">Regulatory Changes:</h4>
-                    {mockRegulatoryData.financialImpacts.capitalRequirements.keyChanges.map((change, idx) => (
-                      <div key={idx} className="bg-blue-50 p-3 rounded-lg">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-medium text-sm">{change.metric}</span>
-                          <span className="text-xs text-gray-600">{change.current} → {change.proposed}</span>
-                        </div>
-                        <p className="text-xs text-gray-700 mb-1">{change.impact}</p>
-                        <p className="text-xs font-medium text-blue-700">Source: {change.regulation}</p>
-                        <p className="text-xs text-gray-500">Timeline: {change.daysUntil} days</p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Liquidity Requirements Analysis</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Analyzed Clauses:</span>
-                    <Badge variant="secondary">{mockRegulatoryData.financialImpacts.liquidityRequirements.count}</Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Confidence Score:</span>
-                    <div className="flex items-center space-x-2">
-                      <Progress value={mockRegulatoryData.financialImpacts.liquidityRequirements.avgConfidence * 100} className="w-20" />
-                      <span className="text-sm text-gray-600">{Math.round(mockRegulatoryData.financialImpacts.liquidityRequirements.avgConfidence * 100)}%</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3 pt-4 border-t">
-                    <h4 className="text-sm font-semibold text-gray-700">Regulatory Changes:</h4>
-                    {mockRegulatoryData.financialImpacts.liquidityRequirements.keyChanges.map((change, idx) => (
-                      <div key={idx} className="bg-green-50 p-3 rounded-lg">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-medium text-sm">{change.metric}</span>
-                          <span className="text-xs text-gray-600">{change.current} → {change.proposed}</span>
-                        </div>
-                        <p className="text-xs text-gray-700 mb-1">{change.impact}</p>
-                        <p className="text-xs font-medium text-green-700">Source: {change.regulation}</p>
-                        <p className="text-xs text-gray-500">Timeline: {change.daysUntil} days</p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="compliance-tracking">
-            <Card>
-              <CardHeader>
-                <CardTitle>Regulatory Compliance Overview</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                  <div className="text-center p-4 bg-blue-50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">{mockRegulatoryData.totalRegulations}</div>
-                    <div className="text-sm text-gray-600">Active Regulations</div>
-                  </div>
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">{mockRegulatoryData.complianceScore}%</div>
-                    <div className="text-sm text-gray-600">Compliance Score</div>
-                  </div>
-                  <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                    <div className="text-2xl font-bold text-yellow-600">{mockRegulatoryData.financialImpactClauses}</div>
-                    <div className="text-sm text-gray-600">Financial Impact Clauses</div>
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold mb-3">Regulatory Analysis Summary</h4>
-                  <p className="text-sm text-gray-700 mb-2">
-                    <strong>Total Clauses Analyzed:</strong> {mockRegulatoryData.totalClauses} across {mockRegulatoryData.totalRegulations} regulations
-                  </p>
-                  <p className="text-sm text-gray-700 mb-2">
-                    <strong>Financial Impact Identified:</strong> {mockRegulatoryData.financialImpactClauses} clauses requiring financial adjustments
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    <strong>Last Updated:</strong> {new Date(mockRegulatoryData.lastUpdated).toLocaleString()}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="financial-modeling">
-            <Card>
-              <CardHeader>
-                <CardTitle>Financial Modeling Integration</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h4 className="font-semibold">Current Model Parameters</h4>
-                    <div className="space-y-3">
-                      <div className="flex justify-between p-3 bg-gray-50 rounded">
-                        <span className="text-sm">LCR Requirement</span>
-                        <span className="font-medium">{metrics.lcr.required}%</span>
-                      </div>
-                      <div className="flex justify-between p-3 bg-gray-50 rounded">
-                        <span className="text-sm">Tier 1 Minimum</span>
-                        <span className="font-medium">{metrics.tier1.required}%</span>
-                      </div>
-                      <div className="flex justify-between p-3 bg-gray-50 rounded">
-                        <span className="text-sm">Leverage Ratio</span>
-                        <span className="font-medium">{metrics.leverage.required}%</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="font-semibold">Stress Testing Integration</h4>
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-sm text-blue-800 mb-2">
-                        <strong>Regulatory Scenarios Available:</strong>
-                      </p>
-                      <ul className="text-xs text-blue-700 space-y-1">
-                        <li>• Basel 3.1 Implementation Stress</li>
-                        <li>• ILAAP Enhanced Requirements</li>
-                        <li>• Adverse Market Conditions</li>
-                        <li>• Liquidity Crisis Scenario</li>
-                      </ul>
-                      <Button size="sm" className="mt-3">
-                        <BarChart3 className="h-4 w-4 mr-2" />
-                        Run Stress Test
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold mb-3">Model Performance</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-green-600">94%</div>
-                      <div className="text-sm text-gray-600">Prediction Accuracy</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-blue-600">{mockRegulatoryData.financialImpactClauses}</div>
-                      <div className="text-sm text-gray-600">Financial Clauses</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-purple-600">{metrics.confidence}%</div>
-                      <div className="text-sm text-gray-600">Overall Confidence</div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        {/* Bottom Action Bar - Enhanced */}
-        <Card className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+        {/* Technical Status */}
+        <Card className="bg-gray-50">
           <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold">Ready to dive deeper?</h3>
-                <p className="text-blue-100">Run comprehensive stress tests or generate detailed compliance reports</p>
-                <p className="text-xs text-blue-200 mt-1">
-                  Based on {mockRegulatoryData.totalClauses} analyzed regulatory clauses with {metrics.confidence}% confidence
+                <h3 className="text-sm font-semibold text-gray-700">System Status</h3>
+                <p className="text-xs text-gray-600">
+                  Data source: {connectionStatus?.status} • 
+                  Last updated: {data?.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown'} •
+                  Next sync: {connectionStatus?.status === 'live' ? 'Automatic' : 'When available'}
                 </p>
               </div>
-              <div className="flex space-x-3">
-                <Button variant="secondary" size="lg">
-                  <BarChart3 className="h-5 w-5 mr-2" />
-                  Run Stress Test
-                </Button>
-                <Button variant="outline" size="lg" className="text-white border-white hover:bg-white hover:text-blue-600">
-                  <FileText className="h-5 w-5 mr-2" />
-                  Generate Report
-                </Button>
+              <div className="flex items-center space-x-2">
+                {connectionStatus?.status === 'live' ? (
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                ) : (
+                  <WifiOff className="h-5 w-5 text-gray-400" />
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {/* Footer - keeping your format with enhancements */}
-        <div className="border-t pt-4 text-center text-sm text-gray-500">
-          <div className="flex items-center justify-center space-x-4">
-            <span>Last updated: {new Date().toLocaleString()}</span>
-            <span>•</span>
-            <span>Based on live portfolio data and {mockRegulatoryData.totalRegulations} analyzed regulations</span>
-            <span>•</span>
-            <span>Powered by Reggio AI</span>
-          </div>
-        </div>
       </div>
     </div>
   );
 };
 
-export default IntegratedExecutiveDashboard;
+export default RealDataIntegration;
