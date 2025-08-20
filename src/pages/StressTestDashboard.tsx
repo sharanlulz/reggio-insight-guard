@@ -1,4 +1,15 @@
-// src/pages/StressTestDashboard.tsx
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { supabase } from '@/integrations/supabase/client';
+
+// Keep existing types but import from original file
+import { 
+  type PortfolioAsset,
+  type FundingProfile,
+  type RegulatoryParameters,
+  type CapitalBase,
+  type StressScenario,
+  type StressTestResult
+} from '@/lib/financial-modeling';// src/pages/StressTestDashboard.tsx
 // Enhanced Stress Test Dashboard using EXISTING financial-modeling.ts infrastructure
 // Integrates with your existing StressTestingEngine and portfolio data
 
@@ -9,14 +20,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
-
-// Use your EXISTING financial modeling infrastructure
+// Keep existing types but import from original file
 import { 
-  StressTestingEngine,
-  LiquidityCoverageRatioCalculator,
-  CapitalAdequacyCalculator,
   type PortfolioAsset,
   type FundingProfile,
   type RegulatoryParameters,
@@ -24,6 +29,13 @@ import {
   type StressScenario,
   type StressTestResult
 } from '@/lib/financial-modeling';
+
+// Use the FIXED financial modeling calculations
+import { 
+  LiquidityCoverageRatioCalculator,
+  StressTestingEngine,
+  type LCRResult
+} from '@/lib/financial-modeling-fixed';
 
 // Portfolio data consistent with your Dashboard.tsx (same as useFinancialData.ts)
 const samplePortfolio: PortfolioAsset[] = [
@@ -239,25 +251,36 @@ export default function StressTestDashboard() {
         // TODO: Extract actual stress test parameters from ingested regulations
       }
 
-      // Run stress tests using your EXISTING StressTestingEngine
+      console.log('🚀 Starting REAL stress test calculations...');
+      console.log('Portfolio size:', samplePortfolio.reduce((sum, asset) => sum + asset.market_value, 0) / 1_000_000, 'M');
+      console.log('Scenarios to test:', stressScenarios.length);
+
+      // Run stress tests using the FIXED StressTestingEngine
       const stressEngine = new StressTestingEngine(
         samplePortfolio, 
         sampleFunding, 
         ukRegulatoryParams
       );
 
-      // Calculate stress test results for all scenarios
-      const results = stressScenarios.map(scenario => 
-        stressEngine.runStressScenario(scenario)
-      );
+      console.log('🔧 Using FIXED stress test calculations');
 
+      // Calculate stress test results for all scenarios
+      const results = stressScenarios.map((scenario, index) => {
+        console.log(`📊 Calculating scenario ${index + 1}: ${scenario.name}`);
+        const result = stressEngine.runStressScenario(scenario);
+        console.log(`✅ Result - LCR: ${(result.lcr_result.lcr_ratio * 100).toFixed(1)}%, Tier1: ${(result.capital_result.tier1_capital_ratio * 100).toFixed(1)}%`);
+        return result;
+      });
+
+      console.log('🎯 REAL calculations completed successfully');
       setStressResults(results);
       setLastUpdated(new Date());
 
     } catch (err) {
-      console.error('Stress test calculation error:', err);
+      console.error('❌ REAL calculations failed, using fallback:', err);
       setError(err instanceof Error ? err.message : 'Failed to calculate stress tests');
       
+      console.log('📋 Using hardcoded demo data as fallback');
       // Fallback: Create demo results with realistic patterns from Dashboard
       const demoResults: StressTestResult[] = [
         {
