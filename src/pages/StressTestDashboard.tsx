@@ -81,8 +81,8 @@ export default function StressTestDashboard() {
         console.log(`📊 Calculating: ${scenario.name}`);
         
         // Realistic baseline values for £2.2B bank
-        const baselineHQLA = 520_000_000; // £520M high quality liquid assets
-        const baselineOutflows = 180_000_000; // £180M baseline outflows
+        const baselineHQLA = 420_000_000; // £520M high quality liquid assets
+        const baselineOutflows = 280_000_000; // £180M baseline outflows
         const baselineTier1Capital = 150_000_000; // £150M Tier 1 capital
         const baselineRWA = 1_500_000_000; // £1.5B risk weighted assets
         
