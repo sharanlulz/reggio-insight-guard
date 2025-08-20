@@ -4,7 +4,8 @@ import {
   RegulatoryImpactAnalyzer,
   type PortfolioAsset,
   type FundingProfile,
-  type RegulatoryParameters
+  type RegulatoryParameters,
+  type CapitalBase
 } from './financial-modeling';
 
 // Enhanced AI Analysis Types
@@ -196,12 +197,12 @@ Return JSON with this exact structure:
     }
   }
 
-  // Calculate financial impact for analyzed clauses
+  // Calculate financial impacts
   async calculateFinancialImpact(
     clauses: FinancialImpactClause[],
     currentPortfolio: PortfolioAsset[],
     currentFunding: FundingProfile,
-    currentCapital: { tier1: number; tier2: number },
+    currentCapitalData: { tier1: number; tier2: number },
     currentRegParams: RegulatoryParameters
   ): Promise<FinancialImpactClause[]> {
     
@@ -210,7 +211,11 @@ Return JSON with this exact structure:
     const currentLCR = lcrCalc.calculateLCR();
     
     const capitalCalc = new CapitalAdequacyCalculator(currentPortfolio, currentRegParams);
-    const currentCapital = capitalCalc.calculateCapitalRatios(currentCapital.tier1, currentCapital.tier2);
+    const currentCapitalBase: CapitalBase = {
+      tier1_capital: currentCapitalData.tier1,
+      tier2_capital: currentCapitalData.tier2
+    };
+    const currentCapitalResult = capitalCalc.calculateCapitalRatios(currentCapitalBase);
 
     return await Promise.all(clauses.map(async (clause) => {
       if (!clause.quantitative_impact) {
@@ -246,8 +251,8 @@ Return JSON with this exact structure:
 
           case 'TIER1_MINIMUM':
             const newTier1Requirement = impact.impact_value;
-            if (currentCapital.tier1_capital_ratio < newTier1Requirement) {
-              const shortfall = (newTier1Requirement - currentCapital.tier1_capital_ratio) * currentCapital.risk_weighted_assets;
+            if (currentCapitalResult.tier1_capital_ratio < newTier1Requirement) {
+              const shortfall = (newTier1Requirement - currentCapitalResult.tier1_capital_ratio) * currentCapitalResult.risk_weighted_assets;
               calculatedImpact = {
                 current_compliance_status: 'NON_COMPLIANT',
                 financial_shortfall_or_surplus: -shortfall,
@@ -289,7 +294,7 @@ Return JSON with this exact structure:
                 ]
               };
             } else if (clause.risk_area === 'CAPITAL') {
-              const additionalCapitalNeeded = currentCapital.risk_weighted_assets * bufferRequirement;
+              const additionalCapitalNeeded = currentCapitalResult.risk_weighted_assets * bufferRequirement;
               calculatedImpact = {
                 current_compliance_status: 'AT_RISK',
                 financial_shortfall_or_surplus: -additionalCapitalNeeded,

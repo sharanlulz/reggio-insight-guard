@@ -19,17 +19,8 @@ export default function RegulatoryIntelligence() {
     if (typeof process !== 'undefined' && process.env) {
       return process.env[`REACT_APP_${name}`] || process.env[`NEXT_PUBLIC_${name}`] || process.env[name];
     }
-    if (typeof window !== 'undefined' && window.env) {
-      return window.env[name];
-    }
-    // Fallback for Lovable - you can set these manually if needed
-    if (name === 'SUPABASE_URL') {
-      return 'https://your-project-id.supabase.co'; // Replace with your actual URL
-    }
-    if (name === 'SUPABASE_ANON_KEY') {
-      return 'your-anon-key'; // Replace with your actual anon key
-    }
-    return null;
+    // Use import.meta.env for Vite
+    return import.meta.env[`VITE_${name}`];
   };
 
   const SUPABASE_URL = getEnvVar('SUPABASE_URL');

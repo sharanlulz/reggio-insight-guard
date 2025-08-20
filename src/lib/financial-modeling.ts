@@ -52,6 +52,19 @@ export type PortfolioAsset = z.infer<typeof PortfolioAssetSchema>;
 export type FundingProfile = z.infer<typeof FundingProfileSchema>;
 export type RegulatoryParameters = z.infer<typeof RegulatoryParametersSchema>;
 
+// Export interfaces for CapitalBase and StressScenario
+export interface CapitalBase {
+  tier1_capital: number;
+  tier2_capital: number;
+}
+
+export interface StressScenario {
+  name: string;
+  asset_shocks: Record<string, number>; // Asset class -> shock percentage
+  funding_shocks: Record<string, number>; // Funding type -> shock percentage
+  capital_base: CapitalBase;
+}
+
 // ============================================================================
 // LIQUIDITY COVERAGE RATIO (LCR) ENGINE
 // ============================================================================
@@ -249,10 +262,7 @@ export class CapitalAdequacyCalculator {
   }
 }
 
-interface CapitalBase {
-  tier1_capital: number;
-  tier2_capital: number;
-}
+// CapitalBase interface moved to top of file
 
 interface CapitalAdequacyResult {
   risk_weighted_assets: number;
@@ -459,13 +469,7 @@ export class StressTestingEngine {
   }
 }
 
-// Supporting interfaces for stress testing
-interface StressScenario {
-  name: string;
-  asset_shocks: Record<string, number>; // Asset class -> shock percentage
-  funding_shocks: Record<string, number>; // Funding type -> shock percentage
-  capital_base: CapitalBase;
-}
+// StressScenario interface moved to top of file
 
 interface StressTestResult {
   scenario_name: string;
@@ -1103,14 +1107,5 @@ export class ReggioFinancialModelingService {
   }
 }
 
-// ============================================================================
-// EXPORT ALL CLASSES FOR USE
-// ============================================================================
-
-export {
-  LiquidityCoverageRatioCalculator,
-  CapitalAdequacyCalculator,
-  StressTestingEngine,
-  RegulatoryImpactAnalyzer,
-  ReggioFinancialModelingService
-};
+// Classes are already exported at their definitions above
+// No need for duplicate exports

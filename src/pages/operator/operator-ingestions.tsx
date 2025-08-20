@@ -1,4 +1,3 @@
-// src/pages/OperatorIngestions.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { withRetry } from "@/lib/supaRetry";
@@ -148,10 +147,8 @@ export default function OperatorIngestions() {
   }
 
   async function onRefresh() {
-    // 1) reload the list
     await load();
 
-    // 2) resume stale running jobs automatically
     const now = Date.now();
     const stale = rows.filter((r) =>
       r.status === "running" &&
@@ -171,14 +168,11 @@ export default function OperatorIngestions() {
           },
           body: JSON.stringify({ document_id: r.regulation_document_id }),
         });
-        // optional: toast each
-        // toast({ title: "Resumed", description: r.regulation_document_id });
       } catch (e: any) {
         console.error("auto-resume failed", e);
       }
     }
 
-    // 3) reload to reflect any resumes
     await load();
   }
 
