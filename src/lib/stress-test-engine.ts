@@ -192,7 +192,10 @@ export class StressTestEngine {
       breakdown: {
         level1_assets: assets.filter(a => a.liquidity_classification === 'HQLA_L1').reduce((sum, a) => sum + a.market_value, 0),
         level2a_assets: assets.filter(a => a.liquidity_classification === 'HQLA_L2A').reduce((sum, a) => sum + a.market_value * 0.85, 0),
-        level2b_assets: assets.filter(a => a.liquidity_classification === 'HQLA_L2B').reduce((sum, a) => sum + a.market_value * 0.75, 0)
+        level2b_assets: assets.filter(a => a.liquidity_classification === 'HQLA_L2B').reduce((sum, a) => sum + a.market_value * 0.75, 0),
+        retail_outflow_rate: 0.05,
+        corporate_outflow_rate: 0.25,
+        wholesale_outflow_rate: 1.0
       }
     };
   }

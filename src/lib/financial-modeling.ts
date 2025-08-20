@@ -1,11 +1,60 @@
-// src/lib/financial-modeling-fixed.ts
-// FIXED version of LiquidityCoverageRatioCalculator with proper calculations
+// src/lib/financial-modeling.ts
+// Financial modeling types and classes with proper exports
 
-import { 
-  type PortfolioAsset, 
-  type FundingProfile, 
-  type RegulatoryParameters 
-} from './financial-modeling';
+// Define core types first
+export interface PortfolioAsset {
+  id: string;
+  assetClass: string;
+  market_value: number;
+  notional_value?: number;
+  liquidity_classification: string;
+  basel_risk_weight?: number;
+  rating?: string;
+  sector?: string;
+  jurisdiction?: string;
+}
+
+export interface FundingProfile {
+  retail_deposits: number;
+  corporate_deposits: number;
+  wholesale_funding: number;
+  secured_funding: number;
+  stable_funding_ratio?: number;
+  deposit_concentration?: number;
+}
+
+export interface RegulatoryParameters {
+  lcr_requirement?: number;
+  tier1_minimum?: number;
+  total_capital_minimum?: number;
+  leverage_minimum?: number;
+  jurisdiction?: string;
+  applicable_date?: string;
+  nsfr_requirement?: number;
+  leverage_ratio_minimum?: number;
+  large_exposure_limit?: number;
+  stress_test_scenarios?: any[];
+}
+
+export interface CapitalBase {
+  tier1_capital: number;
+  tier2_capital: number;
+}
+
+export interface StressScenario {
+  name: string;
+  asset_shocks: Record<string, number>;
+  funding_shocks: Record<string, number>;
+  capital_base: CapitalBase;
+}
+
+export interface StressTestResult {
+  scenario_name: string;
+  lcr_result: LCRResult;
+  capital_result: any;
+  overall_assessment: any;
+  recommendations: string[];
+}
 
 // Define missing LCRResult interface
 export interface LCRResult {
@@ -328,7 +377,44 @@ export class FixedStressTestingEngine {
   }
 }
 
-// Export the fixed classes
+// Create a simple CapitalAdequacyCalculator for compatibility
+export class CapitalAdequacyCalculator {
+  private parameters: RegulatoryParameters;
+  private financialEngine?: any;
+
+  constructor(parameters: RegulatoryParameters, financialEngine?: any) {
+    this.parameters = parameters;
+    this.financialEngine = financialEngine;
+  }
+
+  calculateCapitalRatios(assets: PortfolioAsset[], capitalBase: CapitalBase) {
+    const rwa = assets.reduce((total, asset) => {
+      return total + (asset.market_value * (asset.basel_risk_weight || 1.0));
+    }, 0);
+
+    const tier1Ratio = rwa > 0 ? capitalBase.tier1_capital / rwa : 0;
+    const totalRatio = rwa > 0 ? (capitalBase.tier1_capital + capitalBase.tier2_capital) / rwa : 0;
+
+    return {
+      risk_weighted_assets: rwa,
+      tier1_capital_ratio: tier1Ratio,
+      total_capital_ratio: totalRatio,
+      compliance_status: {
+        tier1_compliant: tier1Ratio >= (this.parameters.tier1_minimum || 0.06),
+        total_capital_compliant: totalRatio >= (this.parameters.total_capital_minimum || 0.08)
+      }
+    };
+  }
+
+  calculate(assets: PortfolioAsset[], capitalBase: CapitalBase) {
+    return this.calculateCapitalRatios(assets, capitalBase);
+  }
+}
+
+// Export RegulatoryImpactAnalyzer
+export { RegulatoryImpactAnalyzer } from './regulatory-impact-analyzer';
+
+// Export the fixed classes with proper names
 export {
   FixedLiquidityCoverageRatioCalculator as LiquidityCoverageRatioCalculator,
   FixedStressTestingEngine as StressTestingEngine

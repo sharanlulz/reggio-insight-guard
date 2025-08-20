@@ -210,12 +210,12 @@ Return JSON with this exact structure:
     const lcrCalc = new LiquidityCoverageRatioCalculator(currentPortfolio, currentFunding, currentRegParams);
     const currentLCR = lcrCalc.calculateLCR();
     
-    const capitalCalc = new CapitalAdequacyCalculator(currentPortfolio, currentRegParams);
+    const capitalCalc = new CapitalAdequacyCalculator(currentRegParams);
     const currentCapitalBase: CapitalBase = {
       tier1_capital: currentCapitalData.tier1,
       tier2_capital: currentCapitalData.tier2
     };
-    const currentCapitalResult = capitalCalc.calculateCapitalRatios(currentCapitalBase);
+    const currentCapitalResult = capitalCalc.calculateCapitalRatios(currentPortfolio, currentCapitalBase);
 
     return await Promise.all(clauses.map(async (clause) => {
       if (!clause.quantitative_impact) {

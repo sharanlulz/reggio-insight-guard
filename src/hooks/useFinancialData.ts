@@ -66,11 +66,7 @@ const sampleFunding: FundingProfile = {
   wholesale_funding: 50_000_000,
   secured_funding: 25_000_000,
   stable_funding_ratio: 0.85,
-  deposit_concentration: {
-    'Major Corp A': 20_000_000,
-    'Major Corp B': 15_000_000,
-    'Pension Fund X': 25_000_000
-  }
+  deposit_concentration: 0.15
 };
 
 const ukRegulatoryParams: RegulatoryParameters = {
@@ -149,10 +145,9 @@ export function useFinancialData() {
 
       // Calculate Capital Adequacy
       const capitalCalculator = new CapitalAdequacyCalculator(
-        samplePortfolio,
         ukRegulatoryParams
       );
-      const capitalResult = capitalCalculator.calculateCapitalRatios(currentCapital);
+      const capitalResult = capitalCalculator.calculateCapitalRatios(samplePortfolio, currentCapital);
 
       // Run Stress Tests
       const stressEngine = new StressTestingEngine(

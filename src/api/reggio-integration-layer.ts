@@ -335,7 +335,7 @@ export class ReggioApiClient {
     setTimeout(async () => {
       await this.triggerWebhook({
         id: crypto.randomUUID(),
-        type: 'PORTFOLIO_ANALYSIS_COMPLETE',
+        type: 'METRIC_BREACH',
         orgId: this.orgId,
         data: { portfolioSnapshotId },
         timestamp: new Date().toISOString(),
