@@ -79,6 +79,8 @@ export default function StressTestDashboard() {
 
       const calculatedResults: SimpleStressTestResult[] = scenarios.map((scenario, index) => {
         console.log(`📊 Calculating: ${scenario.name}`);
+        console.log(`  Stressed HQLA: £${(stressedHQLA / 1_000_000).toFixed(0)}M, Outflows: £${(stressedOutflows / 1_000_000).toFixed(0)}M`);
+        console.log(`  Credit Losses: £${(creditLosses / 1_000_000).toFixed(0)}M, Stressed Tier1: £${(stressedTier1 / 1_000_000).toFixed(0)}M`);
         
         // Realistic baseline values for £2.2B bank
         const baselineHQLA = 520_000_000; // £520M high quality liquid assets
@@ -86,15 +88,19 @@ export default function StressTestDashboard() {
         const baselineTier1Capital = 150_000_000; // £150M Tier 1 capital
         const baselineRWA = 1_500_000_000; // £1.5B risk weighted assets
         
-        // Apply stress shocks
-        const stressedHQLA = baselineHQLA * (1 + scenario.asset_shock * 0.2); // HQLA less affected
-        const stressedOutflows = baselineOutflows * (1 + Math.abs(scenario.funding_shock)); // Higher outflows
-        const creditLosses = baselineRWA * scenario.credit_loss_rate; // Credit losses
-        const stressedTier1 = baselineTier1Capital - creditLosses; // Reduce capital by losses
+        // Apply stress shocks - FIX THE CALCULATIONS
+        // LCR: HQLA decreases slightly, outflows increase significantly
+        const stressedHQLA = baselineHQLA * (1 + scenario.asset_shock * 0.1); // Small HQLA impact
+        const stressedOutflows = baselineOutflows * (1.5 + Math.abs(scenario.funding_shock)); // Much higher outflows under stress
         
-        // Calculate stressed ratios
-        const lcrRatio = stressedHQLA / stressedOutflows;
-        const tier1Ratio = stressedTier1 / baselineRWA;
+        // Capital: Apply realistic credit losses
+        const portfolioValue = 2_200_000_000; // £2.2B total portfolio
+        const creditLosses = portfolioValue * scenario.credit_loss_rate; // Apply loss rate to total portfolio
+        const stressedTier1 = Math.max(0, baselineTier1Capital - creditLosses); // Can't go negative, min 0
+        
+        // Calculate stressed ratios - FIXED FORMULAS
+        const lcrRatio = stressedHQLA / stressedOutflows; // Should be 90-120% range
+        const tier1Ratio = stressedTier1 / baselineRWA; // Should be 4-10% range
         
         // Determine compliance
         const lcrCompliant = lcrRatio >= 1.05; // 105% requirement
