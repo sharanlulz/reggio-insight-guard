@@ -79,8 +79,6 @@ export default function StressTestDashboard() {
 
       const calculatedResults: SimpleStressTestResult[] = scenarios.map((scenario, index) => {
         console.log(`📊 Calculating: ${scenario.name}`);
-        console.log(`  Stressed HQLA: £${(stressedHQLA / 1_000_000).toFixed(0)}M, Outflows: £${(stressedOutflows / 1_000_000).toFixed(0)}M`);
-        console.log(`  Credit Losses: £${(creditLosses / 1_000_000).toFixed(0)}M, Stressed Tier1: £${(stressedTier1 / 1_000_000).toFixed(0)}M`);
         
         // Realistic baseline values for £2.2B bank
         const baselineHQLA = 520_000_000; // £520M high quality liquid assets
