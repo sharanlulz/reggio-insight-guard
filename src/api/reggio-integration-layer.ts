@@ -141,85 +141,13 @@ export class ReggioApiClient {
     dateFrom?: string;
     dateTo?: string;
   }): Promise<ApiResponse<RegulatoryMetric[]>> {
-    try {
-      let query = this.supabase
-        .from('regulatory_metrics')
-        .select('*')
-        .eq('org_id', this.orgId)
-        .order('last_updated', { ascending: false });
-
-      if (filters?.metricType) {
-        query = query.eq('metric_type', filters.metricType);
-      }
-      if (filters?.status) {
-        query = query.eq('status', filters.status);
-      }
-      if (filters?.dateFrom) {
-        query = query.gte('last_updated', filters.dateFrom);
-      }
-      if (filters?.dateTo) {
-        query = query.lte('last_updated', filters.dateTo);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const metrics: RegulatoryMetric[] = data.map(row => ({
-        id: row.id,
-        orgId: row.org_id,
-        metricType: row.metric_type as any,
-        currentValue: row.current_value,
-        requiredValue: row.required_value,
-        buffer: row.buffer,
-        status: row.status as any,
-        lastUpdated: row.last_updated,
-        regulatorySource: row.regulatory_source,
-        confidence: row.confidence
-      }));
-
-      return this.createResponse(true, metrics);
-    } catch (error) {
-      return this.createResponse(false, undefined, error.message);
-    }
+    // TODO: Implement after creating regulatory_metrics table
+    return this.createResponse(false, undefined, 'Regulatory metrics table not yet implemented');
   }
 
   async updateMetric(metricId: string, updates: Partial<RegulatoryMetric>): Promise<ApiResponse<RegulatoryMetric>> {
-    try {
-      const { data, error } = await this.supabase
-        .from('regulatory_metrics')
-        .update({
-          current_value: updates.currentValue,
-          required_value: updates.requiredValue,
-          buffer: updates.buffer,
-          status: updates.status,
-          confidence: updates.confidence,
-          last_updated: new Date().toISOString()
-        })
-        .eq('id', metricId)
-        .eq('org_id', this.orgId)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const metric: RegulatoryMetric = {
-        id: data.id,
-        orgId: data.org_id,
-        metricType: data.metric_type,
-        currentValue: data.current_value,
-        requiredValue: data.required_value,
-        buffer: data.buffer,
-        status: data.status,
-        lastUpdated: data.last_updated,
-        regulatorySource: data.regulatory_source,
-        confidence: data.confidence
-      };
-
-      return this.createResponse(true, metric);
-    } catch (error) {
-      return this.createResponse(false, undefined, error.message);
-    }
+    // TODO: Implement after creating regulatory_metrics table
+    return this.createResponse(false, undefined, 'Regulatory metrics table not yet implemented');
   }
 
   // ============================================================================
@@ -231,80 +159,13 @@ export class ReggioApiClient {
     acknowledged?: boolean;
     limit?: number;
   }): Promise<ApiResponse<RegulatoryAlert[]>> {
-    try {
-      let query = this.supabase
-        .from('regulatory_alerts')
-        .select('*')
-        .eq('org_id', this.orgId)
-        .order('created_at', { ascending: false });
-
-      if (filters?.severity) {
-        query = query.eq('severity', filters.severity);
-      }
-      if (filters?.acknowledged !== undefined) {
-        query = query.eq('acknowledged', filters.acknowledged);
-      }
-      if (filters?.limit) {
-        query = query.limit(filters.limit);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const alerts: RegulatoryAlert[] = data.map(row => ({
-        id: row.id,
-        orgId: row.org_id,
-        severity: row.severity,
-        title: row.title,
-        description: row.description,
-        regulationId: row.regulation_id,
-        impact: row.impact,
-        actionRequired: row.action_required,
-        deadline: row.deadline,
-        acknowledged: row.acknowledged,
-        createdAt: row.created_at
-      }));
-
-      return this.createResponse(true, alerts);
-    } catch (error) {
-      return this.createResponse(false, undefined, error.message);
-    }
+    // TODO: Implement after creating regulatory_alerts table
+    return this.createResponse(false, undefined, 'Regulatory alerts table not yet implemented');
   }
 
   async acknowledgeAlert(alertId: string): Promise<ApiResponse<RegulatoryAlert>> {
-    try {
-      const { data, error } = await this.supabase
-        .from('regulatory_alerts')
-        .update({ 
-          acknowledged: true,
-          acknowledged_at: new Date().toISOString()
-        })
-        .eq('id', alertId)
-        .eq('org_id', this.orgId)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const alert: RegulatoryAlert = {
-        id: data.id,
-        orgId: data.org_id,
-        severity: data.severity,
-        title: data.title,
-        description: data.description,
-        regulationId: data.regulation_id,
-        impact: data.impact,
-        actionRequired: data.action_required,
-        deadline: data.deadline,
-        acknowledged: data.acknowledged,
-        createdAt: data.created_at
-      };
-
-      return this.createResponse(true, alert);
-    } catch (error) {
-      return this.createResponse(false, undefined, error.message);
-    }
+    // TODO: Implement after creating regulatory_alerts table
+    return this.createResponse(false, undefined, 'Regulatory alerts table not yet implemented');
   }
 
   // ============================================================================
@@ -320,83 +181,13 @@ export class ReggioApiClient {
     includeTrends?: boolean;
     includeRecommendations?: boolean;
   }): Promise<ApiResponse<ComplianceReport>> {
-    try {
-      // Generate report content based on current data
-      const metricsResponse = await this.getMetrics();
-      const alertsResponse = await this.getAlerts({ acknowledged: false });
-
-      const reportData = {
-        org_id: this.orgId,
-        report_type: config.type,
-        title: config.title,
-        regulations: config.regulations || [],
-        metrics: metricsResponse.data || [],
-        insights: this.generateInsights(metricsResponse.data || [], alertsResponse.data || []),
-        recommendations: this.generateRecommendations(metricsResponse.data || []),
-        format: config.format,
-        generated_at: new Date().toISOString(),
-        status: 'GENERATING'
-      };
-
-      const { data, error } = await this.supabase
-        .from('compliance_reports')
-        .insert(reportData)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Trigger async report generation
-      this.processReportGeneration(data.id, config);
-
-      const report: ComplianceReport = {
-        id: data.id,
-        orgId: data.org_id,
-        reportType: data.report_type,
-        title: data.title,
-        regulations: data.regulations,
-        metrics: data.metrics,
-        insights: data.insights,
-        recommendations: data.recommendations,
-        generatedAt: data.generated_at,
-        format: data.format
-      };
-
-      return this.createResponse(true, report);
-    } catch (error) {
-      return this.createResponse(false, undefined, error.message);
-    }
+    // TODO: Implement after creating compliance_reports table
+    return this.createResponse(false, undefined, 'Compliance reports table not yet implemented');
   }
 
   async getReports(limit: number = 10): Promise<ApiResponse<ComplianceReport[]>> {
-    try {
-      const { data, error } = await this.supabase
-        .from('compliance_reports')
-        .select('*')
-        .eq('org_id', this.orgId)
-        .order('generated_at', { ascending: false })
-        .limit(limit);
-
-      if (error) throw error;
-
-      const reports: ComplianceReport[] = data.map(row => ({
-        id: row.id,
-        orgId: row.org_id,
-        reportType: row.report_type,
-        title: row.title,
-        regulations: row.regulations,
-        metrics: row.metrics,
-        insights: row.insights,
-        recommendations: row.recommendations,
-        generatedAt: row.generated_at,
-        format: row.format,
-        downloadUrl: row.download_url
-      }));
-
-      return this.createResponse(true, reports);
-    } catch (error) {
-      return this.createResponse(false, undefined, error.message);
-    }
+    // TODO: Implement after creating compliance_reports table
+    return this.createResponse(false, undefined, 'Compliance reports table not yet implemented');
   }
 
   // ============================================================================
@@ -419,49 +210,8 @@ export class ReggioApiClient {
       liquidityClassification?: string;
     }>;
   }): Promise<ApiResponse<{ portfolioSnapshotId: string }>> {
-    try {
-      // Create portfolio snapshot
-      const { data: snapshot, error: snapshotError } = await this.supabase
-        .from('portfolio_snapshots')
-        .insert({
-          org_id: this.orgId,
-          snapshot_date: new Date().toISOString(),
-          portfolio_name: portfolioData.name
-        })
-        .select()
-        .single();
-
-      if (snapshotError) throw snapshotError;
-
-      // Insert portfolio assets
-      const assetRows = portfolioData.assets.map(asset => ({
-        portfolio_snapshot_id: snapshot.id,
-        asset_id: asset.assetId,
-        asset_class: asset.assetClass,
-        market_value: asset.marketValue,
-        notional_value: asset.notionalValue,
-        maturity_date: asset.maturityDate,
-        rating: asset.rating,
-        jurisdiction: asset.jurisdiction,
-        sector: asset.sector,
-        counterparty: asset.counterparty,
-        basel_risk_weight: asset.baselRiskWeight,
-        liquidity_classification: asset.liquidityClassification
-      }));
-
-      const { error: assetsError } = await this.supabase
-        .from('portfolio_assets')
-        .insert(assetRows);
-
-      if (assetsError) throw assetsError;
-
-      // Trigger regulatory impact recalculation
-      this.triggerPortfolioAnalysis(snapshot.id);
-
-      return this.createResponse(true, { portfolioSnapshotId: snapshot.id });
-    } catch (error) {
-      return this.createResponse(false, undefined, error.message);
-    }
+    // TODO: Implement after creating portfolio_snapshots and portfolio_assets tables
+    return this.createResponse(false, undefined, 'Portfolio tables not yet implemented');
   }
 
   // ============================================================================
@@ -469,46 +219,13 @@ export class ReggioApiClient {
   // ============================================================================
 
   async registerWebhook(webhookUrl: string, events: string[]): Promise<ApiResponse<{ webhookId: string }>> {
-    try {
-      const { data, error } = await this.supabase
-        .from('webhooks')
-        .insert({
-          org_id: this.orgId,
-          url: webhookUrl,
-          events: events,
-          active: true,
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return this.createResponse(true, { webhookId: data.id });
-    } catch (error) {
-      return this.createResponse(false, undefined, error.message);
-    }
+    // TODO: Implement after creating webhooks table
+    return this.createResponse(false, undefined, 'Webhooks table not yet implemented');
   }
 
   async triggerWebhook(event: WebhookEvent): Promise<void> {
-    try {
-      // Get active webhooks for this organization
-      const { data: webhooks } = await this.supabase
-        .from('webhooks')
-        .select('*')
-        .eq('org_id', event.orgId)
-        .eq('active', true)
-        .contains('events', [event.type]);
-
-      // Send webhooks in parallel
-      const webhookPromises = webhooks?.map(webhook => 
-        this.sendWebhook(webhook.url, event)
-      ) || [];
-
-      await Promise.allSettled(webhookPromises);
-    } catch (error) {
-      console.error('Webhook trigger error:', error);
-    }
+    // TODO: Implement after creating webhooks table
+    console.log('Webhook trigger not yet implemented:', event);
   }
 
   private async sendWebhook(url: string, event: WebhookEvent): Promise<void> {
@@ -540,17 +257,8 @@ export class ReggioApiClient {
   }
 
   private async logWebhookFailure(url: string, event: WebhookEvent, error: string): Promise<void> {
-    await this.supabase
-      .from('webhook_logs')
-      .insert({
-        org_id: event.orgId,
-        webhook_url: url,
-        event_type: event.type,
-        event_data: event.data,
-        error_message: error,
-        retry_count: event.retryCount + 1,
-        created_at: new Date().toISOString()
-      });
+    // TODO: Implement after creating webhook_logs table
+    console.log('Webhook failure logging not yet implemented:', { url, event, error });
   }
 
   // ============================================================================
@@ -558,58 +266,13 @@ export class ReggioApiClient {
   // ============================================================================
 
   async getOrganizationConfig(): Promise<ApiResponse<OrganizationConfig>> {
-    try {
-      const { data, error } = await this.supabase
-        .from('organization_configs')
-        .select('*')
-        .eq('org_id', this.orgId)
-        .single();
-
-      if (error) throw error;
-
-      const config: OrganizationConfig = {
-        id: data.org_id,
-        name: data.organization_name,
-        branding: data.branding,
-        settings: data.settings,
-        subscription: data.subscription
-      };
-
-      return this.createResponse(true, config);
-    } catch (error) {
-      return this.createResponse(false, undefined, error.message);
-    }
+    // TODO: Implement after creating organization_configs table
+    return this.createResponse(false, undefined, 'Organization configs table not yet implemented');
   }
 
   async updateOrganizationConfig(updates: Partial<OrganizationConfig>): Promise<ApiResponse<OrganizationConfig>> {
-    try {
-      const { data, error } = await this.supabase
-        .from('organization_configs')
-        .update({
-          organization_name: updates.name,
-          branding: updates.branding,
-          settings: updates.settings,
-          subscription: updates.subscription,
-          updated_at: new Date().toISOString()
-        })
-        .eq('org_id', this.orgId)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const config: OrganizationConfig = {
-        id: data.org_id,
-        name: data.organization_name,
-        branding: data.branding,
-        settings: data.settings,
-        subscription: data.subscription
-      };
-
-      return this.createResponse(true, config);
-    } catch (error) {
-      return this.createResponse(false, undefined, error.message);
-    }
+    // TODO: Implement after creating organization_configs table
+    return this.createResponse(false, undefined, 'Organization configs table not yet implemented');
   }
 
   // ============================================================================
@@ -663,34 +326,8 @@ export class ReggioApiClient {
   }
 
   private async processReportGeneration(reportId: string, config: any): Promise<void> {
-    // This would typically be handled by a background job
-    setTimeout(async () => {
-      try {
-        // Simulate report generation
-        const downloadUrl = `https://reports.reggio.ai/${reportId}.${config.format.toLowerCase()}`;
-        
-        await this.supabase
-          .from('compliance_reports')
-          .update({
-            status: 'COMPLETED',
-            download_url: downloadUrl,
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', reportId);
-
-        // Trigger webhook for report completion
-        await this.triggerWebhook({
-          id: crypto.randomUUID(),
-          type: 'REPORT_GENERATED',
-          orgId: this.orgId,
-          data: { reportId, downloadUrl },
-          timestamp: new Date().toISOString(),
-          retryCount: 0
-        });
-      } catch (error) {
-        console.error('Report generation failed:', error);
-      }
-    }, 5000); // 5 second delay to simulate processing
+    // TODO: Implement after creating compliance_reports table
+    console.log('Report generation not yet implemented:', { reportId, config });
   }
 
   private async triggerPortfolioAnalysis(portfolioSnapshotId: string): Promise<void> {
