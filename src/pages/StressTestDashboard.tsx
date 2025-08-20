@@ -255,20 +255,130 @@ export default function StressTestDashboard() {
       console.log('Portfolio size:', samplePortfolio.reduce((sum, asset) => sum + asset.market_value, 0) / 1_000_000, 'M');
       console.log('Scenarios to test:', stressScenarios.length);
 
-      // Run stress tests using the FIXED StressTestingEngine
-      const stressEngine = new StressTestingEngine(
-        samplePortfolio, 
-        sampleFunding, 
-        ukRegulatoryParams
-      );
+      console.log('🚀 Starting REAL stress test calculations...');
+      console.log('Portfolio size:', samplePortfolio.reduce((sum, asset) => sum + asset.market_value, 0) / 1_000_000, 'M');
+      console.log('Scenarios to test:', stressScenarios.length);
 
-      console.log('🔧 Using FIXED stress test calculations');
-
-      // Calculate stress test results for all scenarios
+      // TEMPORARY FIX: Use direct calculation instead of broken engine
       const results = stressScenarios.map((scenario, index) => {
         console.log(`📊 Calculating scenario ${index + 1}: ${scenario.name}`);
-        const result = stressEngine.runStressScenario(scenario);
-        console.log(`✅ Result - LCR: ${(result.lcr_result.lcr_ratio * 100).toFixed(1)}%, Tier1: ${(result.capital_result.tier1_capital_ratio * 100).toFixed(1)}%`);
+        
+        // Apply shocks manually
+        const stressedAssets = samplePortfolio.map(asset => ({
+          ...asset,
+          market_value: asset.market_value * (1 + (scenario.asset_shocks[asset.assetClass] || 0))
+        }));
+        
+        const stressedFunding = {
+          ...sampleFunding,
+          retail_deposits: sampleFunding.retail_deposits * (1 + (scenario.funding_shocks['RETAIL_DEPOSITS'] || 0)),
+          corporate_deposits: sampleFunding.corporate_deposits * (1 + (scenario.funding_shocks['CORPORATE_DEPOSITS'] || 0)),
+          wholesale_funding: sampleFunding.wholesale_funding * (1 + (scenario.funding_shocks['WHOLESALE_FUNDING'] || 0)),
+        };
+        
+        // Calculate HQLA (High Quality Liquid Assets)
+        let hqla = 0;
+        stressedAssets.forEach(asset => {
+          if (asset.liquidity_classification === 'HQLA_L1') {
+            hqla += asset.market_value;
+          } else if (asset.liquidity_classification === 'HQLA_L2A') {
+            hqla += asset.market_value * 0.85;
+          } else if (asset.liquidity_classification === 'HQLA_L2B') {
+            hqla += asset.market_value * 0.75;
+          }
+        });
+        
+        // Calculate realistic net outflows
+        const retailOutflows = stressedFunding.retail_deposits * 0.05; // 5%
+        const corporateOutflows = stressedFunding.corporate_deposits * 0.25; // 25%
+        const wholesaleOutflows = stressedFunding.wholesale_funding * 1.0; // 100%
+        const netOutflows = retailOutflows + corporateOutflows + wholesaleOutflows;
+        
+        // Calculate LCR
+        const lcr_ratio = netOutflows > 0 ? hqla / netOutflows : 0;
+        
+        // Calculate RWA and capital
+        const rwa = stressedAssets.reduce((total, asset) => {
+          return total + (asset.market_value * (asset.basel_risk_weight || 1.0));
+        }, 0);
+        
+        // Calculate credit losses
+        let creditLosses = 0;
+        stressedAssets.forEach(asset => {
+          if (asset.assetClass === 'CORPORATE' || asset.assetClass === 'PROPERTY') {
+            let lossRate = 0;
+            if (asset.assetClass === 'CORPORATE') {
+              switch (asset.rating) {
+                case 'AAA': case 'AA': lossRate = 0.02; break;
+                case 'A': lossRate = 0.04; break;
+                case 'BBB': lossRate = 0.08; break;
+                case 'BB': lossRate = 0.15; break;
+                default: lossRate = 0.20; break;
+              }
+            } else if (asset.assetClass === 'PROPERTY') {
+              lossRate = asset.sector === 'Residential' ? 0.05 : 0.12;
+            }
+            creditLosses += asset.market_value * lossRate;
+          }
+        });
+        
+        // Calculate stressed capital
+        const stressedTier1 = scenario.capital_base.tier1_capital - creditLosses;
+        const tier1_ratio = rwa > 0 ? stressedTier1 / rwa : 0;
+        
+        const result = {
+          scenario_name: scenario.name,
+          lcr_result: {
+            lcr_ratio,
+            hqla_value: hqla,
+            net_cash_outflows: netOutflows,
+            requirement: 1.05,
+            compliance_status: lcr_ratio >= 1.05 ? 'COMPLIANT' as const : 'NON_COMPLIANT' as const,
+            buffer_or_deficit: hqla - (netOutflows * 1.05),
+            breakdown: {
+              level1_assets: stressedAssets.filter(a => a.liquidity_classification === 'HQLA_L1').reduce((sum, a) => sum + a.market_value, 0),
+              level2a_assets: stressedAssets.filter(a => a.liquidity_classification === 'HQLA_L2A').reduce((sum, a) => sum + a.market_value * 0.85, 0),
+              level2b_assets: stressedAssets.filter(a => a.liquidity_classification === 'HQLA_L2B').reduce((sum, a) => sum + a.market_value * 0.75, 0)
+            }
+          },
+          capital_result: {
+            risk_weighted_assets: rwa,
+            tier1_capital_ratio: tier1_ratio,
+            total_capital_ratio: tier1_ratio * 1.2, // Assume total capital is 20% higher
+            leverage_ratio: stressedTier1 / stressedAssets.reduce((sum, a) => sum + a.market_value, 0),
+            capital_requirements: {
+              tier1_minimum: rwa * 0.06,
+              total_capital_minimum: rwa * 0.08,
+              leverage_minimum: stressedAssets.reduce((sum, a) => sum + a.market_value, 0) * 0.03
+            },
+            compliance_status: {
+              tier1_compliant: tier1_ratio >= 0.06,
+              total_capital_compliant: (tier1_ratio * 1.2) >= 0.08,
+              leverage_compliant: (stressedTier1 / stressedAssets.reduce((sum, a) => sum + a.market_value, 0)) >= 0.03
+            },
+            buffers_and_surcharges: {
+              capital_conservation_buffer: rwa * 0.025,
+              countercyclical_buffer: rwa * 0.01,
+              systemic_risk_buffer: rwa * 0.005,
+              total_buffer_requirement: rwa * 0.04
+            },
+            large_exposures: []
+          },
+          overall_assessment: {
+            overall_severity: (lcr_ratio < 1.05 || tier1_ratio < 0.06) ? 'HIGH' as const : 'MEDIUM' as const,
+            risk_factors: [
+              ...(lcr_ratio < 1.05 ? ['LCR below 105% requirement'] : []),
+              ...(tier1_ratio < 0.06 ? ['Tier 1 capital below minimum'] : [])
+            ],
+            confidence_level: 0.85
+          },
+          recommendations: [
+            ...(lcr_ratio < 1.05 ? [`Increase HQLA by £${Math.abs(hqla - (netOutflows * 1.05)) / 1_000_000}M`] : []),
+            ...(tier1_ratio < 0.06 ? [`Raise £${((0.06 - tier1_ratio) * rwa) / 1_000_000}M in Tier 1 capital`] : [])
+          ]
+        };
+        
+        console.log(`✅ ${scenario.name} - LCR: ${(lcr_ratio * 100).toFixed(1)}%, Tier1: ${(tier1_ratio * 100).toFixed(1)}%`);
         return result;
       });
 
