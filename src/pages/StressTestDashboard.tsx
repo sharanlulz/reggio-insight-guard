@@ -1,7 +1,9 @@
-// Enhanced StressTestDashboard.tsx
-// Consistent with Dashboard.tsx patterns and data structures
+// src/pages/StressTestDashboard.tsx
+// Enhanced Stress Test Dashboard using EXISTING financial-modeling.ts infrastructure
+// Integrates with your existing StressTestingEngine and portfolio data
 
 import { useState, useEffect } from 'react';
+import { RefreshCw, AlertCircle, TrendingDown, TrendingUp, Target, FileText } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,220 +11,306 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
+
+// Use your EXISTING financial modeling infrastructure
 import { 
-  AlertTriangle, 
-  Target, 
-  TrendingUp, 
-  RefreshCw, 
-  Shield, 
-  DollarSign,
-  Activity,
-  FileText,
-  CheckCircle,
-  AlertCircle,
-  XCircle
-} from 'lucide-react';
+  StressTestingEngine,
+  LiquidityCoverageRatioCalculator,
+  CapitalAdequacyCalculator,
+  type PortfolioAsset,
+  type FundingProfile,
+  type RegulatoryParameters,
+  type CapitalBase,
+  type StressScenario,
+  type StressTestResult
+} from '@/lib/financial-modeling';
 
-// Types consistent with Dashboard.tsx
-interface StressTestMetrics {
-  scenario_name: string;
-  severity: 'MILD' | 'MODERATE' | 'SEVERE' | 'EXTREME';
-  lcr: {
-    baseline: number;
-    stressed: number;
-    pass: boolean;
-    buffer: number;
-  };
-  capital: {
-    tier1_baseline: number;
-    tier1_stressed: number;
-    pass: boolean;
-    shortfall: number;
-  };
-  business_impact: {
-    lending_capacity_reduction: number;
-    capital_required: number;
-    estimated_losses: number;
-    timeline_to_compliance: string;
-  };
-  confidence: number;
-}
-
-interface StressTestOverview {
-  total_scenarios: number;
-  scenarios_passed: number;
-  scenarios_failed: number;
-  worst_case_capital_impact: number;
-  worst_case_scenario: string;
-  overall_status: 'PASS' | 'CONDITIONAL_PASS' | 'FAIL';
-  last_run: string;
-}
-
-// Format currency - consistent with Dashboard.tsx
-const formatCurrency = (value: number, inMillions = true) => {
-  if (inMillions) {
-    return `£${(value / 1_000_000).toFixed(1)}M`;
+// Portfolio data consistent with your Dashboard.tsx (same as useFinancialData.ts)
+const samplePortfolio: PortfolioAsset[] = [
+  // UK Government Bonds (HQLA L1)
+  {
+    id: '1',
+    assetClass: 'SOVEREIGN',
+    market_value: 350_000_000,
+    notional_value: 350_000_000,
+    rating: 'AAA',
+    jurisdiction: 'UK',
+    basel_risk_weight: 0.0,
+    liquidity_classification: 'HQLA_L1'
+  },
+  // Corporate Bonds (HQLA L2A)  
+  {
+    id: '2',
+    assetClass: 'CORPORATE',
+    market_value: 70_000_000,
+    notional_value: 70_000_000,
+    rating: 'AA',
+    jurisdiction: 'UK',
+    sector: 'Financial',
+    basel_risk_weight: 0.2,
+    liquidity_classification: 'HQLA_L2A'
+  },
+  // Utilities Corporate Bonds (HQLA L2B)
+  {
+    id: '3',
+    assetClass: 'CORPORATE',
+    market_value: 30_000_000,
+    notional_value: 30_000_000,
+    rating: 'BBB',
+    jurisdiction: 'UK',
+    sector: 'Utilities',
+    basel_risk_weight: 0.5,
+    liquidity_classification: 'HQLA_L2B'
+  },
+  // Main Corporate Loan Book
+  {
+    id: '4',
+    assetClass: 'CORPORATE',
+    market_value: 800_000_000,
+    notional_value: 800_000_000,
+    rating: 'BBB',
+    jurisdiction: 'UK',
+    sector: 'Manufacturing',
+    basel_risk_weight: 1.0,
+    liquidity_classification: 'NON_HQLA'
+  },
+  // Residential Mortgages
+  {
+    id: '5',
+    assetClass: 'PROPERTY',
+    market_value: 500_000_000,
+    notional_value: 500_000_000,
+    jurisdiction: 'UK',
+    sector: 'Residential',
+    basel_risk_weight: 0.35,
+    liquidity_classification: 'NON_HQLA'
+  },
+  // SME Lending
+  {
+    id: '6',
+    assetClass: 'CORPORATE',
+    market_value: 300_000_000,
+    notional_value: 300_000_000,
+    rating: 'BB',
+    jurisdiction: 'UK',
+    sector: 'SME',
+    basel_risk_weight: 1.0,
+    liquidity_classification: 'NON_HQLA'
+  },
+  // Cash and Central Bank Reserves
+  {
+    id: '7',
+    assetClass: 'CASH',
+    market_value: 170_000_000,
+    notional_value: 170_000_000,
+    jurisdiction: 'UK',
+    basel_risk_weight: 0.0,
+    liquidity_classification: 'HQLA_L1'
   }
-  return new Intl.NumberFormat('en-GB', {
-    style: 'currency',
-    currency: 'GBP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+];
+
+const sampleFunding: FundingProfile = {
+  retail_deposits: 1_200_000_000,
+  corporate_deposits: 400_000_000,
+  wholesale_funding: 200_000_000,
+  secured_funding: 100_000_000,
+  stable_funding_ratio: 0.85,
+  deposit_concentration: {
+    'Major Corp A': 50_000_000,
+    'Major Corp B': 40_000_000,
+    'Pension Fund X': 60_000_000,
+    'Local Authority': 80_000_000
+  }
 };
 
-// Demo data consistent with Dashboard.tsx patterns
-const getDemoStressTestData = (): { overview: StressTestOverview; scenarios: StressTestMetrics[] } => {
-  const scenarios: StressTestMetrics[] = [
-    {
-      scenario_name: 'Bank of England 2024 ACS',
-      severity: 'SEVERE',
-      lcr: {
-        baseline: 108.2,
-        stressed: 102.8,
-        pass: false,
-        buffer: -2.2 * 1_000_000 // £2.2M deficit
-      },
-      capital: {
-        tier1_baseline: 11.7,
-        tier1_stressed: 5.8,
-        pass: false,
-        shortfall: 15_000_000 // £15M shortfall
-      },
-      business_impact: {
-        lending_capacity_reduction: 185_000_000,
-        capital_required: 15_000_000,
-        estimated_losses: 45_000_000,
-        timeline_to_compliance: '4-6 months'
-      },
-      confidence: 0.89
-    },
-    {
-      scenario_name: 'ECB 2024 Adverse Scenario',
-      severity: 'SEVERE',
-      lcr: {
-        baseline: 108.2,
-        stressed: 106.1,
-        pass: true,
-        buffer: 1.1 * 1_000_000
-      },
-      capital: {
-        tier1_baseline: 11.7,
-        tier1_stressed: 6.2,
-        pass: true,
-        shortfall: 0
-      },
-      business_impact: {
-        lending_capacity_reduction: 95_000_000,
-        capital_required: 0,
-        estimated_losses: 28_000_000,
-        timeline_to_compliance: 'Currently compliant'
-      },
-      confidence: 0.85
-    },
-    {
-      scenario_name: 'Fed 2024 CCAR Severely Adverse',
-      severity: 'EXTREME',
-      lcr: {
-        baseline: 108.2,
-        stressed: 98.5,
-        pass: false,
-        buffer: -6.5 * 1_000_000
-      },
-      capital: {
-        tier1_baseline: 11.7,
-        tier1_stressed: 4.8,
-        pass: false,
-        shortfall: 25_000_000
-      },
-      business_impact: {
-        lending_capacity_reduction: 310_000_000,
-        capital_required: 25_000_000,
-        estimated_losses: 78_000_000,
-        timeline_to_compliance: '8-12 months'
-      },
-      confidence: 0.82
-    },
-    {
-      scenario_name: 'Basel III Implementation',
-      severity: 'MODERATE',
-      lcr: {
-        baseline: 108.2,
-        stressed: 105.8,
-        pass: true,
-        buffer: 0.8 * 1_000_000
-      },
-      capital: {
-        tier1_baseline: 11.7,
-        tier1_stressed: 7.1,
-        pass: true,
-        shortfall: 0
-      },
-      business_impact: {
-        lending_capacity_reduction: 45_000_000,
-        capital_required: 0,
-        estimated_losses: 12_000_000,
-        timeline_to_compliance: 'Currently compliant'
-      },
-      confidence: 0.92
-    }
-  ];
-
-  const failedScenarios = scenarios.filter(s => !s.lcr.pass || !s.capital.pass);
-  const worstCaseScenario = scenarios.reduce((worst, current) => 
-    current.business_impact.capital_required > worst.business_impact.capital_required ? current : worst
-  );
-
-  const overview: StressTestOverview = {
-    total_scenarios: scenarios.length,
-    scenarios_passed: scenarios.length - failedScenarios.length,
-    scenarios_failed: failedScenarios.length,
-    worst_case_capital_impact: worstCaseScenario.business_impact.capital_required,
-    worst_case_scenario: worstCaseScenario.scenario_name,
-    overall_status: failedScenarios.length === 0 ? 'PASS' : 
-                   failedScenarios.length <= 1 ? 'CONDITIONAL_PASS' : 'FAIL',
-    last_run: new Date().toISOString()
-  };
-
-  return { overview, scenarios };
+const ukRegulatoryParams: RegulatoryParameters = {
+  jurisdiction: 'UK',
+  applicable_date: '2024-01-01',
+  lcr_requirement: 1.05, // 105% LCR requirement
+  nsfr_requirement: 1.0,
+  tier1_minimum: 0.06, // 6%
+  total_capital_minimum: 0.08, // 8%
+  leverage_ratio_minimum: 0.03, // 3%
+  large_exposure_limit: 0.25, // 25%
+  stress_test_scenarios: []
 };
 
-// Custom hook for stress test data - consistent with Dashboard.tsx useFinancialData pattern
-function useStressTestData() {
+const currentCapital: CapitalBase = {
+  tier1_capital: 150_000_000, // £150M - consistent with Dashboard
+  tier2_capital: 35_000_000   // £35M
+};
+
+// Real regulatory stress scenarios for 2024
+const stressScenarios: StressScenario[] = [
+  {
+    name: 'Bank of England 2024 ACS',
+    asset_shocks: {
+      'SOVEREIGN': -0.05,    // 5% gilt repricing
+      'CORPORATE': -0.25,    // 25% corporate bond stress
+      'EQUITY': -0.35,       // 35% equity market fall
+      'PROPERTY': -0.31      // 31% property price fall (BOE ACS 2024)
+    },
+    funding_shocks: {
+      'RETAIL_DEPOSITS': -0.08,      // 8% retail deposit outflow
+      'CORPORATE_DEPOSITS': -0.25,   // 25% corporate deposit outflow
+      'WHOLESALE_FUNDING': -1.0      // 100% wholesale funding loss
+    },
+    capital_base: currentCapital
+  },
+  {
+    name: 'ECB 2024 Adverse Scenario',
+    asset_shocks: {
+      'SOVEREIGN': -0.03,
+      'CORPORATE': -0.22,
+      'EQUITY': -0.45,       // 45% equity stress (ECB more severe)
+      'PROPERTY': -0.20
+    },
+    funding_shocks: {
+      'RETAIL_DEPOSITS': -0.06,
+      'CORPORATE_DEPOSITS': -0.20,
+      'WHOLESALE_FUNDING': -0.75
+    },
+    capital_base: currentCapital
+  },
+  {
+    name: 'Fed 2024 CCAR Severely Adverse',
+    asset_shocks: {
+      'SOVEREIGN': -0.02,    // US Treasuries more stable
+      'CORPORATE': -0.30,
+      'EQUITY': -0.55,       // 55% equity stress (Fed most severe)
+      'PROPERTY': -0.40
+    },
+    funding_shocks: {
+      'RETAIL_DEPOSITS': -0.05,
+      'CORPORATE_DEPOSITS': -0.15,
+      'WHOLESALE_FUNDING': -0.50
+    },
+    capital_base: currentCapital
+  },
+  {
+    name: 'Basel III Minimum Requirements',
+    asset_shocks: {
+      'SOVEREIGN': -0.01,
+      'CORPORATE': -0.15,
+      'EQUITY': -0.20,
+      'PROPERTY': -0.15
+    },
+    funding_shocks: {
+      'RETAIL_DEPOSITS': -0.03,
+      'CORPORATE_DEPOSITS': -0.10,
+      'WHOLESALE_FUNDING': -0.25
+    },
+    capital_base: currentCapital
+  }
+];
+
+// Format currency in millions
+const formatCurrency = (value: number): string => {
+  return `£${(value / 1_000_000).toFixed(1)}M`;
+};
+
+// Format percentage
+const formatPercentage = (value: number): string => {
+  return `${(value * 100).toFixed(1)}%`;
+};
+
+export default function StressTestDashboard() {
+  const [stressResults, setStressResults] = useState<StressTestResult[]>([]);
   const [loading, setLoading] = useState(true);
-  const [overview, setOverview] = useState<StressTestOverview | null>(null);
-  const [scenarios, setScenarios] = useState<StressTestMetrics[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
+  // Load stress test data using your EXISTING StressTestingEngine
   const loadStressTestData = async () => {
     setLoading(true);
-    
+    setError(null);
+
     try {
-      // Try to load real data from database first
-      const { data: stressTestResults, error } = await supabase
+      // Check for ingested regulations with stress test requirements
+      const { data: stressRequirements, error: dbError } = await supabase
+        .schema('reggio')
         .from('clauses')
         .select('*')
         .or('risk_area.eq.LIQUIDITY,risk_area.eq.CAPITAL')
         .ilike('text_raw', '%stress%');
 
-      // Simulate API delay for realistic UX
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (!dbError && stressRequirements && stressRequirements.length > 0) {
+        console.log('Found stress test requirements in regulations:', stressRequirements.length);
+        // TODO: Extract actual stress test parameters from ingested regulations
+      }
 
-      // If we have real stress test related clauses, we could build real scenarios
-      // For now, use demo data but this shows the integration pattern
-      const demoData = getDemoStressTestData();
-      
-      setOverview(demoData.overview);
-      setScenarios(demoData.scenarios);
+      // Run stress tests using your EXISTING StressTestingEngine
+      const stressEngine = new StressTestingEngine(
+        samplePortfolio, 
+        sampleFunding, 
+        ukRegulatoryParams
+      );
+
+      // Calculate stress test results for all scenarios
+      const results = stressScenarios.map(scenario => 
+        stressEngine.runStressScenario(scenario)
+      );
+
+      setStressResults(results);
       setLastUpdated(new Date());
 
-    } catch (error) {
-      console.error('Error loading stress test data:', error);
+    } catch (err) {
+      console.error('Stress test calculation error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to calculate stress tests');
       
-      // Fallback to demo data on error - consistent with Dashboard.tsx pattern
-      const demoData = getDemoStressTestData();
-      setOverview(demoData.overview);
-      setScenarios(demoData.scenarios);
+      // Fallback: Create demo results with realistic patterns from Dashboard
+      const demoResults: StressTestResult[] = [
+        {
+          scenario_name: 'Bank of England 2024 ACS',
+          lcr_result: {
+            lcr_ratio: 0.985,           // Below 105% requirement
+            hqla_value: 520_000_000,
+            net_cash_outflows: 528_000_000,
+            requirement: 1.05,
+            compliance_status: 'NON_COMPLIANT' as const,
+            buffer_or_deficit: -8_000_000,
+            breakdown: {
+              level1_assets: 520_000_000,
+              level2a_assets: 59_500_000,
+              level2b_assets: 15_000_000
+            }
+          },
+          capital_result: {
+            risk_weighted_assets: 1_485_000_000,
+            tier1_capital_ratio: 0.058,  // Below 6% after stress
+            total_capital_ratio: 0.082,
+            leverage_ratio: 0.035,
+            capital_requirements: {
+              tier1_minimum: 89_100_000,
+              total_capital_minimum: 118_800_000,
+              leverage_minimum: 66_000_000
+            },
+            compliance_status: {
+              tier1_compliant: false,     // Failed Tier 1
+              total_capital_compliant: true,
+              leverage_compliant: true
+            },
+            buffers_and_surcharges: {
+              capital_conservation_buffer: 37_125_000,
+              countercyclical_buffer: 14_850_000,
+              systemic_risk_buffer: 7_425_000,
+              total_buffer_requirement: 59_400_000
+            },
+            large_exposures: []
+          },
+          overall_assessment: {
+            overall_severity: 'HIGH' as const,
+            risk_factors: ['LCR falls below 105%', 'Tier 1 capital below 6%'],
+            confidence_level: 0.85
+          },
+          recommendations: [
+            'Increase HQLA by £25M to meet LCR requirements',
+            'Raise £15M in Tier 1 capital to meet minimum requirements'
+          ]
+        }
+      ];
+      
+      setStressResults(demoResults);
     } finally {
       setLoading(false);
     }
@@ -232,342 +320,261 @@ function useStressTestData() {
     loadStressTestData();
   }, []);
 
-  return {
-    loading,
-    overview,
-    scenarios,
-    lastUpdated,
-    refresh: loadStressTestData
-  };
-}
+  // Calculate summary metrics from stress test results
+  const getSummaryMetrics = () => {
+    if (stressResults.length === 0) return null;
 
-const StressTestDashboard: React.FC = () => {
-  const [selectedScenario, setSelectedScenario] = useState<string>('all');
-  const { loading, overview, scenarios, lastUpdated, refresh } = useStressTestData();
+    const scenariosPassed = stressResults.filter(r => 
+      r.lcr_result.compliance_status === 'COMPLIANT' && 
+      r.capital_result.compliance_status.tier1_compliant
+    ).length;
+    
+    const worstLCR = Math.min(...stressResults.map(r => r.lcr_result.lcr_ratio));
+    
+    // Calculate business impact metrics
+    const maxCapitalShortfall = Math.max(...stressResults.map(r => {
+      const tier1Shortfall = Math.max(0, 
+        r.capital_result.capital_requirements.tier1_minimum - 
+        (r.capital_result.tier1_capital_ratio * r.capital_result.risk_weighted_assets)
+      );
+      return tier1Shortfall;
+    }));
+    
+    const maxLendingReduction = Math.max(...stressResults.map(r => {
+      const lcrDeficit = Math.max(0, r.lcr_result.requirement - r.lcr_result.lcr_ratio);
+      return lcrDeficit * 300_000_000; // Estimate lending impact
+    }));
+
+    return {
+      scenarios_tested: stressResults.length,
+      scenarios_passed: scenariosPassed,
+      worst_lcr: worstLCR,
+      max_capital_shortfall: maxCapitalShortfall,
+      max_lending_reduction: maxLendingReduction
+    };
+  };
+
+  const summaryMetrics = getSummaryMetrics();
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-            <div className="text-lg font-medium">Running Stress Test Analysis...</div>
-            <div className="text-sm text-muted-foreground">Processing regulatory scenarios and calculating business impact</div>
-          </div>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center space-x-2">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          <span>Running regulatory stress tests...</span>
         </div>
       </div>
     );
   }
 
-  if (!overview) {
+  if (error) {
     return (
-      <div className="space-y-6">
-        <Alert variant="destructive">
+      <div className="p-6">
+        <Alert className="border-red-200">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Failed to load stress test data. Please try refreshing or contact support.
+            Error loading stress test data: {error}
           </AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  const filteredScenarios = selectedScenario === 'all' ? scenarios : 
-    scenarios.filter(s => s.scenario_name.toLowerCase().includes(selectedScenario.toLowerCase()));
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Stress Testing Dashboard</h1>
-          <p className="text-muted-foreground">Regulatory stress test compliance and financial impact analysis</p>
+          <p className="text-muted-foreground">
+            Regulatory stress test compliance and business impact analysis
+          </p>
         </div>
-        <div className="flex gap-3">
-          <select 
-            value={selectedScenario} 
-            onChange={(e) => setSelectedScenario(e.target.value)}
-            className="border rounded-md px-3 py-2 bg-background"
-          >
-            <option value="all">All Scenarios</option>
-            <option value="boe">Bank of England</option>
-            <option value="ecb">ECB</option>
-            <option value="fed">Federal Reserve</option>
-            <option value="basel">Basel III</option>
-          </select>
-          <Button onClick={refresh} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Running...' : 'Run Stress Tests'}
-          </Button>
-        </div>
+        <Button onClick={loadStressTestData} disabled={loading}>
+          {loading ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
+          Refresh Tests
+        </Button>
       </div>
 
-      {/* Overall Status Alert */}
-      <Alert className={`${
-        overview.overall_status === 'PASS' ? 'border-green-200 bg-green-50' :
-        overview.overall_status === 'CONDITIONAL_PASS' ? 'border-orange-200 bg-orange-50' :
-        'border-red-200 bg-red-50'
-      }`}>
-        {overview.overall_status === 'PASS' ? (
-          <CheckCircle className="h-4 w-4 text-green-600" />
-        ) : overview.overall_status === 'CONDITIONAL_PASS' ? (
-          <AlertTriangle className="h-4 w-4 text-orange-600" />
-        ) : (
-          <XCircle className="h-4 w-4 text-red-600" />
-        )}
-        <AlertDescription>
-          <div className="flex items-center justify-between">
-            <div>
-              <strong>
-                {overview.overall_status === 'PASS' ? 'All Stress Tests Pass' :
-                 overview.overall_status === 'CONDITIONAL_PASS' ? 'Conditional Pass - Action Required' :
-                 'Stress Test Failures Detected'}
-              </strong>
-              <div className="text-sm mt-1">
-                {overview.scenarios_passed} of {overview.total_scenarios} scenarios passed. 
-                {overview.scenarios_failed > 0 && ` Worst case: ${formatCurrency(overview.worst_case_capital_impact)} capital shortfall.`}
+      {/* Summary Metrics Cards */}
+      {summaryMetrics && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Scenarios Tested</p>
+                <p className="text-2xl font-bold">
+                  {summaryMetrics.scenarios_passed}/{summaryMetrics.scenarios_tested}
+                </p>
               </div>
+              <Target className="h-8 w-8 text-blue-500" />
             </div>
-            <Badge variant={
-              overview.overall_status === 'PASS' ? 'default' : 
-              overview.overall_status === 'CONDITIONAL_PASS' ? 'secondary' : 'destructive'
-            } className={
-              overview.overall_status === 'PASS' ? 'bg-green-100 text-green-800' : ''
-            }>
-              {overview.overall_status.replace('_', ' ')}
-            </Badge>
-          </div>
-        </AlertDescription>
-      </Alert>
-
-      {/* Key Stress Test Metrics */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <Target className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium">Scenarios Tested</span>
-          </div>
-          <div className="space-y-2">
-            <div className="text-2xl font-bold">{overview.total_scenarios}</div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">{overview.scenarios_passed} Pass</Badge>
-              {overview.scenarios_failed > 0 && (
-                <Badge variant="destructive">{overview.scenarios_failed} Fail</Badge>
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">BOE, ECB, Fed, Basel III</div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <Shield className="h-4 w-4 text-purple-600" />
-            <span className="text-sm font-medium">Worst Case LCR</span>
-          </div>
-          <div className="space-y-2">
-            <div className={`text-2xl font-bold ${
-              Math.min(...scenarios.map(s => s.lcr.stressed)) >= 105 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {Math.min(...scenarios.map(s => s.lcr.stressed)).toFixed(1)}%
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={Math.min(...scenarios.map(s => s.lcr.stressed)) >= 105 ? 'default' : 'destructive'} 
-                     className={Math.min(...scenarios.map(s => s.lcr.stressed)) >= 105 ? 'bg-green-100 text-green-800' : ''}>
-                {Math.min(...scenarios.map(s => s.lcr.stressed)) >= 105 ? 'Above Min' : 'Below Min'}
+            <div className="mt-2">
+              <Badge variant={summaryMetrics.scenarios_passed === summaryMetrics.scenarios_tested ? "default" : "destructive"}>
+                {summaryMetrics.scenarios_passed === summaryMetrics.scenarios_tested ? 'All Pass' : 'Some Fail'}
               </Badge>
             </div>
-            <Progress value={Math.min(...scenarios.map(s => s.lcr.stressed))} className="h-2" />
-          </div>
-        </Card>
+          </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <DollarSign className="h-4 w-4 text-green-600" />
-            <span className="text-sm font-medium">Capital at Risk</span>
-          </div>
-          <div className="space-y-2">
-            <div className="text-2xl font-bold">
-              {formatCurrency(overview.worst_case_capital_impact)}
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Worst Case LCR</p>
+                <p className="text-2xl font-bold">{formatPercentage(summaryMetrics.worst_lcr)}</p>
+              </div>
+              <TrendingDown className="h-8 w-8 text-orange-500" />
             </div>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-3 w-3 text-red-600" />
-              <span className="text-xs text-muted-foreground">Maximum exposure</span>
+            <div className="mt-2">
+              <Badge variant={summaryMetrics.worst_lcr >= 1.05 ? "default" : "destructive"}>
+                {summaryMetrics.worst_lcr >= 1.05 ? 'Above 105%' : 'Below 105%'}
+              </Badge>
             </div>
-            <div className="text-xs text-muted-foreground">{overview.worst_case_scenario}</div>
-          </div>
-        </Card>
+          </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <Activity className="h-4 w-4 text-orange-600" />
-            <span className="text-sm font-medium">Business Impact</span>
-          </div>
-          <div className="space-y-2">
-            <div className="text-2xl font-bold">
-              {formatCurrency(Math.max(...scenarios.map(s => s.business_impact.lending_capacity_reduction)))}
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Capital at Risk</p>
+                <p className="text-2xl font-bold">{formatCurrency(summaryMetrics.max_capital_shortfall)}</p>
+              </div>
+              <AlertCircle className="h-8 w-8 text-red-500" />
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">Lending Reduction</Badge>
+            <div className="mt-2">
+              <Badge variant={summaryMetrics.max_capital_shortfall === 0 ? "default" : "destructive"}>
+                {summaryMetrics.max_capital_shortfall === 0 ? 'No Shortfall' : 'Shortfall Risk'}
+              </Badge>
             </div>
-            <div className="text-xs text-muted-foreground">Worst case scenario</div>
-          </div>
-        </Card>
-      </div>
+          </Card>
 
-      {/* Detailed Scenarios */}
-      <Tabs defaultValue="scenarios" className="space-y-4">
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Business Impact</p>
+                <p className="text-2xl font-bold">{formatCurrency(summaryMetrics.max_lending_reduction)}</p>
+              </div>
+              <TrendingDown className="h-8 w-8 text-purple-500" />
+            </div>
+            <div className="mt-2">
+              <Badge variant="secondary">
+                Lending Reduction
+              </Badge>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Detailed Results Tabs */}
+      <Tabs defaultValue="results" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="scenarios">Scenario Results</TabsTrigger>
-          <TabsTrigger value="analysis">Impact Analysis</TabsTrigger>
+          <TabsTrigger value="results">Scenario Results</TabsTrigger>
+          <TabsTrigger value="impact">Impact Analysis</TabsTrigger>
           <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="scenarios" className="space-y-4">
+        <TabsContent value="results" className="space-y-4">
           <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Stress Test Scenario Results</h3>
+            <h3 className="text-lg font-semibold mb-4">Stress Test Results by Scenario</h3>
             <div className="space-y-4">
-              {filteredScenarios.map((scenario, index) => (
-                <div key={index} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <h4 className="font-medium">{scenario.scenario_name}</h4>
-                      <Badge className={
-                        scenario.severity === 'EXTREME' ? 'bg-red-100 text-red-800' :
-                        scenario.severity === 'SEVERE' ? 'bg-orange-100 text-orange-800' :
-                        scenario.severity === 'MODERATE' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-blue-100 text-blue-800'
-                      }>
-                        {scenario.severity}
-                      </Badge>
+              {stressResults.map((result, index) => (
+                <div key={index} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium">{result.scenario_name}</h4>
+                    <Badge variant={
+                      result.lcr_result.compliance_status === 'COMPLIANT' && 
+                      result.capital_result.compliance_status.tier1_compliant ? 
+                      "default" : "destructive"
+                    }>
+                      {result.lcr_result.compliance_status === 'COMPLIANT' && 
+                       result.capital_result.compliance_status.tier1_compliant ? 'PASS' : 'FAIL'}
+                    </Badge>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="font-medium text-muted-foreground">LCR Result</p>
+                      <p className="text-lg">{formatPercentage(result.lcr_result.lcr_ratio)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Requirement: {formatPercentage(result.lcr_result.requirement)}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {scenario.lcr.pass && scenario.capital.pass ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <XCircle className="h-5 w-5 text-red-600" />
-                      )}
-                      <span className="text-sm font-medium">
-                        {scenario.lcr.pass && scenario.capital.pass ? 'PASS' : 'FAIL'}
-                      </span>
+                    
+                    <div>
+                      <p className="font-medium text-muted-foreground">Tier 1 Capital</p>
+                      <p className="text-lg">{formatPercentage(result.capital_result.tier1_capital_ratio)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Minimum: 6.0%
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <p className="font-medium text-muted-foreground">Severity</p>
+                      <p className="text-lg">{result.overall_assessment.overall_severity}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Confidence: {(result.overall_assessment.confidence_level * 100).toFixed(0)}%
+                      </p>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-muted-foreground">LCR Impact</div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Baseline:</span>
-                        <span className="font-medium">{scenario.lcr.baseline.toFixed(1)}%</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Stressed:</span>
-                        <span className={`font-medium ${scenario.lcr.pass ? 'text-green-600' : 'text-red-600'}`}>
-                          {scenario.lcr.stressed.toFixed(1)}%
-                        </span>
-                      </div>
-                      {!scenario.lcr.pass && (
-                        <div className="text-xs text-red-600">
-                          Deficit: {formatCurrency(Math.abs(scenario.lcr.buffer))}
-                        </div>
-                      )}
+                  
+                  {result.overall_assessment.risk_factors.length > 0 && (
+                    <div className="mt-3 p-2 bg-muted rounded text-sm">
+                      <p className="font-medium text-muted-foreground mb-1">Risk Factors:</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        {result.overall_assessment.risk_factors.map((factor, i) => (
+                          <li key={i}>{factor}</li>
+                        ))}
+                      </ul>
                     </div>
-
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-muted-foreground">Capital Impact</div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Baseline Tier 1:</span>
-                        <span className="font-medium">{scenario.capital.tier1_baseline.toFixed(1)}%</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Stressed Tier 1:</span>
-                        <span className={`font-medium ${scenario.capital.pass ? 'text-green-600' : 'text-red-600'}`}>
-                          {scenario.capital.tier1_stressed.toFixed(1)}%
-                        </span>
-                      </div>
-                      {!scenario.capital.pass && (
-                        <div className="text-xs text-red-600">
-                          Shortfall: {formatCurrency(scenario.capital.shortfall)}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-muted-foreground">Business Impact</div>
-                      <div className="text-sm">
-                        <div className="flex justify-between">
-                          <span>Lending Reduction:</span>
-                          <span className="font-medium">{formatCurrency(scenario.business_impact.lending_capacity_reduction)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Capital Required:</span>
-                          <span className="font-medium">{formatCurrency(scenario.business_impact.capital_required)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Timeline:</span>
-                          <span className="font-medium">{scenario.business_impact.timeline_to_compliance}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t flex items-center justify-between">
-                    <div className="text-xs text-muted-foreground">
-                      Confidence: {Math.round(scenario.confidence * 100)}%
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">View Details</Button>
-                      <Button variant="outline" size="sm">Export Results</Button>
-                    </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
           </Card>
         </TabsContent>
 
-        <TabsContent value="analysis" className="space-y-4">
+        <TabsContent value="impact" className="space-y-4">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Cross-Scenario Impact Analysis</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h4 className="font-medium">Capital Requirements by Scenario</h4>
-                <div className="space-y-3">
-                  {scenarios.map((scenario, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${
-                          scenario.capital.pass ? 'bg-green-500' : 'bg-red-500'
-                        }`} />
-                        <span className="text-sm font-medium">{scenario.scenario_name}</span>
+            <div className="space-y-6">
+              <div>
+                <h4 className="font-medium mb-2">Liquidity Coverage Ratio (LCR)</h4>
+                <div className="space-y-2">
+                  {stressResults.map((result, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <span className="text-sm">{result.scenario_name}</span>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-32">
+                          <Progress 
+                            value={(result.lcr_result.lcr_ratio / 1.2) * 100} 
+                            className="h-2"
+                          />
+                        </div>
+                        <span className="text-sm font-medium">
+                          {formatPercentage(result.lcr_result.lcr_ratio)}
+                        </span>
                       </div>
-                      <span className="font-medium">
-                        {formatCurrency(scenario.business_impact.capital_required)}
-                      </span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h4 className="font-medium">Operational Impact Summary</h4>
-                <div className="space-y-3">
-                  <div className="p-3 border rounded">
-                    <div className="text-sm font-medium mb-1">Total Capital at Risk</div>
-                    <div className="text-lg font-bold">{formatCurrency(overview.worst_case_capital_impact)}</div>
-                  </div>
-                  <div className="p-3 border rounded">
-                    <div className="text-sm font-medium mb-1">Maximum Lending Reduction</div>
-                    <div className="text-lg font-bold">
-                      {formatCurrency(Math.max(...scenarios.map(s => s.business_impact.lending_capacity_reduction)))}
+              <div>
+                <h4 className="font-medium mb-2">Tier 1 Capital Ratio</h4>
+                <div className="space-y-2">
+                  {stressResults.map((result, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <span className="text-sm">{result.scenario_name}</span>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-32">
+                          <Progress 
+                            value={(result.capital_result.tier1_capital_ratio / 0.12) * 100} 
+                            className="h-2"
+                          />
+                        </div>
+                        <span className="text-sm font-medium">
+                          {formatPercentage(result.capital_result.tier1_capital_ratio)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="p-3 border rounded">
-                    <div className="text-sm font-medium mb-1">Estimated Losses Range</div>
-                    <div className="text-lg font-bold">
-                      {formatCurrency(Math.min(...scenarios.map(s => s.business_impact.estimated_losses)))} - {formatCurrency(Math.max(...scenarios.map(s => s.business_impact.estimated_losses)))}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -577,78 +584,35 @@ const StressTestDashboard: React.FC = () => {
         <TabsContent value="recommendations" className="space-y-4">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Strategic Recommendations</h3>
-            
             <div className="space-y-4">
-              {/* Generate recommendations based on failed scenarios */}
-              {scenarios.filter(s => !s.lcr.pass || !s.capital.pass).map((scenario, index) => (
-                <div key={index} className="border border-orange-200 bg-orange-50 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
-                    <div className="flex-1">
-                      <div className="font-medium text-orange-800 mb-1">
-                        {scenario.scenario_name} - Action Required
-                      </div>
-                      <div className="text-sm text-orange-700 mb-2">
-                        {!scenario.lcr.pass && !scenario.capital.pass ? 
-                          `Both LCR and capital ratios breach minimums. Priority: Raise ${formatCurrency(scenario.capital.shortfall)} capital and improve liquidity position.` :
-                          !scenario.lcr.pass ?
-                          `LCR falls below 105% minimum. Increase HQLA by ${formatCurrency(Math.abs(scenario.lcr.buffer))} or reduce outflows.` :
-                          `Tier 1 capital falls below 6% minimum. Raise ${formatCurrency(scenario.capital.shortfall)} additional capital.`
-                        }
-                      </div>
-                      <div className="flex items-center gap-4 text-xs">
-                        <span>Timeline: {scenario.business_impact.timeline_to_compliance}</span>
-                        <span>Impact: {formatCurrency(scenario.business_impact.capital_required + Math.abs(scenario.lcr.buffer))}</span>
-                        <Badge variant="outline" className="text-xs">High Priority</Badge>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">Plan Actions</Button>
-                      <Button size="sm">Implement</Button>
-                    </div>
+              {stressResults.map((result, index) => (
+                result.recommendations.length > 0 && (
+                  <div key={index} className="border rounded-lg p-4">
+                    <h4 className="font-medium mb-2">{result.scenario_name}</h4>
+                    <ul className="space-y-2">
+                      {result.recommendations.map((rec, i) => (
+                        <li key={i} className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-sm">{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </div>
+                )
               ))}
-
-              {/* If all scenarios pass, show optimization recommendations */}
-              {overview.scenarios_failed === 0 && (
-                <div className="border border-green-200 bg-green-50 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                    <div className="flex-1">
-                      <div className="font-medium text-green-800 mb-1">
-                        All Stress Tests Pass - Optimization Opportunities
-                      </div>
-                      <div className="text-sm text-green-700 mb-2">
-                        Your portfolio demonstrates strong resilience across all regulatory scenarios. 
-                        Consider optimizing capital allocation to improve returns while maintaining compliance.
-                      </div>
-                      <div className="flex items-center gap-4 text-xs">
-                        <span>Potential: £3-5M capital optimization</span>
-                        <span>ROE improvement: 0.8-1.2%</span>
-                        <Badge variant="outline" className="text-xs">Optimization</Badge>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">Optimize Portfolio</Button>
-                      <Button size="sm">Model Scenarios</Button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Footer */}
-      <div className="text-sm text-muted-foreground text-center py-4 border-t">
-        Last updated: {lastUpdated.toLocaleString()} • 
-        Based on {scenarios.length} regulatory stress test scenarios • 
-        Powered by Reggio Financial Intelligence
-      </div>
+      {/* Status Info */}
+      <Alert>
+        <FileText className="h-4 w-4" />
+        <AlertDescription>
+          <strong>Data Source:</strong> Stress tests calculated using your existing financial modeling engine with regulatory scenarios from BOE, ECB, and Fed 2024 guidelines. 
+          Last updated: {lastUpdated.toLocaleString()}
+        </AlertDescription>
+      </Alert>
     </div>
   );
-};
-
-export default StressTestDashboard;
+}
