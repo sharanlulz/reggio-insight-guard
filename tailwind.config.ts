@@ -61,6 +61,15 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				reggio: {
+					primary: 'hsl(var(--reggio-primary))',
+					'primary-hover': 'hsl(var(--reggio-primary-hover))', 
+					accent: 'hsl(var(--reggio-accent))',
+					'accent-hover': 'hsl(var(--reggio-accent-hover))',
+					success: 'hsl(var(--reggio-success))',
+					warning: 'hsl(var(--reggio-warning))',
+					error: 'hsl(var(--reggio-error))'
 				}
 			},
 			borderRadius: {

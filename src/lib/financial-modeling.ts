@@ -20,7 +20,7 @@ export interface FundingProfile {
   wholesale_funding: number;
   secured_funding: number;
   stable_funding_ratio?: number;
-  deposit_concentration?: number;
+  deposit_concentration?: Record<string, number>;
 }
 
 export interface RegulatoryParameters {

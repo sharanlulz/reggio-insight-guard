@@ -39,31 +39,33 @@ All colors MUST be HSL.
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Reggio Brand Colors */
+    --reggio-primary: 238 69% 60%; /* #4F46E5 */
+    --reggio-primary-hover: 237 68% 56%; /* #4338CA */
+    --reggio-accent: 173 58% 39%; /* #14B8A6 */
+    --reggio-accent-hover: 173 73% 32%; /* #0D9488 */
+    --reggio-success: 142 76% 47%; /* #22C55E */
+    --reggio-warning: 38 92% 50%; /* #F59E0B */
+    --reggio-error: 0 84% 60%; /* #EF4444 */
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 220 13% 7%; /* #0F1115 */
+    --foreground: 220 9% 89%; /* #E5E7EB */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 13% 7%;
+    --card-foreground: 220 9% 89%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 13% 7%;
+    --popover-foreground: 220 9% 89%;
 
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
@@ -91,6 +93,15 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Reggio Brand Colors for Dark Mode */
+    --reggio-primary: 238 69% 60%;
+    --reggio-primary-hover: 237 68% 56%;
+    --reggio-accent: 173 58% 39%;
+    --reggio-accent-hover: 173 73% 32%;
+    --reggio-success: 142 76% 47%;
+    --reggio-warning: 38 92% 50%;
+    --reggio-error: 0 84% 60%;
   }
 }
 

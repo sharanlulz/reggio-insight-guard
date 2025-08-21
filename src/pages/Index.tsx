@@ -1,15 +1,23 @@
-// Update this page (the content is just a fallback if you fail to update the page)
-
-import { useSEO } from "@/hooks/use-seo";
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthProvider';
+import { useEffect } from 'react';
 
 const Index = () => {
-  useSEO({ title: "Reggio – Compliance AI", description: "Ingest, browse, and brief on regulations with Reggio." });
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    // Redirect authenticated users to dashboard, others to landing
+    if (user) {
+      navigate('/dashboard', { replace: true });
+    } else {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
+  
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-reggio-primary"></div>
     </div>
   );
 };

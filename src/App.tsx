@@ -1,73 +1,78 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/context/AuthProvider";
+import { ProtectedRoute } from "@/routes/ProtectedRoute";
+import { AppShell } from "@/components/layout/AppShell";
+import Landing from "./pages/Landing";
+import Login from "./pages/Login";
 import Auth from "./pages/Auth";
+import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Clauses from "./pages/Clauses";
 import BoardBrief from "./pages/BoardBrief";
-import Debug from "@/pages/Debug";
-import Regs from "@/pages/Regs";
-import OperatorDashboard from "@/pages/OperatorDashboard";
-import OperatorVersions from "@/pages/operator/operator-versions";
-import OperatorIngestions from "@/pages/operator/operator-ingestions";
-import StressTestDashboard from "@/pages/StressTestDashboard";
-
-// ✅ NEW REGULATORY INTELLIGENCE IMPORTS
-import MonitorControl from "@/pages/MonitorControl";
-import RegulatoryIntelligence from "@/pages/RegulatoryIntelligence";
+import Debug from "./pages/Debug";
+import RegulatoryIntelligence from "./pages/RegulatoryIntelligence";
+import StressTestDashboard from "./pages/StressTestDashboard";
+import MonitorControl from "./pages/MonitorControl";
+import OperatorDashboard from "./pages/OperatorDashboard";
+import OperatorIngestions from "./pages/operator/operator-ingestions";
+import OperatorVersions from "./pages/operator/operator-versions";
+import NotFound from "./pages/NotFound";
+import Regs from "./pages/Regs";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <Toaster />
-    <Sonner />
-    <BrowserRouter>
-      <header className="p-4 border-b flex items-center justify-between">
-        <Link to="/" className="font-semibold text-xl">Reggio</Link>
-        <nav className="text-sm flex gap-3">
-          {/* Core Navigation */}
-          <Link to="/dashboard" className="underline hover:text-blue-600">Dashboard</Link>
-          <Link to="/regs" className="underline hover:text-blue-600">Regs</Link>
-          
-          {/* ✅ NEW REGULATORY INTELLIGENCE NAVIGATION */}
-          <Link to="/monitor" className="underline hover:text-blue-600">Monitor</Link>
-          <Link to="/intelligence" className="underline hover:text-blue-600">Intelligence</Link>
-          <Link to="/stress-tests" className="underline hover:text-blue-600">Stress Tests</Link>
-          
-          {/* Operator & Debug */}
-          <Link to="/operator" className="underline hover:text-gray-600">Operator</Link>
-          <Link to="/debug" className="underline hover:text-gray-600">Debug</Link>
-        </nav>
-      </header>
-      
-      <Routes>
-        {/* Core Pages */}
-        <Route path="/" element={<Index />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/clauses" element={<Clauses />} />
-        <Route path="/brief" element={<BoardBrief />} />
-        <Route path="/regs" element={<Regs />} />
-        <Route path="/debug" element={<Debug />} />
-        
-        {/* ✅ NEW REGULATORY INTELLIGENCE PAGES */}
-        <Route path="/monitor" element={<MonitorControl />} />
-        <Route path="/intelligence" element={<RegulatoryIntelligence />} />
-        <Route path="/stress-tests" element={<StressTestDashboard />} />
-        
-        {/* Operator pages */}
-        <Route path="/operator" element={<OperatorDashboard />} />
-        <Route path="/operator-versions" element={<OperatorVersions />} />
-        <Route path="/operator-ingestions" element={<OperatorIngestions />} />
-        
-        {/* Catch-all */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/auth" element={<Auth />} />
+            
+            {/* Protected app routes */}
+            <Route path="/*" element={
+              <ProtectedRoute requireAuth={false}>
+                <AppShell>
+                  <Routes>
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/clauses" element={<Clauses />} />
+                    <Route path="/brief" element={<BoardBrief />} />
+                    <Route path="/regs" element={<Regs />} />
+                    <Route path="/regulations" element={<Regs />} />
+                    <Route path="/risk" element={<StressTestDashboard />} />
+                    <Route path="/compliance" element={<RegulatoryIntelligence />} />
+                    <Route path="/tasks" element={<MonitorControl />} />
+                    <Route path="/reports" element={<BoardBrief />} />
+                    <Route path="/stress-test" element={<StressTestDashboard />} />
+                    <Route path="/stress-tests" element={<StressTestDashboard />} />
+                    <Route path="/regulatory-intelligence" element={<RegulatoryIntelligence />} />
+                    <Route path="/intelligence" element={<RegulatoryIntelligence />} />
+                    <Route path="/monitor-control" element={<MonitorControl />} />
+                    <Route path="/monitor" element={<MonitorControl />} />
+                    <Route path="/operator" element={<OperatorDashboard />} />
+                    <Route path="/operator/ingestions" element={<OperatorIngestions />} />
+                    <Route path="/operator-ingestions" element={<OperatorIngestions />} />
+                    <Route path="/operator/versions" element={<OperatorVersions />} />
+                    <Route path="/operator-versions" element={<OperatorVersions />} />
+                    <Route path="/debug" element={<Debug />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </AppShell>
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
+    </TooltipProvider>
   </QueryClientProvider>
 );
 
