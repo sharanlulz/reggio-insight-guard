@@ -276,155 +276,155 @@ const EnhancedExecutiveDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 space-y-6">
+    <div className="min-h-screen bg-background p-4 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Executive Dashboard</h1>
-          <p className="mt-1 text-gray-600">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Executive Dashboard</h1>
+          <p className="mt-1 text-sm sm:text-base text-muted-foreground">
             Real-time regulatory intelligence and financial impact analysis
             {getDataSourceIndicator() && (
               <span className="ml-2">• {getDataSourceIndicator()}</span>
             )}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            className="flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 hover:bg-gray-50 disabled:opacity-50"
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <Button
+            variant="outline"
             onClick={loadMetrics}
             disabled={loading}
+            className="flex items-center justify-center"
           >
-            <span className="mr-2">📊</span>
+            <BarChart3 className="mr-2 h-4 w-4" />
             {loading ? "Calculating…" : "Refresh Analytics"}
-          </button>
-          <button className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
-            <span className="mr-2">📄</span>
+          </Button>
+          <Button className="flex items-center justify-center bg-reggio-primary hover:bg-reggio-primary-hover">
+            <FileText className="mr-2 h-4 w-4" />
             Export Report
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Live Status Banner */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <span className="mr-2 text-blue-600">⚡</span>
-            <span>
-              <strong>Live Analysis Active:</strong> Connected to portfolio data and regulatory feeds
-              {metrics.regulatoryContext && (
-                <span className="ml-2">
-                  • {metrics.regulatoryContext.totalRegulations} regulations • {metrics.regulatoryContext.totalClauses} clauses analyzed
-                </span>
-              )}
-            </span>
+      <Card className="border border-reggio-primary/20 bg-gradient-to-r from-reggio-primary/5 to-reggio-accent/5">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div className="flex items-start sm:items-center gap-2">
+              <Zap className="h-5 w-5 text-reggio-primary mt-0.5 sm:mt-0 flex-shrink-0" />
+              <div className="text-sm">
+                <span className="font-semibold text-foreground">Live Analysis Active:</span>
+                <span className="text-muted-foreground ml-1">Connected to portfolio data and regulatory feeds</span>
+                {metrics.regulatoryContext && (
+                  <div className="text-xs text-muted-foreground mt-1 sm:ml-2 sm:mt-0 sm:inline">
+                    • {metrics.regulatoryContext.totalRegulations} regulations • {metrics.regulatoryContext.totalClauses} clauses analyzed
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="text-xs sm:text-sm text-reggio-primary whitespace-nowrap">
+              Last updated: {new Date().toLocaleTimeString()} • Confidence: {metrics.confidence}%
+            </div>
           </div>
-          <div className="text-sm text-blue-600">
-            Last updated: {new Date().toLocaleTimeString()} • Confidence: {metrics.confidence}%
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Key Metrics Grid */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {/* LCR */}
-        <div className="rounded-lg border bg-white p-6 shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Liquidity Coverage Ratio</p>
-              <div className="mt-2 flex items-center">
-                <span className="text-2xl font-bold text-red-600">{metrics.lcr.current}%</span>
-                <span className="ml-2 text-red-500">↓</span>
+        <Card className="transition-all duration-200 hover:shadow-lg">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-muted-foreground">Liquidity Coverage Ratio</p>
+                <div className="mt-2 flex items-center">
+                  <span className="text-xl sm:text-2xl font-bold text-reggio-error">{metrics.lcr.current}%</span>
+                  <TrendingUp className="ml-2 h-4 w-4 text-reggio-error rotate-180" />
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Required: {metrics.lcr.required}%</p>
               </div>
-              <p className="mt-1 text-xs text-gray-500">Required: {metrics.lcr.required}%</p>
+              <div className="text-right">
+                <Badge variant="destructive" className="text-xs">Below Target</Badge>
+                <p className="mt-1 text-xs text-muted-foreground">{metrics.lcr.buffer}% buffer</p>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="rounded bg-red-100 px-2 py-1 text-xs text-red-800">Below Target</span>
-              <p className="mt-1 text-xs text-gray-500">{metrics.lcr.buffer}% buffer</p>
-            </div>
-          </div>
-          <div className="mt-4 h-2 rounded-full bg-gray-200">
-            <div
-              className="h-2 rounded-full bg-red-500"
-              style={{
-                width: `${Math.max(0, (metrics.lcr.current / metrics.lcr.required) * 100)}%`,
-              }}
+            <Progress 
+              value={Math.max(0, (metrics.lcr.current / metrics.lcr.required) * 100)} 
+              className="mt-4"
             />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Tier 1 */}
-        <div className="rounded-lg border bg-white p-6 shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Tier 1 Capital Ratio</p>
-              <div className="mt-2 flex items-center">
-                <span className="text-2xl font-bold text-orange-600">{metrics.tier1.current}%</span>
-                <span className="ml-2 text-orange-500">↓</span>
+        <Card className="transition-all duration-200 hover:shadow-lg">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-muted-foreground">Tier 1 Capital Ratio</p>
+                <div className="mt-2 flex items-center">
+                  <span className="text-xl sm:text-2xl font-bold text-reggio-warning">{metrics.tier1.current}%</span>
+                  <TrendingUp className="ml-2 h-4 w-4 text-reggio-warning rotate-180" />
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Required: {metrics.tier1.required}%</p>
               </div>
-              <p className="mt-1 text-xs text-gray-500">Required: {metrics.tier1.required}%</p>
+              <div className="text-right">
+                <Badge variant="secondary" className="text-xs bg-reggio-warning/10 text-reggio-warning">At Risk</Badge>
+                <p className="mt-1 text-xs text-muted-foreground">{metrics.tier1.buffer}% buffer</p>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="rounded bg-orange-100 px-2 py-1 text-xs text-orange-800">At Risk</span>
-              <p className="mt-1 text-xs text-gray-500">{metrics.tier1.buffer}% buffer</p>
-            </div>
-          </div>
-          <div className="mt-4 h-2 rounded-full bg-gray-200">
-            <div
-              className="h-2 rounded-full bg-orange-500"
-              style={{
-                width: `${Math.max(0, (metrics.tier1.current / metrics.tier1.required) * 100)}%`,
-              }}
+            <Progress 
+              value={Math.max(0, (metrics.tier1.current / metrics.tier1.required) * 100)}
+              className="mt-4"
             />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Leverage */}
-        <div className="rounded-lg border bg-white p-6 shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Leverage Ratio</p>
-              <div className="mt-2 flex items-center">
-                <span className="text-2xl font-bold text-green-600">{metrics.leverage.current}%</span>
-                <span className="ml-2 text-green-500">↑</span>
+        <Card className="transition-all duration-200 hover:shadow-lg">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-muted-foreground">Leverage Ratio</p>
+                <div className="mt-2 flex items-center">
+                  <span className="text-xl sm:text-2xl font-bold text-reggio-success">{metrics.leverage.current}%</span>
+                  <TrendingUp className="ml-2 h-4 w-4 text-reggio-success" />
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Required: {metrics.leverage.required}%</p>
               </div>
-              <p className="mt-1 text-xs text-gray-500">Required: {metrics.leverage.required}%</p>
+              <div className="text-right">
+                <Badge className="text-xs bg-reggio-success/10 text-reggio-success">Compliant</Badge>
+                <p className="mt-1 text-xs text-muted-foreground">+{metrics.leverage.buffer}% buffer</p>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="rounded bg-green-100 px-2 py-1 text-xs text-green-800">Compliant</span>
-              <p className="mt-1 text-xs text-gray-500">+{metrics.leverage.buffer}% buffer</p>
-            </div>
-          </div>
-          <div className="mt-4 h-2 rounded-full bg-gray-200">
-            <div
-              className="h-2 rounded-full bg-green-500"
-              style={{
-                width: `${Math.min(100, (metrics.leverage.current / metrics.leverage.required) * 100)}%`,
-              }}
+            <Progress 
+              value={Math.min(100, (metrics.leverage.current / metrics.leverage.required) * 100)}
+              className="mt-4"
             />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Total Impact */}
-        <div className="rounded-lg border bg-white p-6 shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Regulatory Impact</p>
-              <div className="mt-2 flex items-center">
-                <span className="text-2xl font-bold text-purple-600">
-                  {formatCurrency(metrics.totalImpact)}
-                </span>
-                <span className="ml-2 text-purple-500">⚠️</span>
+        <Card className="transition-all duration-200 hover:shadow-lg">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-muted-foreground">Total Regulatory Impact</p>
+                <div className="mt-2 flex items-center">
+                  <span className="text-xl sm:text-2xl font-bold text-reggio-primary">
+                    {formatCurrency(metrics.totalImpact)}
+                  </span>
+                  <AlertTriangle className="ml-2 h-4 w-4 text-reggio-primary" />
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Timeline: 9–12 months</p>
               </div>
-              <p className="mt-1 text-xs text-gray-500">Timeline: 9–12 months</p>
+              <div className="text-right">
+                <Badge className="text-xs bg-reggio-primary/10 text-reggio-primary">
+                  {metrics.confidence}% Confidence
+                </Badge>
+                <p className="mt-1 text-xs text-muted-foreground">AI Analysis</p>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="rounded bg-purple-100 px-2 py-1 text-xs text-purple-800">
-                {metrics.confidence}% Confidence
-              </span>
-              <p className="mt-1 text-xs text-gray-500">AI Analysis</p>
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Critical Alerts */}

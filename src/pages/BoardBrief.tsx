@@ -4,8 +4,10 @@ import { withRetry } from "@/lib/supaRetry";
 import { T } from "@/lib/tables";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
+import { FileText } from "lucide-react";
 
 type Regulation = { id: string; title: string; short_code: string };
 type Clause = {
@@ -105,39 +107,63 @@ export default function BoardBrief() {
   }, [clauses, regId]);
 
   return (
-    <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-bold">Board Brief</h1>
-      <Card className="p-4 space-y-3">
-        <div>
-          <label className="block text-sm font-medium">Regulation</label>
-          <select
-            className="w-full border rounded-md px-3 py-2 bg-background"
-            value={regId}
-            onChange={(e) => setRegId(e.target.value)}
-          >
-            <option value="">Select regulation…</option>
-            {regs.map((r) => (
-              <option key={r.id} value={r.id}>{r.title} ({r.short_code})</option>
-            ))}
-          </select>
+    <div className="min-h-screen bg-background p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-reggio-primary to-reggio-accent flex items-center justify-center">
+          <FileText className="h-4 w-4 text-white" />
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Board Brief</h1>
+      </div>
+      
+      <Card className="transition-all duration-200 hover:shadow-lg">
+        <div className="p-4 sm:p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Regulation</label>
+            <select
+              className="w-full border border-input rounded-md px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-reggio-primary focus:border-transparent transition-all"
+              value={regId}
+              onChange={(e) => setRegId(e.target.value)}
+            >
+              <option value="">Select regulation…</option>
+              {regs.map((r) => (
+                <option key={r.id} value={r.id}>{r.title} ({r.short_code})</option>
+              ))}
+            </select>
+          </div>
         </div>
       </Card>
 
-      <Card className="p-4">
-        <div className="mb-2 text-sm font-medium">Markdown Preview</div>
-        <Textarea rows={18} value={markdown} onChange={(e)=>setMarkdown(e.target.value)} />
-        <div className="mt-3">
-          <Button
-            onClick={() => {
-              const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url; a.download = "board-brief.md"; a.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            Download .md
-          </Button>
+      <Card className="transition-all duration-200 hover:shadow-lg">
+        <div className="p-4 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">Markdown Preview</h2>
+            <Badge variant="outline" className="text-reggio-primary border-reggio-primary/20">
+              {markdown.split('\n').length} lines
+            </Badge>
+          </div>
+          <Textarea 
+            rows={18} 
+            value={markdown} 
+            onChange={(e)=>setMarkdown(e.target.value)}
+            className="font-mono text-sm resize-none focus:ring-2 focus:ring-reggio-primary focus:border-transparent transition-all"
+            placeholder="Select a regulation to generate the board brief..."
+          />
+          <div className="flex justify-end">
+            <Button
+              onClick={() => {
+                const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = "board-brief.md"; a.click();
+                URL.revokeObjectURL(url);
+              }}
+              disabled={!markdown}
+              className="bg-reggio-primary hover:bg-reggio-primary-hover disabled:opacity-50"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Download .md
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

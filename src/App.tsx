@@ -1,11 +1,12 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/context/AuthProvider";
-import { ProtectedRoute } from "@/routes/ProtectedRoute";
-import { AppShell } from "@/components/layout/AppShell";
+import { AuthProvider } from '@/context/AuthProvider';
+import { ProtectedRoute } from '@/routes/ProtectedRoute';
+import { AppShell } from '@/components/layout/AppShell';
+import { ThemeProvider } from '@/components/ThemeProvider';
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Auth from "./pages/Auth";
@@ -25,13 +26,15 @@ import Regs from "./pages/Regs";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
@@ -69,11 +72,13 @@ const App = () => (
                 </AppShell>
               </ProtectedRoute>
             } />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
+   </QueryClientProvider>
+  );
+}
 
 export default App;
