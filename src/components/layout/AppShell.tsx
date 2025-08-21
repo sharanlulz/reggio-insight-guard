@@ -16,8 +16,7 @@ import { useState } from 'react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Regulations', href: '/regulations', icon: Scale },
-  { name: 'Risk', href: '/risk', icon: AlertTriangle },
+  { name: 'Stress Testing', href: '/risk', icon: AlertTriangle },
   { name: 'Compliance', href: '/compliance', icon: Shield },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Reports', href: '/reports', icon: FileText },
