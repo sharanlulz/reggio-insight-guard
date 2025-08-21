@@ -1,37 +1,31 @@
 // src/pages/StressTestDashboard.tsx
-// Stress Testing Dashboard wired to useFinancialData (robust & preview-safe)
+// Matches Dashboard formatting & numbers using useFinancialData
 
-import { useMemo } from "react";
+import React, { useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import {
   RefreshCw,
-  AlertCircle,
-  CheckCircle2,
-  TrendingDown,
   TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  BarChart3,
 } from "lucide-react";
-
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
 import { useFinancialData } from "@/hooks/useFinancialData";
 
-// --- helpers ---------------------------------------------------------------
-function pct(dec?: number, digits = 1) {
-  if (dec === undefined || dec === null || !isFinite(dec)) return "—";
-  return `${(dec * 100).toFixed(digits)}%`;
-}
-function money(n?: number, digits = 1) {
-  if (n === undefined || n === null || !isFinite(n)) return "—";
-  return `£${(n / 1_000_000).toFixed(digits)}M`;
-}
-function clamp01(n: number) {
-  if (!isFinite(n)) return 0;
-  return Math.max(0, Math.min(1, n));
-}
+// ---------- Helpers (mirror Dashboard presentation) ----------
+const pct1 = (dec?: number) =>
+  dec === undefined || dec === null || !isFinite(dec) ? "—" : `${(dec * 100).toFixed(1)}%`;
+
+const moneyM = (n?: number) =>
+  n === undefined || n === null || !isFinite(n) ? "—" : `£${(n / 1_000_000).toFixed(1)}M`;
+
+const clamp0to100 = (n: number) => Math.max(0, Math.min(100, n));
+
+const INTERNAL_T1_TARGET = 0.10; // 10% internal target to show Capital-at-Risk (Dashboard shows proposed 12.0% — tweak if needed)
 
 export default function StressTestDashboard() {
   const {
@@ -40,42 +34,44 @@ export default function StressTestDashboard() {
     lcrData,
     capitalData,
     stressResults = [],
-    regulatoryAlerts = [],
-    strategicRecommendations = [],
     lastUpdated,
     refresh,
   } = useFinancialData();
 
-  // Derived, with full guards so preview never crashes
-  const derived = useMemo(() => {
+  // Derived KPI panel (aligned with Dashboard)
+  const kpi = useMemo(() => {
     const total = Number(keyMetrics?.stress?.total_scenarios ?? 0);
     const failed = Number(keyMetrics?.stress?.failed_scenarios ?? 0);
     const passed = Math.max(total - failed, 0);
 
-    const worstLcrDec = Number(keyMetrics?.stress?.worst_lcr ?? 0); // decimal
-    const worstLcrPct = Math.round(worstLcrDec * 100); // % number
+    // Worst-case LCR, decimal
+    const worstLCR = Number(keyMetrics?.stress?.worst_lcr ?? 0);
 
-    const lcrDec = Number(lcrData?.lcr_ratio ?? 0);
-    const lcrReqDec = Number(lcrData?.requirement ?? keyMetrics?.lcr?.ratio ?? 1.05);
-    const lcrBar = clamp01(lcrDec); // for progress (0..1)
-
-    const tier1 = Number(capitalData?.tier1_capital_ratio ?? 0);
+    // Capital at risk vs internal target (so it’s not always £0)
     const rwa = Number(capitalData?.risk_weighted_assets ?? 0);
-    const minTier1 = 0.06;
-    const shortfall = Math.max(minTier1 * rwa - tier1 * rwa, 0);
+    const haveT1 = Number(capitalData?.tier1_capital_ratio ?? 0) * rwa;
+    const needT1 = INTERNAL_T1_TARGET * rwa;
+    const capShortfall = Math.max(needT1 - haveT1, 0);
 
-    return { total, failed, passed, worstLcrPct, lcrBar, shortfall, minTier1 };
-  }, [keyMetrics, lcrData, capitalData]);
+    return {
+      total,
+      passed,
+      failed,
+      worstLCR,
+      capShortfall,
+    };
+  }, [keyMetrics, capitalData]);
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
-          Stress Testing Dashboard
-        </h1>
         <div className="flex items-center gap-2">
-          <Button onClick={refresh} disabled={loading}>
+          <BarChart3 className="h-6 w-6" />
+          <h1 className="text-2xl md:text-3xl font-bold">Stress Testing Dashboard</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button onClick={refresh} disabled={loading} variant="default">
             <RefreshCw className="mr-2 h-4 w-4" />
             {loading ? "Running…" : "Refresh Tests"}
           </Button>
@@ -85,62 +81,68 @@ export default function StressTestDashboard() {
         </div>
       </div>
 
-      {/* Top alerts */}
-      {!loading && derived.total > 0 && derived.failed > 0 && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Some scenarios fail regulatory thresholds. Review recommendations and adjust buffers or asset mix.
-          </AlertDescription>
-        </Alert>
-      )}
-      {!loading && derived.total > 0 && derived.failed === 0 && (
-        <Alert>
-          <CheckCircle2 className="h-4 w-4" />
-          <AlertDescription>All scenarios pass current thresholds.</AlertDescription>
-        </Alert>
-      )}
-
-      {/* KPI Cards */}
+      {/* KPI strip — formatted like Dashboard cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="text-sm text-muted-foreground mb-1">Scenarios Tested</div>
-          <div className="text-2xl font-semibold">
-            {derived.passed}/{derived.total}
-          </div>
-          <div className="mt-2">
-            <Progress value={derived.total ? (derived.passed / derived.total) * 100 : 0} />
-          </div>
+        {/* Scenarios Tested */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Scenarios Tested</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">
+              {kpi.passed}/{kpi.total}
+            </div>
+            <div className="mt-2">
+              <Progress value={kpi.total ? (kpi.passed / kpi.total) * 100 : 0} />
+            </div>
+          </CardContent>
         </Card>
 
-        <Card className="p-4">
-          <div className="text-sm text-muted-foreground mb-1">Worst Case LCR</div>
-          <div className="text-2xl font-semibold">{derived.worstLcrPct}%</div>
-          <div className="mt-2 flex items-center gap-2 text-sm">
-            {derived.worstLcrPct >= 105 ? (
-              <>
-                <TrendingUp className="h-4 w-4" />
-                <span className="text-green-600">Above 105%</span>
-              </>
-            ) : (
-              <>
-                <TrendingDown className="h-4 w-4" />
-                <span className="text-red-600">Below 105%</span>
-              </>
-            )}
-          </div>
+        {/* Worst Case LCR */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Worst Case LCR</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">{pct1(kpi.worstLCR)}</div>
+            <div className="mt-2 flex items-center gap-2 text-sm">
+              {kpi.worstLCR >= 1.05 ? (
+                <>
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="text-green-600">Above 105%</span>
+                </>
+              ) : (
+                <>
+                  <TrendingDown className="h-4 w-4" />
+                  <span className="text-red-600">Below 105%</span>
+                </>
+              )}
+            </div>
+          </CardContent>
         </Card>
 
-        <Card className="p-4">
-          <div className="text-sm text-muted-foreground mb-1">Capital at Risk</div>
-          <div className="text-2xl font-semibold">{money(derived.shortfall)}</div>
-          <div className="mt-2 text-sm text-muted-foreground">Shortfall vs {pct(derived.minTier1)}</div>
+        {/* Capital at Risk (vs internal 10%) */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Capital at Risk</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">{moneyM(kpi.capShortfall)}</div>
+            <div className="mt-2 text-sm text-muted-foreground">Shortfall vs {pct1(INTERNAL_T1_TARGET)}</div>
+          </CardContent>
         </Card>
 
-        <Card className="p-4">
-          <div className="text-sm text-muted-foreground mb-1">Business Impact</div>
-          <div className="text-2xl font-semibold">£0.0M</div>
-          <div className="mt-2 text-sm text-muted-foreground">Lending Reduction (placeholder)</div>
+        {/* Current LCR (match Dashboard “current”) */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Current LCR</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">{pct1(lcrData?.lcr_ratio)}</div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              Requirement: {pct1(lcrData?.requirement ?? 1.0)}
+            </div>
+          </CardContent>
         </Card>
       </div>
 
@@ -148,8 +150,6 @@ export default function StressTestDashboard() {
       <Tabs defaultValue="scenarios" className="w-full">
         <TabsList>
           <TabsTrigger value="scenarios">Scenario Results</TabsTrigger>
-          <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
-          <TabsTrigger value="regalerts">Regulatory Alerts</TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
         </TabsList>
 
@@ -158,145 +158,127 @@ export default function StressTestDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {stressResults.map((r: any, i: number) => {
               const name = r?.scenario_name ?? `Scenario ${i + 1}`;
+
+              // LCR
               const lcr = Number(r?.lcr_result?.lcr_ratio ?? 0);
-              const lcrReq = Number(r?.lcr_result?.requirement ?? 1.05);
-              const lcrPct = pct(lcr);
-              const lcrReqPct = pct(lcrReq);
-              const lcrOk =
+              const lcrPct = pct1(lcr);
+              const lcrReq = Number(r?.lcr_result?.requirement ?? 1.0);
+              const lcrReqPct = pct1(lcrReq);
+              const lcrPass =
                 (r?.lcr_result?.compliance_status ?? "NON_COMPLIANT") === "COMPLIANT";
 
+              // Capital
               const t1 = Number(r?.capital_result?.tier1_capital_ratio ?? 0);
-              const t1Ok = Boolean(r?.capital_result?.compliance_status?.tier1_compliant);
-              const t1Pct = pct(t1);
+              const t1Pct = pct1(t1);
+              const t1Pass = Boolean(r?.capital_result?.compliance_status?.tier1_compliant);
 
-              const sev = r?.overall_assessment?.overall_severity ?? "UNKNOWN";
-              const pass = lcrOk && t1Ok;
-
+              const pass = lcrPass && t1Pass;
               return (
-                <Card key={i} className="p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">{name}</h3>
-                    <Badge variant={pass ? "default" : "destructive"}>{pass ? "PASS" : "FAIL"}</Badge>
-                  </div>
-
-                  <div className="text-sm">LCR Result</div>
-                  <div className="flex items-center justify-between">
-                    <div className="text-xl font-medium">{lcrPct}</div>
-                    <div className="text-sm text-muted-foreground">Requirement: {lcrReqPct}</div>
-                  </div>
-                  <Progress value={clamp01(lcr) * 100} />
-
-                  <div className="mt-2 text-sm">Tier 1 Capital</div>
-                  <div className="flex items-center justify-between">
-                    <div className="text-xl font-medium">{t1Pct}</div>
-                    <div className="text-sm text-muted-foreground">Minimum: {pct(0.06)}</div>
-                  </div>
-
-                  <div className="mt-2">
-                    <span className="text-sm mr-2">Severity</span>
-                    <Badge
-                      variant={
-                        sev === "LOW" ? "default" : sev === "MEDIUM" ? "secondary" : "destructive"
-                      }
-                    >
-                      {sev}
+                <Card key={i} className="overflow-hidden">
+                  <CardHeader className="pb-2 flex-row items-center justify-between">
+                    <CardTitle className="text-base font-semibold">{name}</CardTitle>
+                    <Badge variant={pass ? "default" : "destructive"}>
+                      {pass ? "PASS" : "FAIL"}
                     </Badge>
-                  </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {/* LCR */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">LCR</div>
+                        <div className="text-xs text-muted-foreground">Req: {lcrReqPct}</div>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <div className="text-xl font-medium">{lcrPct}</div>
+                        {lcr >= 1.05 ? (
+                          <Badge variant="outline" className="text-green-700 border-green-600">Above 105%</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-red-700 border-red-600">Below 105%</Badge>
+                        )}
+                      </div>
+                      <Progress value={clamp0to100(lcr * 100)} className="mt-2" />
+                    </div>
 
-                  <div className="mt-2">
-                    <div className="text-sm font-medium">Risk Factors:</div>
-                    <ul className="text-sm text-muted-foreground list-disc list-inside">
-                      {!t1Ok && <li>Tier 1 capital below minimum</li>}
-                      {!lcrOk && <li>LCR below regulatory minimum</li>}
-                    </ul>
-                  </div>
+                    {/* Tier 1 */}
+                    <div className="pt-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">Tier 1 Capital</div>
+                        <div className="text-xs text-muted-foreground">Min: {pct1(0.06)}</div>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <div className="text-xl font-medium">{t1Pct}</div>
+                        <Badge variant={t1Pass ? "outline" : "destructive"}>
+                          {t1Pass ? "Compliant" : "Below Min"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
                 </Card>
               );
             })}
+
             {(!stressResults || stressResults.length === 0) && (
-              <Card className="p-6 text-sm text-muted-foreground">
-                No scenarios available yet.
+              <Card>
+                <CardContent className="p-6 text-sm text-muted-foreground">
+                  No scenarios available.
+                </CardContent>
               </Card>
             )}
           </div>
         </TabsContent>
 
-        {/* Recommendations */}
-        <TabsContent value="recommendations" className="mt-4">
-          <Card className="p-4 space-y-3">
-            <h3 className="font-semibold">Strategic Recommendations</h3>
-            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-              {strategicRecommendations.map((rec: any, idx: number) => (
-                <li key={idx}>
-                  <span className="font-medium capitalize">{rec?.priority ?? "info"}:</span>{" "}
-                  {rec?.action ?? "—"}{" "}
-                  {rec?.rationale ? <em>— {rec.rationale}</em> : null}
-                </li>
-              ))}
-              {strategicRecommendations.length === 0 && (
-                <li>No actions required based on current metrics.</li>
-              )}
-            </ul>
-          </Card>
-        </TabsContent>
-
-        {/* Regulatory Alerts */}
-        <TabsContent value="regalerts" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {regulatoryAlerts.map((a: any, i: number) => (
-              <Card key={i} className="p-4 space-y-1">
-                <div className="text-sm uppercase text-muted-foreground">{a?.type ?? "info"}</div>
-                <div className="font-semibold">{a?.title ?? "Alert"}</div>
-                <div className="text-sm text-muted-foreground">{a?.description ?? ""}</div>
-                <div className="text-sm mt-1">
-                  Impact:{" "}
-                  <span className="font-medium">
-                    {a?.financial_impact ?? "—"}
-                  </span>
-                </div>
-                <div className="text-sm">Timeline: {a?.timeline_days ?? "—"} days</div>
-                <div className="text-sm">Current position: {a?.current_position ?? "—"}</div>
-              </Card>
-            ))}
-            {regulatoryAlerts.length === 0 && (
-              <Card className="p-6 text-sm text-muted-foreground">No alerts.</Card>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Details */}
+        {/* Details (match Dashboard style) */}
         <TabsContent value="details" className="mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="p-4">
-              <h3 className="font-semibold mb-2">Liquidity (LCR)</h3>
-              <div className="text-sm space-y-1">
-                <div>Ratio: {pct(lcrData?.lcr_ratio)}</div>
-                <div>HQLA: {money(lcrData?.hqla_value)}</div>
-                <div>Net Outflows (30d): {money(lcrData?.net_cash_outflows)}</div>
-                <div>
-                  Buffer/Deficit: {money(lcrData?.buffer_or_deficit)}{" "}
-                  <Badge
-                    className="ml-2"
-                    variant={(lcrData?.buffer_or_deficit ?? 0) >= 0 ? "default" : "destructive"}
-                  >
-                    {(lcrData?.buffer_or_deficit ?? 0) >= 0 ? "Buffer" : "Deficit"}
-                  </Badge>
+            {/* Liquidity detail */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Liquidity (LCR)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                <div>Ratio: <span className="font-medium">{pct1(lcrData?.lcr_ratio)}</span></div>
+                <div>HQLA: <span className="font-medium">{moneyM(lcrData?.hqla_value)}</span></div>
+                <div>Net Outflows (30d): <span className="font-medium">{moneyM(lcrData?.net_cash_outflows)}</span></div>
+                <div className="flex items-center gap-2">
+                  <span>Buffer/Deficit:</span>
+                  <span className="font-medium">{moneyM(lcrData?.buffer_or_deficit)}</span>
+                  {Number(lcrData?.buffer_or_deficit ?? 0) < 0 ? (
+                    <Badge variant="destructive" className="ml-1">Deficit</Badge>
+                  ) : (
+                    <Badge variant="outline" className="ml-1">Buffer</Badge>
+                  )}
                 </div>
-              </div>
+              </CardContent>
             </Card>
 
-            <Card className="p-4">
-              <h3 className="font-semibold mb-2">Capital</h3>
-              <div className="text-sm space-y-1">
-                <div>Tier 1: {pct(capitalData?.tier1_capital_ratio)}</div>
-                <div>Total Capital: {pct(capitalData?.total_capital_ratio)}</div>
-                <div>Leverage: {pct(capitalData?.leverage_ratio)}</div>
-                <div>RWA: {money(capitalData?.risk_weighted_assets)}</div>
-              </div>
+            {/* Capital detail */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Capital</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                <div>Tier 1: <span className="font-medium">{pct1(capitalData?.tier1_capital_ratio)}</span></div>
+                <div>Total Capital: <span className="font-medium">{pct1(capitalData?.total_capital_ratio)}</span></div>
+                <div>Leverage: <span className="font-medium">{pct1(capitalData?.leverage_ratio)}</span></div>
+                <div>RWA: <span className="font-medium">{moneyM(capitalData?.risk_weighted_assets)}</span></div>
+              </CardContent>
             </Card>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Inline guidance when failures occur (Dashboard tone) */}
+      {kpi.failed > 0 && (
+        <div className="flex items-start gap-3 rounded-md border p-4">
+          <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+          <div>
+            <div className="font-medium">Some scenarios fail regulatory thresholds.</div>
+            <div className="text-sm text-muted-foreground">
+              Consider increasing Level 1 HQLA or reducing unsecured wholesale dependence to lift stressed LCR above 100%.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
