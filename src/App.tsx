@@ -29,55 +29,60 @@ const queryClient = new QueryClient();
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="light"
+        enableSystem
+        disableTransitionOnChange
+      >
         <TooltipProvider>
           <Toaster />
           <Sonner />
           <BrowserRouter>
             <AuthProvider>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/auth" element={<Auth />} />
-            
-            {/* Protected app routes */}
-            <Route path="/*" element={
-              <ProtectedRoute requireAuth={false}>
-                <AppShell>
-                  <Routes>
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/clauses" element={<Clauses />} />
-                    <Route path="/brief" element={<BoardBrief />} />
-                    <Route path="/regs" element={<Regs />} />
-                    <Route path="/regulations" element={<Regs />} />
-                    <Route path="/risk" element={<StressTestDashboard />} />
-                    <Route path="/compliance" element={<RegulatoryIntelligence />} />
-                    <Route path="/tasks" element={<MonitorControl />} />
-                    <Route path="/reports" element={<BoardBrief />} />
-                    <Route path="/stress-test" element={<StressTestDashboard />} />
-                    <Route path="/stress-tests" element={<StressTestDashboard />} />
-                    <Route path="/regulatory-intelligence" element={<RegulatoryIntelligence />} />
-                    <Route path="/intelligence" element={<RegulatoryIntelligence />} />
-                    <Route path="/monitor-control" element={<MonitorControl />} />
-                    <Route path="/monitor" element={<MonitorControl />} />
-                    <Route path="/operator" element={<OperatorDashboard />} />
-                    <Route path="/operator/ingestions" element={<OperatorIngestions />} />
-                    <Route path="/operator-ingestions" element={<OperatorIngestions />} />
-                    <Route path="/operator/versions" element={<OperatorVersions />} />
-                    <Route path="/operator-versions" element={<OperatorVersions />} />
-                    <Route path="/debug" element={<Debug />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </AppShell>
-              </ProtectedRoute>
-            } />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ThemeProvider>
-   </QueryClientProvider>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/" element={<Landing />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/auth" element={<Auth />} />
+                
+                {/* Protected app routes */}
+                <Route path="/*" element={
+                  <ProtectedRoute requireAuth={false}>
+                    <AppShell>
+                      <Routes>
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/clauses" element={<Clauses />} />
+                        <Route path="/brief" element={<BoardBrief />} />
+                        <Route path="/regs" element={<Regs />} />
+                        <Route path="/regulations" element={<Regs />} />
+                        <Route path="/risk" element={<StressTestDashboard />} />
+                        <Route path="/compliance" element={<RegulatoryIntelligence />} />
+                        <Route path="/tasks" element={<MonitorControl />} />
+                        <Route path="/reports" element={<BoardBrief />} />
+                        <Route path="/stress-test" element={<StressTestDashboard />} />
+                        <Route path="/stress-tests" element={<StressTestDashboard />} />
+                        <Route path="/regulatory-intelligence" element={<RegulatoryIntelligence />} />
+                        <Route path="/intelligence" element={<RegulatoryIntelligence />} />
+                        <Route path="/monitor-control" element={<MonitorControl />} />
+                        <Route path="/monitor" element={<MonitorControl />} />
+                        <Route path="/operator" element={<OperatorDashboard />} />
+                        <Route path="/operator/ingestions" element={<OperatorIngestions />} />
+                        <Route path="/operator-ingestions" element={<OperatorIngestions />} />
+                        <Route path="/operator/versions" element={<OperatorVersions />} />
+                        <Route path="/operator-versions" element={<OperatorVersions />} />
+                        <Route path="/debug" element={<Debug />} />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </AppShell>
+                  </ProtectedRoute>
+                } />
+              </Routes>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 
