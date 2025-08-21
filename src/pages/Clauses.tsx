@@ -174,15 +174,17 @@ export default function ClausesPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-bold">Clauses</h1>
+        <div className="space-y-4">
+          <div className="bg-card rounded-lg border p-4">
+            <h1 className="text-2xl font-bold text-card-foreground mb-4">Clauses</h1>
+          </div>
 
-      {/* Filters */}
-      <Card className="p-4 space-y-3">
-        <div className="grid gap-3 md:grid-cols-4">
+          {/* Filters */}
+          <Card className="p-4 space-y-3 border bg-card">
+            <div className="grid gap-3 md:grid-cols-4">
           {/* Regulation */}
           <div>
-            <label className="block text-sm font-medium">Regulation</label>
+            <label className="block text-sm font-medium text-card-foreground">Regulation</label>
             <select
               className="w-full border rounded-md px-3 py-2 bg-background"
               value={regId}
@@ -199,7 +201,7 @@ export default function ClausesPage() {
 
           {/* Risk Area */}
           <div>
-            <label className="block text-sm font-medium">Risk Area</label>
+            <label className="block text-sm font-medium text-card-foreground">Risk Area</label>
             <select
               className="w-full border rounded-md px-3 py-2 bg-background"
               value={risk}
@@ -216,7 +218,7 @@ export default function ClausesPage() {
 
           {/* Obligation Type */}
           <div>
-            <label className="block text-sm font-medium">Obligation Type</label>
+            <label className="block text-sm font-medium text-card-foreground">Obligation Type</label>
             <select
               className="w-full border rounded-md px-3 py-2 bg-background"
               value={obType}
@@ -233,7 +235,7 @@ export default function ClausesPage() {
 
           {/* Search */}
           <div>
-            <label className="block text-sm font-medium">Search</label>
+            <label className="block text-sm font-medium text-card-foreground">Search</label>
             <input
               className="w-full border rounded-md px-3 py-2 bg-background"
               placeholder="Search summary/text/regulation title…"
@@ -300,20 +302,20 @@ export default function ClausesPage() {
           const showText = searchIn !== "summary";
           const showSummary = searchIn !== "text";
           return (
-            <Card key={cl.id} className="p-4">
+            <Card key={cl.id} className="p-4 border bg-card hover:shadow-md transition-shadow">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
                 {/* NEW: regulation tag */}
                 {cl.regulation_title && (
-                  <span className="px-2 py-1 rounded bg-muted">
+                  <span className="px-2 py-1 rounded bg-reggio-primary/10 text-reggio-primary border border-reggio-primary/20">
                     {cl.regulation_short_code || ""} {cl.regulation_short_code ? "·" : ""}
                     {cl.regulation_title}
                   </span>
                 )}
-                <span className="px-2 py-1 rounded bg-muted">{cl.path_hierarchy}</span>
-                {cl.risk_area && <span className="px-2 py-1 rounded bg-muted">{cl.risk_area}</span>}
-                {cl.obligation_type && <span className="px-2 py-1 rounded bg-muted">{cl.obligation_type}</span>}
+                <span className="px-2 py-1 rounded bg-muted text-muted-foreground border">{cl.path_hierarchy}</span>
+                {cl.risk_area && <span className="px-2 py-1 rounded bg-reggio-secondary/10 text-reggio-secondary border border-reggio-secondary/20">{cl.risk_area}</span>}
+                {cl.obligation_type && <span className="px-2 py-1 rounded bg-reggio-accent/10 text-reggio-accent border border-reggio-accent/20">{cl.obligation_type}</span>}
                 {cl.themes?.slice(0, 3).map((t) => (
-                  <span key={t} className="px-2 py-1 rounded bg-muted">#{t}</span>
+                  <span key={t} className="px-2 py-1 rounded bg-reggio-tertiary/10 text-reggio-tertiary border border-reggio-tertiary/20">#{t}</span>
                 ))}
                 <span className="ml-auto">{new Date(cl.created_at).toLocaleString()}</span>
               </div>
@@ -336,7 +338,7 @@ export default function ClausesPage() {
         })}
 
         {!loading && rows.length === 0 && (
-          <Card className="p-6 text-sm text-muted-foreground">
+          <Card className="p-6 text-sm text-muted-foreground border bg-card/50">
             No results. Try widening filters or search terms.
           </Card>
         )}

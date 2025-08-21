@@ -264,31 +264,31 @@ export default function RegulatoryIntelligence() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin h-12 w-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-lg text-gray-600">Loading live regulatory data...</p>
+          <div className="animate-spin h-12 w-12 border-4 border-reggio-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-lg text-muted-foreground">Loading live regulatory data...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
             🧠 Regulatory Intelligence Center
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-muted-foreground">
             Live regulatory monitoring with AI-powered financial impact analysis
           </p>
-          <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+          <div className="mt-2 flex items-center space-x-4 text-sm text-muted-foreground">
             <span>🔴 Live Data</span>
             <span>Last Updated: {new Date().toLocaleTimeString()}</span>
             <button 
               onClick={fetchLiveData}
-              className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+              className="px-3 py-1 bg-reggio-primary/10 text-reggio-primary rounded hover:bg-reggio-primary/20 transition-colors"
             >
               🔄 Refresh
             </button>
@@ -297,50 +297,50 @@ export default function RegulatoryIntelligence() {
 
         {/* Live Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-card rounded-lg shadow p-6 border">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100">
+              <div className="p-3 rounded-full bg-reggio-primary/10">
                 <span className="text-2xl">📊</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Regulations Tracked</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalAnalyzed}</p>
+                <p className="text-sm font-medium text-muted-foreground">Regulations Tracked</p>
+                <p className="text-2xl font-bold text-card-foreground">{stats.totalAnalyzed}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-card rounded-lg shadow p-6 border">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-red-100">
+              <div className="p-3 rounded-full bg-destructive/10">
                 <span className="text-2xl">🚨</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Priority Alerts</p>
-                <p className="text-2xl font-bold text-red-600">{stats.highPriority}</p>
+                <p className="text-sm font-medium text-muted-foreground">Priority Alerts</p>
+                <p className="text-2xl font-bold text-destructive">{stats.highPriority}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-card rounded-lg shadow p-6 border">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-yellow-100">
+              <div className="p-3 rounded-full bg-reggio-accent/10">
                 <span className="text-2xl">💰</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Est. Total Impact</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.totalImpact}</p>
+                <p className="text-sm font-medium text-muted-foreground">Est. Total Impact</p>
+                <p className="text-2xl font-bold text-reggio-accent">{stats.totalImpact}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-card rounded-lg shadow p-6 border">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100">
+              <div className="p-3 rounded-full bg-reggio-secondary/10">
                 <span className="text-2xl">⚡</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Pending Analysis</p>
-                <p className="text-2xl font-bold text-green-600">{stats.pendingAnalysis}</p>
+                <p className="text-sm font-medium text-muted-foreground">Pending Analysis</p>
+                <p className="text-2xl font-bold text-reggio-secondary">{stats.pendingAnalysis}</p>
               </div>
             </div>
           </div>
@@ -349,22 +349,22 @@ export default function RegulatoryIntelligence() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Live Regulatory Changes */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">
+            <div className="bg-card rounded-lg shadow border">
+              <div className="p-6 border-b border-border">
+                <h2 className="text-xl font-semibold text-card-foreground">
                   📋 Live Regulatory Changes
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   Automatically detected from {liveRegulations.length > 0 ? 'RSS feeds' : 'database'}
                 </p>
               </div>
               <div className="p-6">
                 {liveRegulations.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-500">No regulations found. Start monitoring to see live data.</p>
+                    <p className="text-muted-foreground">No regulations found. Start monitoring to see live data.</p>
                     <button 
                       onClick={() => window.location.href = '/monitor'}
-                      className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      className="mt-4 px-4 py-2 bg-reggio-primary text-primary-foreground rounded hover:bg-reggio-primary/90 transition-colors"
                     >
                       Start Monitoring
                     </button>
@@ -375,7 +375,7 @@ export default function RegulatoryIntelligence() {
                       <div
                         key={reg.id}
                         className={`border rounded-lg p-4 cursor-pointer transition-all hover:shadow-md ${
-                          selectedRegulation?.id === reg.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                          selectedRegulation?.id === reg.id ? 'border-reggio-primary bg-reggio-primary/5' : 'border-border hover:border-reggio-primary/50'
                         }`}
                         onClick={() => setSelectedRegulation({...reg, aiAnalysis: generateAIAnalysis(reg)})}
                       >
@@ -383,26 +383,26 @@ export default function RegulatoryIntelligence() {
                           <div className="flex-1">
                             <div className="flex items-center space-x-2 mb-2">
                               <span className={`px-2 py-1 text-xs rounded-full ${
-                                reg.priority === 'High' ? 'bg-red-100 text-red-800' :
-                                reg.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-green-100 text-green-800'
+                                reg.priority === 'High' ? 'bg-destructive/10 text-destructive' :
+                                reg.priority === 'Medium' ? 'bg-reggio-accent/10 text-reggio-accent' :
+                                'bg-reggio-secondary/10 text-reggio-secondary'
                               }`}>
                                 {reg.priority}
                               </span>
-                              <span className="text-sm text-gray-500">{reg.source}</span>
-                              <span className="text-sm text-gray-500">•</span>
-                              <span className="text-sm text-gray-500">{reg.jurisdiction}</span>
+                              <span className="text-sm text-muted-foreground">{reg.source}</span>
+                              <span className="text-sm text-muted-foreground">•</span>
+                              <span className="text-sm text-muted-foreground">{reg.jurisdiction}</span>
                             </div>
-                            <h3 className="font-medium text-gray-900 mb-1">{reg.title}</h3>
-                            <p className="text-sm text-gray-600 mb-2">{reg.summary}</p>
+                            <h3 className="font-medium text-card-foreground mb-1">{reg.title}</h3>
+                            <p className="text-sm text-muted-foreground mb-2">{reg.summary}</p>
                             <div className="flex items-center space-x-4 text-sm">
-                              <span className="text-gray-500">Published: {reg.publishDate}</span>
-                              <span className="text-red-600 font-medium">Impact: {reg.financialImpact.estimatedCost}</span>
+                              <span className="text-muted-foreground">Published: {reg.publishDate}</span>
+                              <span className="text-destructive font-medium">Impact: {reg.financialImpact.estimatedCost}</span>
                             </div>
                           </div>
                           <div className={`w-3 h-3 rounded-full ${
-                            reg.status === 'Active' ? 'bg-green-500' : 
-                            reg.status === 'Demo' ? 'bg-orange-500' : 'bg-yellow-500'
+                            reg.status === 'Active' ? 'bg-reggio-secondary' : 
+                            reg.status === 'Demo' ? 'bg-reggio-accent' : 'bg-reggio-primary/50'
                           }`}></div>
                         </div>
                       </div>
@@ -416,33 +416,33 @@ export default function RegulatoryIntelligence() {
           {/* Live Analysis Queue & Actions */}
           <div className="space-y-6">
             {/* AI Analysis Queue */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">
+            <div className="bg-card rounded-lg shadow border">
+              <div className="p-6 border-b border-border">
+                <h2 className="text-xl font-semibold text-card-foreground">
                   🤖 Live AI Analysis Queue
                 </h2>
               </div>
               <div className="p-6">
                 {analysisQueue.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No items in analysis queue</p>
+                  <p className="text-muted-foreground text-sm">No items in analysis queue</p>
                 ) : (
                   <div className="space-y-3">
                     {analysisQueue.slice(0, 5).map((item, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{item.regulation}</p>
+                          <p className="text-sm font-medium text-card-foreground">{item.regulation}</p>
                           <p className={`text-xs ${
-                            item.status === 'processing' ? 'text-blue-600' :
-                            item.status === 'pending' ? 'text-yellow-600' :
-                            'text-green-600'
+                            item.status === 'processing' ? 'text-reggio-primary' :
+                            item.status === 'pending' ? 'text-reggio-accent' :
+                            'text-reggio-secondary'
                           }`}>
                             {item.status}
                           </p>
                         </div>
                         <div className={`w-2 h-2 rounded-full ${
-                          item.status === 'processing' ? 'bg-blue-500 animate-pulse' :
-                          item.status === 'pending' ? 'bg-yellow-500' :
-                          'bg-green-500'
+                          item.status === 'processing' ? 'bg-reggio-primary animate-pulse' :
+                          item.status === 'pending' ? 'bg-reggio-accent' :
+                          'bg-reggio-secondary'
                         }`}></div>
                       </div>
                     ))}
@@ -452,29 +452,29 @@ export default function RegulatoryIntelligence() {
             </div>
 
             {/* Quick Actions */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">
+            <div className="bg-card rounded-lg shadow border">
+              <div className="p-6 border-b border-border">
+                <h2 className="text-xl font-semibold text-card-foreground">
                   ⚡ Actions
                 </h2>
               </div>
               <div className="p-6 space-y-3">
                 <button 
                   onClick={() => window.location.href = '/dashboard'}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  className="w-full px-4 py-2 bg-reggio-primary text-primary-foreground rounded-lg hover:bg-reggio-primary/90 text-sm transition-colors"
                 >
                   View Financial Dashboard
                 </button>
                 <button 
                   onClick={() => window.location.href = '/monitor'}
-                  className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                  className="w-full px-4 py-2 bg-reggio-secondary text-secondary-foreground rounded-lg hover:bg-reggio-secondary/90 text-sm transition-colors"
                 >
                   Control Monitoring
                 </button>
-                <button className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                <button className="w-full px-4 py-2 bg-reggio-accent text-accent-foreground rounded-lg hover:bg-reggio-accent/90 text-sm transition-colors">
                   Generate Executive Report
                 </button>
-                <button className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
+                <button className="w-full px-4 py-2 bg-reggio-tertiary text-foreground rounded-lg hover:bg-reggio-tertiary/90 text-sm transition-colors">
                   Export Impact Summary
                 </button>
               </div>
@@ -484,9 +484,9 @@ export default function RegulatoryIntelligence() {
 
         {/* Detailed Analysis Panel */}
         {selectedRegulation && (
-          <div className="mt-8 bg-white rounded-lg shadow">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">
+          <div className="mt-8 bg-card rounded-lg shadow border">
+            <div className="p-6 border-b border-border">
+              <h2 className="text-xl font-semibold text-card-foreground">
                 📊 Live Analysis: {selectedRegulation.title}
               </h2>
             </div>
@@ -494,65 +494,65 @@ export default function RegulatoryIntelligence() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Financial Impact */}
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">💰 Financial Impact Assessment</h3>
+                  <h3 className="text-lg font-medium text-card-foreground mb-4">💰 Financial Impact Assessment</h3>
                   <div className="space-y-4">
-                    <div className="p-4 bg-red-50 rounded-lg">
-                      <p className="text-sm text-gray-600">Estimated Implementation Cost</p>
-                      <p className="text-2xl font-bold text-red-600">{selectedRegulation.financialImpact.estimatedCost}</p>
+                    <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+                      <p className="text-sm text-muted-foreground">Estimated Implementation Cost</p>
+                      <p className="text-2xl font-bold text-destructive">{selectedRegulation.financialImpact.estimatedCost}</p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-700 mb-2">Affected Ratios:</p>
+                      <p className="text-sm font-medium text-card-foreground mb-2">Affected Ratios:</p>
                       <div className="flex flex-wrap gap-2">
                         {selectedRegulation.financialImpact.affectedRatios.map((ratio, index) => (
-                          <span key={index} className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                          <span key={index} className="px-3 py-1 bg-reggio-primary/10 text-reggio-primary text-sm rounded-full border border-reggio-primary/20">
                             {ratio}
                           </span>
                         ))}
                       </div>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-700">Compliance Deadline:</p>
-                      <p className="text-lg font-semibold text-orange-600">{selectedRegulation.financialImpact.complianceDeadline}</p>
+                      <p className="text-sm font-medium text-card-foreground">Compliance Deadline:</p>
+                      <p className="text-lg font-semibold text-reggio-accent">{selectedRegulation.financialImpact.complianceDeadline}</p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-700">AI Confidence Level:</p>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <p className="text-sm font-medium text-card-foreground">AI Confidence Level:</p>
+                      <div className="w-full bg-muted rounded-full h-2 border">
                         <div 
-                          className="bg-green-600 h-2 rounded-full" 
+                          className="bg-reggio-secondary h-2 rounded-full" 
                           style={{ width: `${selectedRegulation.financialImpact.confidence}%` }}
                         ></div>
                       </div>
-                      <p className="text-sm text-gray-600">{selectedRegulation.financialImpact.confidence}%</p>
+                      <p className="text-sm text-muted-foreground">{selectedRegulation.financialImpact.confidence}%</p>
                     </div>
                   </div>
                 </div>
 
                 {/* AI Analysis & Recommendations */}
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">🧠 AI Analysis & Recommendations</h3>
+                  <h3 className="text-lg font-medium text-card-foreground mb-4">🧠 AI Analysis & Recommendations</h3>
                   <div className="space-y-4">
                     <div>
-                      <h4 className="font-medium text-gray-800 mb-2">Key Changes Identified:</h4>
+                      <h4 className="font-medium text-card-foreground mb-2">Key Changes Identified:</h4>
                       <ul className="space-y-1">
                         {selectedRegulation.aiAnalysis.keyChanges.map((change, index) => (
-                          <li key={index} className="text-sm text-gray-600">• {change}</li>
+                          <li key={index} className="text-sm text-muted-foreground">• {change}</li>
                         ))}
                       </ul>
                     </div>
                     <div>
-                      <h4 className="font-medium text-gray-800 mb-2">Strategic Recommendations:</h4>
+                      <h4 className="font-medium text-card-foreground mb-2">Strategic Recommendations:</h4>
                       <ul className="space-y-1">
                         {selectedRegulation.aiAnalysis.recommendations.map((rec, index) => (
-                          <li key={index} className="text-sm text-gray-600">✓ {rec}</li>
+                          <li key={index} className="text-sm text-muted-foreground">✓ {rec}</li>
                         ))}
                       </ul>
                     </div>
                     <div>
-                      <h4 className="font-medium text-gray-800 mb-2">Implementation Timeline:</h4>
+                      <h4 className="font-medium text-card-foreground mb-2">Implementation Timeline:</h4>
                       <ul className="space-y-1">
                         {selectedRegulation.aiAnalysis.implementationSteps.map((step, index) => (
-                          <li key={index} className="text-sm text-gray-600">
-                            <span className="font-medium">{index + 1}.</span> {step}
+                          <li key={index} className="text-sm text-muted-foreground">
+                            <span className="font-medium text-reggio-primary">{index + 1}.</span> {step}
                           </li>
                         ))}
                       </ul>

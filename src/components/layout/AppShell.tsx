@@ -138,9 +138,8 @@ export function AppShell({ children }: AppShellProps) {
           </div>
 
           {/* Settings Section */}
-          <div className="border-t pt-4 space-y-2">
-            <Separator />
-            <div className="flex items-center gap-2 px-3 py-2">
+          <div className="border-t border-sidebar-border pt-4 space-y-2">
+            <div className="flex items-center gap-2 px-3 py-1 mb-2">
               <Settings className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium text-muted-foreground">Settings</span>
             </div>
@@ -149,7 +148,7 @@ export function AppShell({ children }: AppShellProps) {
             <Button
               variant="ghost"
               onClick={cycleTheme}
-              className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200"
             >
               {getThemeIcon()}
               <span className="capitalize">{theme === 'system' ? 'Auto' : theme} Theme</span>

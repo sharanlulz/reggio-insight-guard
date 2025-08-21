@@ -109,12 +109,12 @@ export default function StressTestDashboard() {
               {kpi.worstLCR >= 1.05 ? (
                 <>
                   <TrendingUp className="h-4 w-4" />
-                  <span className="text-green-600">Above 105%</span>
+                  <span className="text-reggio-secondary">Above 105%</span>
                 </>
               ) : (
                 <>
                   <TrendingDown className="h-4 w-4" />
-                  <span className="text-red-600">Below 105%</span>
+                  <span className="text-destructive">Below 105%</span>
                 </>
               )}
             </div>
@@ -190,11 +190,11 @@ export default function StressTestDashboard() {
                       </div>
                       <div className="mt-1 flex items-center justify-between">
                         <div className="text-xl font-medium">{lcrPct}</div>
-                        {lcr >= 1.05 ? (
-                          <Badge variant="outline" className="text-green-700 border-green-600">Above 105%</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-red-700 border-red-600">Below 105%</Badge>
-                        )}
+                      {lcr >= 1.05 ? (
+                        <Badge variant="outline" className="text-reggio-secondary border-reggio-secondary bg-reggio-secondary/10">Above 105%</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-destructive border-destructive bg-destructive/10">Below 105%</Badge>
+                      )}
                       </div>
                       <Progress value={clamp0to100(lcr * 100)} className="mt-2" />
                     </div>

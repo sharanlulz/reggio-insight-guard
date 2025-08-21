@@ -27,20 +27,29 @@ export default function Regs() {
   }, []);
 
   return (
-    <div style={{ padding: 24, fontFamily: "ui-sans-serif" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700 }}>Regs (direct list)</h1>
-      <div style={{ margin: "8px 0", color: "#6b7280" }}>
+    <div className="p-6 bg-background min-h-screen">
+      <h1 className="text-2xl font-bold text-foreground mb-4">Regs (direct list)</h1>
+      <div className="text-sm text-muted-foreground mb-4">
         Using {env.url || "(no URL)"} — key {env.anon || "(no key)"}
       </div>
-      {error && <div style={{ background: "#fee2e2", padding: 12, borderRadius: 8 }}>Error: {error}</div>}
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive p-3 rounded-lg mb-4">
+          Error: {error}
+        </div>
+      )}
       {rows.length === 0 ? (
-        <p>No rows.</p>
+        <p className="text-muted-foreground">No rows.</p>
       ) : (
-        <ul>
-          {rows.map(r => (
-            <li key={r.id}>{r.short_code} — {r.title} (org {r.org_id})</li>
-          ))}
-        </ul>
+        <div className="bg-card border rounded-lg p-4">
+          <ul className="space-y-2">
+            {rows.map(r => (
+              <li key={r.id} className="text-card-foreground border-b border-border pb-2 last:border-b-0">
+                <span className="font-medium text-reggio-primary">{r.short_code}</span> — {r.title} 
+                <span className="text-muted-foreground text-sm ml-2">(org {r.org_id})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

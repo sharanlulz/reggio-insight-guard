@@ -134,8 +134,8 @@ export default function MonitorControl() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">
+    <div className="max-w-4xl mx-auto p-6 bg-card rounded-lg shadow-lg border">
+      <h2 className="text-2xl font-bold mb-6 text-card-foreground">
         🔍 Archive Function Diagnostics
       </h2>
 
@@ -144,7 +144,7 @@ export default function MonitorControl() {
         <button
           onClick={testArchiveFunction}
           disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+          className="px-4 py-2 bg-reggio-primary text-primary-foreground rounded-lg hover:bg-reggio-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
         >
           {loading ? (
             <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
@@ -157,7 +157,7 @@ export default function MonitorControl() {
         <button
           onClick={testBasicConnectivity}
           disabled={loading}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+          className="px-4 py-2 bg-reggio-secondary text-secondary-foreground rounded-lg hover:bg-reggio-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
         >
           {loading ? (
             <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
@@ -169,7 +169,7 @@ export default function MonitorControl() {
 
         <button
           onClick={checkSupabaseDashboard}
-          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2"
+          className="px-4 py-2 bg-reggio-accent text-accent-foreground rounded-lg hover:bg-reggio-accent/90 flex items-center space-x-2"
         >
           <span>📋</span>
           <span>Check Supabase Dashboard</span>
@@ -177,8 +177,8 @@ export default function MonitorControl() {
       </div>
 
       {/* Quick Checks */}
-      <div className="mb-6 p-4 rounded-lg bg-yellow-50 border border-yellow-200">
-        <h3 className="text-lg font-semibold mb-3 text-yellow-800">
+      <div className="mb-6 p-4 rounded-lg bg-muted/50 border border-border">
+        <h3 className="text-lg font-semibold mb-3 text-muted-foreground">
           🚨 Common Issues & Quick Fixes
         </h3>
         <div className="space-y-2 text-sm">
@@ -191,10 +191,10 @@ export default function MonitorControl() {
       </div>
 
       {/* Debug Logs */}
-      <div className="p-4 bg-gray-900 text-green-400 rounded-lg font-mono text-sm max-h-96 overflow-y-auto">
-        <h3 className="text-white mb-2">📝 Debug Logs:</h3>
+      <div className="p-4 bg-muted rounded-lg font-mono text-sm max-h-96 overflow-y-auto border">
+        <h3 className="text-foreground mb-2">📝 Debug Logs:</h3>
         {logs.length === 0 ? (
-          <div className="text-gray-500">No logs yet. Click a test button above.</div>
+          <div className="text-muted-foreground">No logs yet. Click a test button above.</div>
         ) : (
           logs.map((log, index) => (
             <div key={index} className="mb-1">
@@ -209,7 +209,7 @@ export default function MonitorControl() {
         <div className="mt-4 text-center">
           <button
             onClick={() => setLogs([])}
-            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
+            className="px-4 py-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 text-sm"
           >
             Clear Logs
           </button>
@@ -217,14 +217,14 @@ export default function MonitorControl() {
       )}
 
       {/* Manual Test */}
-      <div className="mt-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
-        <h3 className="text-lg font-semibold mb-3 text-blue-800">
+      <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-border">
+        <h3 className="text-lg font-semibold mb-3 text-muted-foreground">
           🧪 Manual Test (Browser Console)
         </h3>
-        <p className="text-sm text-blue-700 mb-3">
+        <p className="text-sm text-muted-foreground mb-3">
           If the above tests fail, try this manual test in your browser console:
         </p>
-        <code className="block p-3 bg-gray-800 text-green-400 rounded text-xs overflow-x-auto">
+        <code className="block p-3 bg-muted rounded text-xs overflow-x-auto border">
           {`fetch('https://plktjrbfnzyelwkyyssz.supabase.co/functions/v1/historical-archive', {
   method: 'POST',
   headers: {
