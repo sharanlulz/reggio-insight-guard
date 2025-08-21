@@ -1,5 +1,5 @@
 // src/hooks/useFinancialData.ts
-// Scenario-specific LCR + Capital (Basel L2 caps, shocked assets & outflow rates)
+// Calibrated to match Dashboard: Base LCR ~108.2%, Tier 1 ~11.7%, with realistic scenario variation
 
 import { useEffect, useState } from "react";
 import {
@@ -13,10 +13,11 @@ import {
   type StressScenario,
 } from "@/lib/stress-test-engine";
 
-// -------------------- Static demo inputs (GBP) --------------------
+// -------------------- Calibrated static inputs (GBP) --------------------
+// Portfolio: keep as before (Level 1 dominant + some Level 2, plus risk assets)
 
 const portfolio0: PortfolioAsset[] = [
-  // HQLA Level 1
+  // HQLA Level 1 (gilts / reserves)
   {
     id: "L1-GILTS",
     assetClass: "SOVEREIGN",
@@ -27,7 +28,7 @@ const portfolio0: PortfolioAsset[] = [
     basel_risk_weight: 0.0,
     liquidity_classification: "HQLA_L1",
   },
-  // HQLA Level 2A
+  // HQLA Level 2A (AA corporates)
   {
     id: "L2A-AA-CORP",
     assetClass: "CORPORATE",
@@ -39,7 +40,7 @@ const portfolio0: PortfolioAsset[] = [
     basel_risk_weight: 0.20,
     liquidity_classification: "HQLA_L2A",
   },
-  // HQLA Level 2B (small)
+  // HQLA Level 2B (small slice)
   {
     id: "L2B-ETF",
     assetClass: "OTHER",
@@ -62,7 +63,7 @@ const portfolio0: PortfolioAsset[] = [
     basel_risk_weight: 1.0,
     liquidity_classification: "NON_HQLA",
   },
-  // Property/loans (non-HQLA)
+  // Property / loans (non-HQLA)
   {
     id: "PROPERTY",
     assetClass: "PROPERTY",
@@ -75,10 +76,11 @@ const portfolio0: PortfolioAsset[] = [
   },
 ];
 
+// Funding tuned so base LCR ≈ 108.2% (see calc below)
 const funding0: FundingProfile = {
-  retail_deposits: 1_000_000_000,
-  corporate_deposits: 600_000_000,
-  wholesale_funding: 300_000_000,
+  retail_deposits: 1_000_000_000,    // retail stable (5% baseline runoff)
+  corporate_deposits: 600_000_000,   // operational corporate (25% baseline)
+  wholesale_funding: 346_000_000,    // tuned so outflows ≈ 546m
   secured_funding: 100_000_000,
   stable_funding_ratio: 0.90,
   deposit_concentration: {
@@ -88,21 +90,24 @@ const funding0: FundingProfile = {
   },
 };
 
+// Reg minima (Dashboard shows a higher “proposed” target, but statutory min is 100%)
 const regs: RegulatoryParameters = {
   jurisdiction: "UK",
   applicable_date: "2025-01-01",
-  lcr_requirement: 1.0,        // statutory minimum (100%)
+  lcr_requirement: 1.0,         // 100% statutory minimum
   nsfr_requirement: 1.0,
-  tier1_minimum: 0.06,          // 6%
-  total_capital_minimum: 0.08,  // 8%
-  leverage_ratio_minimum: 0.03, // 3%
+  tier1_minimum: 0.06,           // 6% statutory minimum
+  total_capital_minimum: 0.08,   // 8%
+  leverage_ratio_minimum: 0.03,  // 3%
   large_exposure_limit: 0.25,
   stress_test_scenarios: [],
 };
 
+// Capital tuned so Tier 1 ≈ 11.7% vs derived RWA
+// With this book, derived RWA ≈ 746m (see helper). 0.117 * 746m ≈ 87.3m
 const capitalBase0: CapitalBase = {
-  tier1_capital: 90_000_000,
-  tier2_capital: 30_000_000,
+  tier1_capital: 87_300_000,   // ~11.7% Tier 1
+  tier2_capital: 30_000_000,   // total ~15.7%
 };
 
 // -------------------- Helpers --------------------
@@ -152,24 +157,32 @@ function computeHQLAWithBaselCaps(ps: PortfolioAsset[]) {
   };
 }
 
-// Base run-off rates; funding shocks amplify *rates* (not balances)
+// Base run-off rates before shock (demo assumptions)
 const BASE_RATES = {
-  RETAIL_DEPOSITS: 0.05,      // retail stable ~5%
-  CORPORATE_DEPOSITS: 0.25,   // operational ~25%
-  WHOLESALE_FUNDING: 1.00,    // unsecured wholesale 100%
+  RETAIL_DEPOSITS: 0.05,     // retail stable 5%
+  CORPORATE_DEPOSITS: 0.25,  // operational corporate 25%
+  WHOLESALE_FUNDING: 1.00,   // unsecured wholesale 100%
 };
 
-// funding_shocks: -0.50 => +50% to the run-off rate (more stress)
-function rateWithShock(baseRate: number, shock?: number) {
-  if (typeof shock !== "number") return baseRate;
-  const mult = 1 + Math.abs(shock);
-  return baseRate * mult;
+// Basel/CRR ceilings for run-off rates
+const MAX_RUNOFF = {
+  RETAIL_DEPOSITS: 0.10,     // ≤ 10%
+  CORPORATE_DEPOSITS: 0.40,  // ≤ 40%
+  WHOLESALE_FUNDING: 1.00,   // ≤ 100%
+};
+
+// funding_shocks are typically negative in scenarios (e.g., -0.50 means +50% stress).
+// We only amplify upward (never below base), then cap at Basel ceilings.
+function rateWithShock(baseRate: number, shock?: number, ceiling = 1.0) {
+  if (!Number.isFinite(baseRate)) return 0;
+  const mult = shock && shock < 0 ? 1 + Math.abs(shock) : 1;
+  return Math.min(baseRate * mult, ceiling);
 }
 
 function computeOutflows(f: FundingProfile, fundingShocks: Record<string, number> = {}) {
-  const rRetail = rateWithShock(BASE_RATES.RETAIL_DEPOSITS, fundingShocks.RETAIL_DEPOSITS);
-  const rCorp   = rateWithShock(BASE_RATES.CORPORATE_DEPOSITS, fundingShocks.CORPORATE_DEPOSITS);
-  const rWhlsl  = rateWithShock(BASE_RATES.WHOLESALE_FUNDING, fundingShocks.WHOLESALE_FUNDING);
+  const rRetail = rateWithShock(BASE_RATES.RETAIL_DEPOSITS, fundingShocks.RETAIL_DEPOSITS, MAX_RUNOFF.RETAIL_DEPOSITS);
+  const rCorp   = rateWithShock(BASE_RATES.CORPORATE_DEPOSITS, fundingShocks.CORPORATE_DEPOSITS, MAX_RUNOFF.CORPORATE_DEPOSITS);
+  const rWhlsl  = rateWithShock(BASE_RATES.WHOLESALE_FUNDING, fundingShocks.WHOLESALE_FUNDING, MAX_RUNOFF.WHOLESALE_FUNDING);
 
   const retail = rRetail * (f.retail_deposits ?? 0);
   const corp   = rCorp   * (f.corporate_deposits ?? 0);
@@ -186,12 +199,12 @@ function totalAssets(ps: PortfolioAsset[]) {
   return sum(ps.map(a => a.market_value ?? 0));
 }
 
-// Capital from shocked portfolio + simple P&L drag to Tier 1
+// Capital from shocked portfolio + simple loss absorption on non-HQLA
 function computeCapitalFromPortfolio(ps: PortfolioAsset[], base: CapitalBase) {
   const rwa = Math.max(deriveRWA(ps), 1);
   const levExp = Math.max(totalAssets(ps), 1);
 
-  // Simple loss absorption: 10% of MTM losses on NON_HQLA reduce Tier 1
+  // Simple stress: 10% of MTM losses on NON_HQLA reduce Tier 1
   const nonHqlaBefore = sum(portfolio0.filter(a => a.liquidity_classification === "NON_HQLA").map(a => a.market_value));
   const nonHqlaAfter  = sum(ps.filter(a => a.liquidity_classification === "NON_HQLA").map(a => a.market_value));
   const nonHqlaLoss   = Math.max(0, nonHqlaBefore - nonHqlaAfter);
@@ -231,32 +244,38 @@ export function useFinancialData() {
     try {
       await new Promise(r => setTimeout(r, 100));
 
-      // Base (no-shock)
-      const baseH = computeHQLAWithBaselCaps(portfolio0);
-      const baseO = computeOutflows(funding0, {}); // no shock to rates
-      const baseLCR = baseH.hqla_capped / Math.max(baseO.total, 1);
+      // Base (no-shock) — compute HQLA with caps and outflows
+      const H0 = computeHQLAWithBaselCaps(portfolio0);
+      // Outflows with *no* shocks:
+      // retail 1,000m * 5% = 50m
+      // corp   600m * 25%  = 150m
+      // whlsl  346m * 100% = 346m
+      // total ≈ 546m → LCR ≈ 590.5 / 546 ≈ 1.082 (108.2%)
+      const O0 = computeOutflows(funding0, {});
+      const LCR0 = H0.hqla_capped / Math.max(O0.total, 1);
 
       setLcrData({
-        lcr_ratio: baseLCR,
-        requirement: regs.lcr_requirement,
-        hqla_value: baseH.hqla_capped,
-        net_cash_outflows: baseO.total,
-        compliance_status: baseLCR >= (regs.lcr_requirement ?? 1.0) ? "COMPLIANT" : "NON_COMPLIANT",
-        buffer_or_deficit: baseH.hqla_capped - baseO.total * (regs.lcr_requirement ?? 1.0),
+        lcr_ratio: LCR0, // ~1.082
+        requirement: regs.lcr_requirement, // 1.0
+        hqla_value: H0.hqla_capped,        // ≈ 590.5m
+        net_cash_outflows: O0.total,       // ≈ 546m
+        compliance_status: LCR0 >= (regs.lcr_requirement ?? 1.0) ? "COMPLIANT" : "NON_COMPLIANT",
+        buffer_or_deficit: H0.hqla_capped - O0.total * (regs.lcr_requirement ?? 1.0),
         breakdown: {
-          level1_assets: baseH.level1,
-          level2a_after_haircut: baseH.level2a_after,
-          level2b_after_haircut_capped: baseH.level2b_after_capped,
-          retail_outflow_rate: baseO.rates.rRetail,
-          corporate_outflow_rate: baseO.rates.rCorp,
-          wholesale_outflow_rate: baseO.rates.rWhlsl,
+          level1_assets: H0.level1,
+          level2a_after_haircut: H0.level2a_after,
+          level2b_after_haircut_capped: H0.level2b_after_capped,
+          retail_outflow_rate: O0.rates.rRetail,
+          corporate_outflow_rate: O0.rates.rCorp,
+          wholesale_outflow_rate: O0.rates.rWhlsl,
         },
       });
 
+      // Base capital — compute from portfolio and tuned capital base
       const baseCap = computeCapitalFromPortfolio(portfolio0, capitalBase0);
-      setCapitalData(baseCap);
+      setCapitalData(baseCap); // Tier 1 ≈ 11.7%
 
-      // Scenarios — recompute LCR & Capital per scenario using shocks
+      // Scenarios — recompute per-scenario LCR & Capital using shocks
       const results = REGULATORY_SCENARIOS.map((s: StressScenario) => {
         const shockedPortfolio = applyAssetShocks(portfolio0, s.asset_shocks || {});
         const H = computeHQLAWithBaselCaps(shockedPortfolio);
@@ -314,14 +333,14 @@ export function useFinancialData() {
 
     return {
       lcr: {
-        ratio: Number(lcrData?.lcr_ratio ?? 0),
+        ratio: Number(lcrData?.lcr_ratio ?? 0), // ~1.082
         status: lcrData?.compliance_status,
         buffer: Number(lcrData?.buffer_or_deficit ?? 0),
       },
       capital: {
-        tier1_ratio: Number(capitalData?.tier1_capital_ratio ?? 0),
-        total_ratio: Number(capitalData?.total_capital_ratio ?? 0),
-        leverage_ratio: Number(capitalData?.leverage_ratio ?? 0),
+        tier1_ratio: Number(capitalData?.tier1_capital_ratio ?? 0),  // ~0.117
+        total_ratio: Number(capitalData?.total_capital_ratio ?? 0),  // ~0.157
+        leverage_ratio: Number(capitalData?.leverage_ratio ?? 0),    // ~0.066
         risk_weighted_assets: Number(capitalData?.risk_weighted_assets ?? 0),
         compliance: capitalData?.compliance_status,
       },
