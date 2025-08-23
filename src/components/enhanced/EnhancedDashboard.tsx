@@ -17,7 +17,7 @@ import {
   XCircle,
   Clock
 } from 'lucide-react';
-import { ReggioErrorBoundary, HealthCheck, reggioMonitor } from '@/lib/reggio-monitoring';
+import { ReggioErrorBoundary, reggioMonitor } from '@/lib/reggio-monitoring';
 
 // Enhanced loading states (additive to existing)
 interface LoadingState {
@@ -51,6 +51,125 @@ function EnhancedMetricCard({
 }: EnhancedMetricProps) {
   const [displayValue, setDisplayValue] = useState(0);
   
+  // Animate value changes
+  useEffect(() => {
+    if (loading) return;
+    
+    const startValue = displayValue;
+    const difference = value - startValue;
+    const duration = 800; // ms
+    const steps = 60;
+    const stepValue = difference / steps;
+    
+    let currentStep = 0;
+    const timer = setInterval(() => {
+      currentStep++;
+      setDisplayValue(startValue + (stepValue * currentStep));
+      
+      if (currentStep >= steps) {
+        clearInterval(timer);
+        setDisplayValue(value);
+      }
+    }, duration / steps);
+    
+    return () => clearInterval(timer);
+  }, [value, loading, displayValue]);
+
+  const formatValue = (val: number) => {
+    if (unit === '%') return `${val.toFixed(1)}%`;
+    if (unit === 'M') return `£${val.toFixed(1)}M`;
+    return val.toFixed(3);
+  };
+
+  const getStatusColor = () => {
+    if (loading) return 'text-gray-400';
+    switch (status) {
+      case 'compliant': return 'text-green-600';
+      case 'warning': return 'text-yellow-600';
+      case 'breach': return 'text-red-600';
+      default: return 'text-gray-600';
+    }
+  };
+
+  const getStatusIcon = () => {
+    if (loading) return <Clock className="h-4 w-4" />;
+    switch (status) {
+      case 'compliant': return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+      case 'breach': return <XCircle className="h-4 w-4 text-red-500" />;
+      default: return null;
+    }
+  };
+
+  const getTrendIcon = () => {
+    if (!trend || loading) return null;
+    switch (trend) {
+      case 'up': return <TrendingUp className="h-3 w-3 text-green-500" />;
+      case 'down': return <TrendingUp className="h-3 w-3 text-red-500 rotate-180" />;
+      default: return null;
+    }
+  };
+
+  return (
+    <Card className={`transition-all duration-300 hover:shadow-lg ${className}`}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-medium text-gray-600">{label}</p>
+          <div className="flex items-center space-x-1">
+            {getTrendIcon()}
+            {getStatusIcon()}
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <div className={`text-2xl font-bold transition-colors duration-300 ${getStatusColor()}`}>
+            {loading ? (
+              <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
+            ) : (
+              formatValue(displayValue)
+            )}
+          </div>
+          
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>Target: {formatValue(target)}</span>
+            <Badge 
+              variant={status === 'compliant' ? 'default' : 'destructive'}
+              className="capitalize"
+            >
+              {loading ? 'Loading...' : status}
+            </Badge>
+          </div>
+          
+          {!loading && (
+            <Progress 
+              value={Math.min((value / target) * 100, 100)} 
+              className="h-1"
+            />
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Enhanced data service wrapper (preserves existing RegulatoryDataService)
+class EnhancedDataService {
+  private originalService: any; // This would be the existing RegulatoryDataService
+  private monitor = reggioMonitor;
+
+  constructor(originalService: any) {
+    this.originalService = originalService;
+  }
+
+  // Wraps the original fetchFinancialMetrics with enhanced features
+  async fetchFinancialMetrics() {
+    return this.monitor.wrapOperation(
+      'financial-metrics',
+      () => this.originalService.fetchFinancialMetrics(),
+      this.getFallbackData() // Fallback data if live fetch fails
+    );
+  }
+
   // Fallback data that matches existing data structure
   private getFallbackData() {
     return {
@@ -226,7 +345,7 @@ export function EnhancedDashboard({ useExistingDashboard = false }: EnhancedDash
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
                 Executive Dashboard
               </h1>
-              <HealthCheck showDetails={false} className="hidden sm:block" />
+              
             </div>
             <div className="mt-1 space-y-1">
               <p className="text-sm sm:text-base text-muted-foreground">
@@ -341,8 +460,6 @@ export function EnhancedDashboard({ useExistingDashboard = false }: EnhancedDash
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <HealthCheck showDetails={true} className="mb-4" />
-              
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Data Connection</span>
@@ -413,123 +530,4 @@ export function useEnhancedDashboard() {
   }, []);
 
   return { useEnhanced, toggleEnhanced };
-} Animate value changes
-  useEffect(() => {
-    if (loading) return;
-    
-    const startValue = displayValue;
-    const difference = value - startValue;
-    const duration = 800; // ms
-    const steps = 60;
-    const stepValue = difference / steps;
-    
-    let currentStep = 0;
-    const timer = setInterval(() => {
-      currentStep++;
-      setDisplayValue(startValue + (stepValue * currentStep));
-      
-      if (currentStep >= steps) {
-        clearInterval(timer);
-        setDisplayValue(value);
-      }
-    }, duration / steps);
-    
-    return () => clearInterval(timer);
-  }, [value, loading]);
-
-  const formatValue = (val: number) => {
-    if (unit === '%') return `${val.toFixed(1)}%`;
-    if (unit === 'M') return `£${val.toFixed(1)}M`;
-    return val.toFixed(3);
-  };
-
-  const getStatusColor = () => {
-    if (loading) return 'text-gray-400';
-    switch (status) {
-      case 'compliant': return 'text-green-600';
-      case 'warning': return 'text-yellow-600';
-      case 'breach': return 'text-red-600';
-      default: return 'text-gray-600';
-    }
-  };
-
-  const getStatusIcon = () => {
-    if (loading) return <Clock className="h-4 w-4" />;
-    switch (status) {
-      case 'compliant': return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
-      case 'breach': return <XCircle className="h-4 w-4 text-red-500" />;
-      default: return null;
-    }
-  };
-
-  const getTrendIcon = () => {
-    if (!trend || loading) return null;
-    switch (trend) {
-      case 'up': return <TrendingUp className="h-3 w-3 text-green-500" />;
-      case 'down': return <TrendingUp className="h-3 w-3 text-red-500 rotate-180" />;
-      default: return null;
-    }
-  };
-
-  return (
-    <Card className={`transition-all duration-300 hover:shadow-lg ${className}`}>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-medium text-gray-600">{label}</p>
-          <div className="flex items-center space-x-1">
-            {getTrendIcon()}
-            {getStatusIcon()}
-          </div>
-        </div>
-        
-        <div className="space-y-2">
-          <div className={`text-2xl font-bold transition-colors duration-300 ${getStatusColor()}`}>
-            {loading ? (
-              <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
-            ) : (
-              formatValue(displayValue)
-            )}
-          </div>
-          
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>Target: {formatValue(target)}</span>
-            <Badge 
-              variant={status === 'compliant' ? 'default' : 'destructive'}
-              className="capitalize"
-            >
-              {loading ? 'Loading...' : status}
-            </Badge>
-          </div>
-          
-          {!loading && (
-            <Progress 
-              value={Math.min((value / target) * 100, 100)} 
-              className="h-1"
-            />
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
 }
-
-// Enhanced data service wrapper (preserves existing RegulatoryDataService)
-class EnhancedDataService {
-  private originalService: any; // This would be the existing RegulatoryDataService
-  private monitor = reggioMonitor;
-
-  constructor(originalService: any) {
-    this.originalService = originalService;
-  }
-
-  // Wraps the original fetchFinancialMetrics with enhanced features
-  async fetchFinancialMetrics() {
-    return this.monitor.wrapDataFetch(
-      'financial-metrics',
-      () => this.originalService.fetchFinancialMetrics(),
-      this.getFallbackData() // Fallback data if live fetch fails
-    );
-  }
-
-  //

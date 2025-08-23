@@ -261,33 +261,26 @@ export function useFinancialData(): UseFinancialDataReturn {
         setLoading(true);
         
         try {
-          // ======== ALL YOUR EXISTING CALCULATION LOGIC PRESERVED ========
+          // ... keep existing code (all calculation logic)
           await new Promise(r => setTimeout(r, 100));
 
           // Base (no-shock) — compute HQLA with caps and outflows
           const H0 = computeHQLAWithBaselCaps(portfolio0);
-          // Outflows with *no* shocks:
-          // retail 1,000m * 5% = 50m
-          // corp   600m * 25%  = 150m
-          // whlsl  346m * 100% = 346m
-          // total ≈ 546m → LCR ≈ 590.5 / 546 ≈ 1.082 (108.2%)
           const O0 = computeOutflows(funding0, {});
           const LCR0 = H0.hqla_capped / Math.max(O0.total, 1);
 
           setLcrData({
-            lcr_ratio: LCR0, // ~1.082
-            requirement: regs.lcr_requirement, // 1.0
-            hqla_value: H0.hqla_capped,        // ≈ 590.5m
-            net_cash_outflows: O0.total,       // ≈ 546m
+            lcr_ratio: LCR0,
+            requirement: regs.lcr_requirement,
+            hqla_value: H0.hqla_capped,
+            net_cash_outflows: O0.total,
             compliance_status: LCR0 >= (regs.lcr_requirement ?? 1.0) ? "COMPLIANT" : "NON_COMPLIANT",
             buffer_or_deficit: H0.hqla_capped - O0.total * (regs.lcr_requirement ?? 1.0),
           });
 
-          // Capital calculations
           const cap0 = computeCapitalFromPortfolio(portfolio0, capitalBase0);
           setCapitalData(cap0);
 
-          // ======== ALL YOUR EXISTING STRESS TESTING LOGIC PRESERVED ========
           const stressScenarios = [
             { name: "Mild Recession", assetShocks: { CORPORATE: -0.15 }, fundingShocks: { WHOLESALE_FUNDING: -0.30 } },
             { name: "Severe Recession", assetShocks: { CORPORATE: -0.35, PROPERTY: -0.25 }, fundingShocks: { WHOLESALE_FUNDING: -0.50, CORPORATE_DEPOSITS: -0.20 } },
@@ -299,7 +292,6 @@ export function useFinancialData(): UseFinancialDataReturn {
             const shockedOutflows = computeOutflows(funding0, scenario.fundingShocks);
             const shockedHQLA = computeHQLAWithBaselCaps(shockedPortfolio);
             const shockedCapital = computeCapitalFromPortfolio(shockedPortfolio, capitalBase0);
-
             const lcrRatio = shockedHQLA.hqla_capped / Math.max(shockedOutflows.total, 1);
 
             return {
@@ -319,23 +311,15 @@ export function useFinancialData(): UseFinancialDataReturn {
 
           setStressResults(results);
           setLastUpdated(new Date());
-          
-          // Update health status
           setHealthStatus('healthy');
           
         } catch (error) {
           console.error('Financial calculation error:', error);
           setHealthStatus('error');
-          throw error; // Re-throw to let monitoring handle it
+          throw error;
         } finally {
           setLoading(false);
         }
-      },
-      // Fallback data in case of complete failure
-      {
-        lcr_ratio: 1.082,
-        requirement: 1.0,
-        compliance_status: "COMPLIANT"
       }
     );
   }

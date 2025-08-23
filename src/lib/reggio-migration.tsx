@@ -673,31 +673,13 @@ export const MIGRATION_EXAMPLES = {
 IMPLEMENTATION PLAN:
 
 1. Add MigratedAppWrapper to App.tsx:
-   ```tsx
-   function App() {
-     return (
-       <QueryClientProvider client={queryClient}>
-         <MigratedAppWrapper>
-           {/* existing app content */}
-         </MigratedAppWrapper>
-       </QueryClientProvider>
-     );
-   }
-   ```
+   Function App() should wrap existing content with MigratedAppWrapper
 
 2. Wrap existing components gradually:
-   ```tsx
-   // Instead of: <Dashboard />
-   // Use: <FeatureWrapper feature="enhancedDashboard" fallback={Dashboard}>
-   //        <EnhancedDashboard />
-   //      </FeatureWrapper>
-   ```
+   Instead of using Dashboard directly, wrap it with FeatureWrapper
 
 3. Add feature manager to admin/debug page:
-   ```tsx
-   // In Debug.tsx or a new admin page
-   <FeatureManagerPanel />
-   ```
+   Include FeatureManagerPanel in Debug.tsx or a new admin page
 
 4. Monitor and iterate:
    - Start with low-risk features enabled by default
