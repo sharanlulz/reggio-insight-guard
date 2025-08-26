@@ -2,106 +2,207 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Inter font import */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* REGGIO DESIGN SYSTEM - Professional regulatory platform inspired by Stripe */
 
 @layer base {
   :root {
+    /* Core System Colors */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 0 0% 9%; /* neutral-900 equivalent */
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 0 0% 9%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary - Professional blue that inspires trust */
+    --primary: 217 91% 60%; /* #3b82f6 */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - Sophisticated neutrals */
+    --secondary: 0 0% 96%; /* neutral-100 */
+    --secondary-foreground: 0 0% 25%; /* neutral-700 */
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%; /* neutral-500 */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 9%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Semantic Colors */
+    --destructive: 0 84% 60%; /* danger-500 */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --success: 158 64% 52%; /* success-500 #10b981 */
+    --success-foreground: 0 0% 100%;
 
+    --warning: 43 96% 56%; /* warning-500 #f59e0b */
+    --warning-foreground: 0 0% 100%;
+
+    /* Borders and Inputs */
+    --border: 0 0% 90%; /* neutral-200 */
+    --input: 0 0% 90%;
+    --ring: 217 91% 60%;
+
+    /* Border Radius */
     --radius: 0.5rem;
 
+    /* Sidebar Colors */
     --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-foreground: 0 0% 32%; /* neutral-600 */
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 217 91% 60%;
 
-    /* Reggio Brand Colors */
-    --reggio-primary: 238 69% 60%; /* #4F46E5 */
-    --reggio-primary-hover: 237 68% 56%; /* #4338CA */
-    --reggio-accent: 173 58% 39%; /* #14B8A6 */
-    --reggio-accent-hover: 173 73% 32%; /* #0D9488 */
-    --reggio-success: 142 76% 47%; /* #22C55E */
-    --reggio-warning: 38 92% 50%; /* #F59E0B */
-    --reggio-error: 0 84% 60%; /* #EF4444 */
+    /* REGGIO Brand Colors - Enhanced System */
+    --reggio-primary: 217 91% 60%; /* #3b82f6 - Main primary */
+    --reggio-primary-hover: 217 91% 54%; /* #2563eb - Hover state */
+    --reggio-primary-active: 217 91% 48%; /* #1d4ed8 - Active state */
+    
+    --reggio-accent: 158 64% 52%; /* #10b981 - Success/accent */
+    --reggio-accent-hover: 158 73% 46%; /* #059669 - Hover */
+    
+    --reggio-success: 158 64% 52%; /* #10b981 - Compliant status */
+    --reggio-warning: 43 96% 56%; /* #f59e0b - Warning status */
+    --reggio-error: 0 84% 60%; /* #ef4444 - Breach status */
+
+    /* Neutral Scale - Stripe-inspired grays */
+    --neutral-0: 0 0% 100%;
+    --neutral-50: 0 0% 98%;
+    --neutral-100: 0 0% 96%;
+    --neutral-200: 0 0% 90%;
+    --neutral-300: 0 0% 83%;
+    --neutral-400: 0 0% 64%;
+    --neutral-500: 0 0% 45%;
+    --neutral-600: 0 0% 32%;
+    --neutral-700: 0 0% 25%;
+    --neutral-800: 0 0% 15%;
+    --neutral-900: 0 0% 9%;
+    --neutral-950: 0 0% 4%;
+
+    /* Primary Color Scale */
+    --primary-50: 214 100% 97%;
+    --primary-100: 214 95% 93%;
+    --primary-200: 213 97% 87%;
+    --primary-300: 212 96% 78%;
+    --primary-400: 213 93% 68%;
+    --primary-500: 217 91% 60%;
+    --primary-600: 221 83% 53%;
+    --primary-700: 224 76% 48%;
+    --primary-800: 226 71% 40%;
+    --primary-900: 224 64% 33%;
+
+    /* Success Color Scale */
+    --success-50: 166 76% 97%;
+    --success-100: 167 85% 89%;
+    --success-500: 158 64% 52%;
+    --success-600: 158 73% 46%;
+    --success-700: 158 75% 40%;
+
+    /* Warning Color Scale */
+    --warning-50: 48 100% 96%;
+    --warning-100: 48 96% 89%;
+    --warning-500: 43 96% 56%;
+    --warning-600: 32 95% 44%;
+    --warning-700: 26 90% 37%;
+
+    /* Danger Color Scale */
+    --danger-50: 0 86% 97%;
+    --danger-100: 0 93% 94%;
+    --danger-500: 0 84% 60%;
+    --danger-600: 0 72% 51%;
+    --danger-700: 0 74% 42%;
+
+    /* Shadows - Sophisticated elevation */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-base: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+    /* Animations */
+    --transition-colors: color 200ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms cubic-bezier(0.4, 0, 0.2, 1), border-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-shadow: box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-transform: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
-    --background: 220 13% 7%; /* #0F1115 */
-    --foreground: 220 9% 89%; /* #E5E7EB */
+    --background: 0 0% 4%; /* neutral-950 */
+    --foreground: 0 0% 98%; /* neutral-50 */
 
-    --card: 220 13% 7%;
-    --card-foreground: 220 9% 89%;
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 220 13% 7%;
-    --popover-foreground: 220 9% 89%;
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 0 0% 15%; /* neutral-800 */
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 64%; /* neutral-400 */
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62% 31%; /* Darker red for dark mode */
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --success: 158 64% 52%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 43 96% 56%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 0 0% 15%; /* neutral-800 */
+    --input: 0 0% 15%;
+    --ring: 217 91% 60%;
+
+    --sidebar-background: 0 0% 9%; /* neutral-900 */
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 217 91% 60%;
 
-    /* Reggio Brand Colors for Dark Mode */
-    --reggio-primary: 238 69% 60%;
-    --reggio-primary-hover: 237 68% 56%;
-    --reggio-accent: 173 58% 39%;
-    --reggio-accent-hover: 173 73% 32%;
-    --reggio-success: 142 76% 47%;
-    --reggio-warning: 38 92% 50%;
+    /* REGGIO Brand Colors for Dark Mode */
+    --reggio-primary: 217 91% 60%;
+    --reggio-primary-hover: 217 91% 54%;
+    --reggio-primary-active: 217 91% 48%;
+    
+    --reggio-accent: 158 64% 52%;
+    --reggio-accent-hover: 158 73% 46%;
+    
+    --reggio-success: 158 64% 52%;
+    --reggio-warning: 43 96% 56%;
     --reggio-error: 0 84% 60%;
+
+    /* Dark mode neutral scale adjustments */
+    --neutral-0: 0 0% 4%;
+    --neutral-50: 0 0% 9%;
+    --neutral-100: 0 0% 15%;
+    --neutral-200: 0 0% 25%;
+    --neutral-300: 0 0% 32%;
+    --neutral-400: 0 0% 45%;
+    --neutral-500: 0 0% 64%;
+    --neutral-600: 0 0% 83%;
+    --neutral-700: 0 0% 90%;
+    --neutral-800: 0 0% 96%;
+    --neutral-900: 0 0% 98%;
+    --neutral-950: 0 0% 100%;
   }
 }
 
@@ -111,6 +212,85 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Typography improvements */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  h1 {
+    @apply text-4xl lg:text-5xl;
+  }
+
+  h2 {
+    @apply text-3xl lg:text-4xl;
+  }
+
+  h3 {
+    @apply text-2xl lg:text-3xl;
+  }
+
+  /* Smooth transitions for all interactive elements */
+  button, a, [role="button"] {
+    @apply transition-all duration-200 ease-in-out;
+  }
+}
+
+@layer components {
+  /* Enhanced button variants */
+  .btn-primary {
+    @apply bg-reggio-primary text-white hover:bg-reggio-primary-hover focus:ring-2 focus:ring-reggio-primary focus:ring-offset-2 transition-all duration-200;
+  }
+
+  .btn-secondary {
+    @apply bg-neutral-100 text-neutral-700 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-300 focus:ring-offset-2 transition-all duration-200;
+  }
+
+  .btn-success {
+    @apply bg-reggio-success text-white hover:bg-success-600 focus:ring-2 focus:ring-reggio-success focus:ring-offset-2 transition-all duration-200;
+  }
+
+  .btn-warning {
+    @apply bg-reggio-warning text-white hover:bg-warning-600 focus:ring-2 focus:ring-reggio-warning focus:ring-offset-2 transition-all duration-200;
+  }
+
+  .btn-danger {
+    @apply bg-reggio-error text-white hover:bg-danger-600 focus:ring-2 focus:ring-reggio-error focus:ring-offset-2 transition-all duration-200;
+  }
+
+  /* Card variants */
+  .card-elevated {
+    @apply bg-card border-0 shadow-lg hover:shadow-xl transition-shadow duration-200;
+  }
+
+  .card-interactive {
+    @apply hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer;
+  }
+
+  /* Status indicators */
+  .status-compliant {
+    @apply bg-success-50 border-success-200 text-success-700;
+  }
+
+  .status-warning {
+    @apply bg-warning-50 border-warning-200 text-warning-700;
+  }
+
+  .status-breach {
+    @apply bg-danger-50 border-danger-200 text-danger-700;
+  }
+
+  /* Gradient backgrounds */
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--reggio-primary)), hsl(var(--reggio-accent)));
+  }
+
+  .gradient-subtle {
+    background: linear-gradient(180deg, hsl(var(--neutral-50)), hsl(var(--background)));
   }
 }

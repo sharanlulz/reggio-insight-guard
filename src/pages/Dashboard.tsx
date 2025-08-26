@@ -285,31 +285,31 @@ function EnhancedMetricCard({
 
   const getStatusStyles = () => {
     if (loading) return {
-      color: 'text-gray-400',
-      bg: 'bg-gray-50',
-      border: 'border-gray-200'
+      color: 'text-neutral-400',
+      bg: 'bg-neutral-50',
+      border: 'border-neutral-200'
     };
     
     switch (status) {
       case 'compliant': return {
-        color: 'text-green-600',
-        bg: 'bg-green-50',
-        border: 'border-green-200'
+        color: 'text-reggio-success',
+        bg: 'bg-success-50',
+        border: 'border-success-200'
       };
       case 'warning': return {
-        color: 'text-yellow-600',
-        bg: 'bg-yellow-50',
-        border: 'border-yellow-200'
+        color: 'text-reggio-warning',
+        bg: 'bg-warning-50',
+        border: 'border-warning-200'
       };
       case 'breach': return {
-        color: 'text-red-600',
-        bg: 'bg-red-50',
-        border: 'border-red-200'
+        color: 'text-reggio-error',
+        bg: 'bg-danger-50',
+        border: 'border-danger-200'
       };
       default: return {
-        color: 'text-gray-600',
-        bg: 'bg-gray-50',
-        border: 'border-gray-200'
+        color: 'text-neutral-600',
+        bg: 'bg-neutral-50',
+        border: 'border-neutral-200'
       };
     }
   };
@@ -319,9 +319,9 @@ function EnhancedMetricCard({
   const getStatusIcon = () => {
     if (loading) return <Clock className="h-4 w-4 animate-pulse" />;
     switch (status) {
-      case 'compliant': return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
-      case 'breach': return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'compliant': return <CheckCircle className="h-4 w-4 text-reggio-success" />;
+      case 'warning': return <AlertTriangle className="h-4 w-4 text-reggio-warning" />;
+      case 'breach': return <XCircle className="h-4 w-4 text-reggio-error" />;
       default: return null;
     }
   };
@@ -329,22 +329,22 @@ function EnhancedMetricCard({
   const getTrendIcon = () => {
     if (!trend || loading) return null;
     switch (trend) {
-      case 'up': return <TrendingUp className="h-3 w-3 text-green-500" />;
-      case 'down': return <TrendingUp className="h-3 w-3 text-red-500 rotate-180" />;
+      case 'up': return <TrendingUp className="h-3 w-3 text-reggio-success" />;
+      case 'down': return <TrendingUp className="h-3 w-3 text-reggio-error rotate-180" />;
       default: return null;
     }
   };
 
   return (
-    <Card className={`transition-all duration-300 hover:shadow-lg ${styles.border} ${styles.bg} ${className}`}>
+    <Card className={`transition-all duration-300 hover:shadow-reggio-lg ${styles.border} ${styles.bg} ${className} card-interactive`}>
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
-            <p className="text-sm font-medium text-gray-700">{label}</p>
+            <p className="text-sm font-medium text-neutral-700">{label}</p>
             {praContext && (
               <button
                 onClick={() => setShowPRADetails(!showPRADetails)}
-                className="text-blue-600 hover:text-blue-800 text-xs underline"
+                className="text-reggio-primary hover:text-reggio-primary-hover text-xs underline transition-colors"
               >
                 PRA
               </button>
@@ -366,11 +366,11 @@ function EnhancedMetricCard({
           </div>
           
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">
+            <span className="text-neutral-600">
               PRA Target: {formatValue(target)}
             </span>
             <Badge 
-              variant={status === 'compliant' ? 'default' : status === 'warning' ? 'secondary' : 'destructive'}
+              variant={status === 'compliant' ? 'success' : status === 'warning' ? 'warning' : 'destructive'}
               className={`capitalize transition-colors duration-300 ${
                 loading ? 'animate-pulse' : ''
               }`}
@@ -385,7 +385,7 @@ function EnhancedMetricCard({
                 value={Math.min((displayValue / target) * 100, 100)} 
                 className="h-2 transition-all duration-500"
               />
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-xs text-neutral-500">
                 <span>0%</span>
                 <span className="font-medium">PRA: {formatValue(target)}</span>
               </div>
@@ -393,16 +393,16 @@ function EnhancedMetricCard({
           )}
 
           {praContext && showPRADetails && (
-            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
-              <div className="font-semibold text-blue-800 mb-1">
+            <div className="mt-3 p-3 bg-primary-50 border border-primary-200 rounded text-xs">
+              <div className="font-semibold text-reggio-primary mb-1">
                 PRA Regulatory Context
               </div>
-              <div className="space-y-1 text-blue-700">
+              <div className="space-y-1 text-primary-700">
                 <div><strong>Requirement:</strong> {praContext.requirement}</div>
                 <div><strong>Reference:</strong> {praContext.reference}</div>
                 <div><strong>Guidance:</strong> {praContext.guidance}</div>
                 {praContext.breakdown && (
-                  <div className="mt-2 pt-2 border-t border-blue-300">
+                  <div className="mt-2 pt-2 border-t border-primary-300">
                     <div className="font-medium">Breakdown:</div>
                     {praContext.breakdown.minimum && (
                       <div>• Minimum: {praContext.breakdown.minimum}</div>
@@ -471,9 +471,9 @@ export default function Dashboard() {
     if (!connectionStatus) return null;
     
     const indicators = {
-      live: { color: 'text-green-600', icon: '🟢', text: 'Live', pulse: 'animate-pulse' },
-      cached: { color: 'text-yellow-600', icon: '🟡', text: 'Cached', pulse: '' },
-      mock: { color: 'text-blue-600', icon: '🔵', text: 'Demo', pulse: '' }
+      live: { color: 'text-reggio-success', icon: '🟢', text: 'Live', pulse: 'animate-pulse' },
+      cached: { color: 'text-reggio-warning', icon: '🟡', text: 'Cached', pulse: '' },
+      mock: { color: 'text-reggio-primary', icon: '🔵', text: 'Demo', pulse: '' }
     };
     
     const indicator = indicators[connectionStatus.status];
@@ -482,7 +482,7 @@ export default function Dashboard() {
         <span className={indicator.pulse}>{indicator.icon}</span>
         <span>{indicator.text} Data</span>
         {connectionStatus.lastSync && (
-          <span className="text-gray-400">
+          <span className="text-neutral-400">
             • Last sync: {new Date(connectionStatus.lastSync).toLocaleTimeString()}
           </span>
         )}
@@ -494,8 +494,8 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto text-blue-600 mb-4" />
-          <p className="text-gray-600">Loading financial data...</p>
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto text-reggio-primary mb-4" />
+          <p className="text-neutral-600">Loading financial data...</p>
         </div>
       </div>
     );
@@ -532,12 +532,12 @@ export default function Dashboard() {
               {loading ? 'Refreshing...' : 'Refresh Data'}
             </Button>
             
-            <div className="text-xs text-gray-500 text-center sm:text-right">
+            <div className="text-xs text-neutral-500 text-center sm:text-right">
               <div>Last updated: {lastRefresh.toLocaleTimeString()}</div>
               {health && (
                 <div className="mt-1">
                   System: <span className={`font-medium ${
-                    isHealthy ? 'text-green-600' : 'text-yellow-600'
+                    isHealthy ? 'text-reggio-success' : 'text-reggio-warning'
                   }`}>
                     {health.status}
                   </span>
@@ -611,11 +611,11 @@ export default function Dashboard() {
 
           <TabsContent value="financial-impact">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="transition-all duration-300 hover:shadow-lg">
+              <Card className="transition-all duration-300 hover:shadow-reggio-lg card-elevated">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center space-x-2">
-                      <DollarSign className="h-5 w-5" />
+                      <DollarSign className="h-5 w-5 text-reggio-primary" />
                       <span>Financial Impact Summary</span>
                     </CardTitle>
                     <Badge variant="outline" className={loading ? 'animate-pulse' : ''}>
@@ -625,53 +625,53 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="text-center p-6 bg-gradient-to-br from-red-50 to-red-100 rounded-lg border border-red-200">
-                      <div className="text-3xl font-bold text-red-700 mb-2">
+                    <div className="text-center p-6 bg-gradient-to-br from-danger-50 to-danger-100 rounded-lg border border-danger-200">
+                      <div className="text-3xl font-bold text-reggio-error mb-2">
                         {formatCurrency(metrics.totalImpact)}
                       </div>
-                      <div className="text-sm text-red-600">
+                      <div className="text-sm text-danger-600">
                         Total Regulatory Impact
                       </div>
-                      <div className="text-xs text-red-500 mt-2">
+                      <div className="text-xs text-danger-500 mt-2">
                         Based on current compliance gaps
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                        <div className="text-xl font-bold text-yellow-700">
+                      <div className="text-center p-4 bg-warning-50 rounded-lg border border-warning-200">
+                        <div className="text-xl font-bold text-reggio-warning">
                           {metrics.confidence}%
                         </div>
-                        <div className="text-xs text-yellow-600">Confidence Level</div>
+                        <div className="text-xs text-warning-600">Confidence Level</div>
                       </div>
-                      <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <div className="text-xl font-bold text-blue-700">
+                      <div className="text-center p-4 bg-primary-50 rounded-lg border border-primary-200">
+                        <div className="text-xl font-bold text-reggio-primary">
                           {metrics.regulatoryContext?.financialImpactClauses || 342}
                         </div>
-                        <div className="text-xs text-blue-600">Impact Clauses</div>
+                        <div className="text-xs text-primary-600">Impact Clauses</div>
                       </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="transition-all duration-300 hover:shadow-lg">
+              <Card className="transition-all duration-300 hover:shadow-reggio-lg card-elevated">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <Shield className="h-5 w-5" />
+                    <Shield className="h-5 w-5 text-reggio-accent" />
                     <span>PRA Regulatory Summary</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="p-4 bg-primary-50 rounded-lg border border-primary-200">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-blue-800">Regulatory Framework</span>
-                        <Badge variant="outline" className="text-blue-600">
+                        <span className="font-semibold text-reggio-primary">Regulatory Framework</span>
+                        <Badge variant="outline" className="text-reggio-primary border-primary-300">
                           {metrics.regulatoryContext?.jurisdiction} - {metrics.regulatoryContext?.regulator}
                         </Badge>
                       </div>
-                      <div className="text-sm text-blue-700">
+                      <div className="text-sm text-primary-700">
                         <div><strong>Framework:</strong> {metrics.regulatoryContext?.applicableFramework}</div>
                         <div className="mt-2"><strong>Key Requirements:</strong></div>
                         <ul className="list-disc list-inside mt-1 space-y-1">
@@ -684,33 +684,33 @@ export default function Dashboard() {
                     </div>
                     
                     <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center p-3 bg-gray-50 rounded">
+                      <div className="text-center p-3 bg-neutral-50 rounded border border-neutral-200">
                         <div className={`text-lg font-bold ${
-                          metrics.lcr.current >= 100 ? 'text-green-600' : 'text-red-600'
+                          metrics.lcr.current >= 100 ? 'text-reggio-success' : 'text-reggio-error'
                         }`}>
                           {metrics.lcr.current >= 100 ? '✓' : '✗'}
                         </div>
-                        <div className="text-xs text-gray-600">LCR Compliant</div>
+                        <div className="text-xs text-neutral-600">LCR Compliant</div>
                       </div>
-                      <div className="text-center p-3 bg-gray-50 rounded">
+                      <div className="text-center p-3 bg-neutral-50 rounded border border-neutral-200">
                         <div className={`text-lg font-bold ${
-                          metrics.tier1.current >= 8.0 ? 'text-green-600' : 'text-red-600'
+                          metrics.tier1.current >= 8.0 ? 'text-reggio-success' : 'text-reggio-error'
                         }`}>
                           {metrics.tier1.current >= 8.0 ? '✓' : '✗'}
                         </div>
-                        <div className="text-xs text-gray-600">Tier 1 Compliant</div>
+                        <div className="text-xs text-neutral-600">Tier 1 Compliant</div>
                       </div>
-                      <div className="text-center p-3 bg-gray-50 rounded">
+                      <div className="text-center p-3 bg-neutral-50 rounded border border-neutral-200">
                         <div className={`text-lg font-bold ${
-                          metrics.leverage.current >= 3.25 ? 'text-green-600' : 'text-red-600'
+                          metrics.leverage.current >= 3.25 ? 'text-reggio-success' : 'text-reggio-error'
                         }`}>
                           {metrics.leverage.current >= 3.25 ? '✓' : '✗'}
                         </div>
-                        <div className="text-xs text-gray-600">Leverage Compliant</div>
+                        <div className="text-xs text-neutral-600">Leverage Compliant</div>
                       </div>
                     </div>
 
-                    <div className="mt-4 p-3 bg-gray-100 rounded">
+                    <div className="mt-4 p-3 bg-neutral-100 rounded border border-neutral-200">
                       <HealthIndicator showDetails={true} />
                     </div>
                   </div>
@@ -726,7 +726,7 @@ export default function Dashboard() {
                   <Target className="h-5 w-5" />
                   <span>PRA-Focused Strategic Recommendations</span>
                 </CardTitle>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-neutral-600">
                   Recommendations aligned with PRA supervisory expectations and regulatory requirements
                 </div>
               </CardHeader>
@@ -735,21 +735,20 @@ export default function Dashboard() {
                   {(metrics.regulatoryContext?.strategicRecommendations || []).map((rec: any, index: number) => (
                     <div key={index} className="border rounded-lg p-6 transition-all duration-200 hover:shadow-md">
                       <div className="flex items-start space-x-4">
-                        <div className="flex-shrink-0 w-3 h-3 mt-2 rounded-full bg-blue-500"></div>
+                        <div className="flex-shrink-0 w-3 h-3 mt-2 rounded-full bg-reggio-primary"></div>
                         
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2 mb-3">
-                            <h3 className="font-semibold text-gray-900 text-lg">{rec.title}</h3>
-                            <Badge className={rec.priority === 'high' ? 
-                              'bg-red-100 text-red-800 border-red-200' : 'bg-yellow-100 text-yellow-800 border-yellow-200'}>
+                            <h3 className="font-semibold text-neutral-900 text-lg">{rec.title}</h3>
+                            <Badge variant={rec.priority === 'high' ? 'destructive' : 'warning'}>
                               {rec.priority} priority
                             </Badge>
-                            <Badge variant="outline" className="text-blue-600">
+                            <Badge variant="outline" className="text-reggio-primary">
                               {rec.confidence}% confidence
                             </Badge>
                           </div>
                           
-                          <p className="mb-4 text-gray-700 text-base">{rec.description}</p>
+                          <p className="mb-4 text-neutral-700 text-base">{rec.description}</p>
                           
                           <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                             <div className="font-semibold text-blue-800 mb-2 flex items-center">
@@ -798,7 +797,7 @@ export default function Dashboard() {
                   ))}
                 </div>
                 
-                <div className="mt-8 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="mt-8 p-4 bg-neutral-50 border border-neutral-200 rounded-lg">
                   <h4 className="font-semibold mb-3 flex items-center">
                     <FileText className="h-4 w-4 mr-2" />
                     Upcoming PRA Submissions & Deadlines
@@ -812,8 +811,8 @@ export default function Dashboard() {
                             deadline.daysLeft <= 90 ? 'bg-yellow-500' : 'bg-green-500'
                           }`}></div>
                           <div>
-                            <div className="font-medium text-gray-900">{deadline.regulation}</div>
-                            <div className="text-sm text-gray-600">
+                            <div className="font-medium text-neutral-900">{deadline.regulation}</div>
+                            <div className="text-sm text-neutral-600">
                               {deadline.regulator} • Due: {new Date(deadline.deadline).toLocaleDateString()}
                             </div>
                           </div>
