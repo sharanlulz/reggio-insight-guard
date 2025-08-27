@@ -108,7 +108,7 @@ const PRACollectionDashboard = () => {
   const collectPRArulebookSections = async (regulationId) => {
     const praSections = [
       // Banking + Cross-sector PRA Rules
-const PRA_RULES = [
+const praSections = [
   { name: 'Actuaries', url: 'https://www.prarulebook.co.uk/pra-rules/actuaries' },
   { name: 'Algorithmic Trading', url: 'https://www.prarulebook.co.uk/pra-rules/algorithmic-trading' },
   { name: 'Allocation of Responsibilities', url: 'https://www.prarulebook.co.uk/pra-rules/allocation-of-responsibilities' },
