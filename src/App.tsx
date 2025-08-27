@@ -23,6 +23,7 @@ import OperatorIngestions from "./pages/operator/operator-ingestions";
 import OperatorVersions from "./pages/operator/operator-versions";
 import NotFound from "./pages/NotFound";
 import Regs from "./pages/Regs";
+import PRACollectionDashboard from './pages/PRACollection';
 
 const queryClient = new QueryClient();
 
@@ -73,6 +74,7 @@ function App() {
                         <Route path="/operator-versions" element={<OperatorVersions />} />
                         <Route path="/debug" element={<Debug />} />
                         <Route path="*" element={<NotFound />} />
+                        <Route path="/pra-collection" element={<PRACollectionDashboard />} />
                       </Routes>
                     </AppShell>
                   </ProtectedRoute>
