@@ -56,6 +56,7 @@ function App() {
                         <Route path="/clauses" element={<Clauses />} />
                         <Route path="/brief" element={<BoardBrief />} />
                         <Route path="/regs" element={<Regs />} />
+                        <Route path="/pra-collection" element={<PRACollectionDashboard />} />
                         <Route path="/regulations" element={<Regs />} />
                         <Route path="/risk" element={<StressTestDashboard />} />
                         <Route path="/compliance" element={<RegulatoryIntelligence />} />
@@ -74,7 +75,6 @@ function App() {
                         <Route path="/operator-versions" element={<OperatorVersions />} />
                         <Route path="/debug" element={<Debug />} />
                         <Route path="*" element={<NotFound />} />
-                        <Route path="/pra-collection" element={<PRACollectionDashboard />} />
                       </Routes>
                     </AppShell>
                   </ProtectedRoute>
