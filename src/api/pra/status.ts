@@ -1,9 +1,19 @@
-import { NextResponse } from 'next/server';
+// PRA collection status utilities
+export interface PRAStats {
+  totalRegulations: number;
+  totalDocuments: number;
+  totalClauses: number;
+  rulebookSections: number;
+  supervisoryStatements: number;
+  lastUpdated: Date;
+  aiAnalysisComplete: number;
+  trainingDataReady: boolean;
+}
 
-export async function GET() {
+export const getPRACollectionStatus = async (): Promise<PRAStats> => {
   try {
     // Simple response for testing
-    const stats = {
+    const stats: PRAStats = {
       totalRegulations: 0,
       totalDocuments: 0,
       totalClauses: 0,
@@ -14,8 +24,8 @@ export async function GET() {
       trainingDataReady: false
     };
 
-    return NextResponse.json({ stats });
+    return stats;
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to load stats' }, { status: 500 });
+    throw new Error('Failed to load PRA collection stats');
   }
-}
+};
