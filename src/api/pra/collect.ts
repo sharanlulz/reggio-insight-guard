@@ -10,6 +10,7 @@
 // File: api/pra/collect.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { PRA_RULES, PRA_INSURANCE_RULES } from '../../data/pra-rules.generated.js';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -82,71 +83,7 @@ class PRArulebookCollector {
 
   private async mapRulebookStructure() {
     // PRA Rulebook main sections - updated structure as of 2024
-    const sections = [
-      { name: 'Actuaries', url: 'https://www.prarulebook.co.uk/pra-rules/actuaries' },
-      { name: 'Algorithmic Trading', url: 'https://www.prarulebook.co.uk/pra-rules/algorithmic-trading' },
-      { name: 'Allocation of Responsibilities', url: 'https://www.prarulebook.co.uk/pra-rules/allocation-of-responsibilities' },
-      { name: 'Audit Committee', url: 'https://www.prarulebook.co.uk/pra-rules/audit-committee' },
-      { name: 'Auditors', url: 'https://www.prarulebook.co.uk/pra-rules/auditors' },
-      { name: 'Benchmarking of Internal Approaches', url: 'https://www.prarulebook.co.uk/pra-rules/benchmarking-of-internal-approaches' },
-      { name: 'Capital Buffers', url: 'https://www.prarulebook.co.uk/pra-rules/capital-buffers' },
-      { name: 'Certification', url: 'https://www.prarulebook.co.uk/pra-rules/certification' },
-      { name: 'Change in Control', url: 'https://www.prarulebook.co.uk/pra-rules/change-in-control' },
-      { name: 'Close Links', url: 'https://www.prarulebook.co.uk/pra-rules/close-links' },
-      { name: 'Compliance and Internal Audit', url: 'https://www.prarulebook.co.uk/pra-rules/compliance-and-internal-audit' },
-      { name: 'Composites', url: 'https://www.prarulebook.co.uk/pra-rules/composites' },
-      { name: 'Conditions Governing Business', url: 'https://www.prarulebook.co.uk/pra-rules/conditions-governing-business' },
-      { name: 'Conduct Rules', url: 'https://www.prarulebook.co.uk/pra-rules/conduct-rules' },
-      { name: 'Contractual Recognition Of Bail-In', url: 'https://www.prarulebook.co.uk/pra-rules/contractual-recognition-of-bail-in' },
-      { name: 'Counterparty Credit Risk (CRR)', url: 'https://www.prarulebook.co.uk/pra-rules/counterparty-credit-risk-crr' },
-      { name: 'Counterparty Credit Risk (Deleted)', url: 'https://www.prarulebook.co.uk/pra-rules/counterparty-credit-risk-deleted' },
-      { name: 'Credit Risk', url: 'https://www.prarulebook.co.uk/pra-rules/credit-risk' },
-      { name: 'Credit Unions', url: 'https://www.prarulebook.co.uk/pra-rules/credit-unions' },
-      { name: 'Credit Valuation Adjustment Risk (CRR)', url: 'https://www.prarulebook.co.uk/pra-rules/credit-valuation-adjustment-risk-crr' },
-      { name: 'Critical Third Parties', url: 'https://www.prarulebook.co.uk/pra-rules/critical-third-parties' },
-      { name: 'Definition of Capital', url: 'https://www.prarulebook.co.uk/pra-rules/definition-of-capital' },
-      { name: 'Depositor Protection', url: 'https://www.prarulebook.co.uk/pra-rules/depositor-protection' },
-      { name: 'Designation', url: 'https://www.prarulebook.co.uk/pra-rules/designation' },
-      { name: 'Disclosure (CRR)', url: 'https://www.prarulebook.co.uk/pra-rules/disclosure-crr' },
-      { name: 'Dormant Account Scheme (Deleted)', url: 'https://www.prarulebook.co.uk/pra-rules/dormant-account-scheme-deleted' },
-      { name: 'External Audit', url: 'https://www.prarulebook.co.uk/pra-rules/external-audit' },
-      { name: 'FSCS Management Expenses Levy Limit and Base Costs', url: 'https://www.prarulebook.co.uk/pra-rules/fscs-management-expenses-levy-limit-and-base-costs' },
-      { name: 'Fees', url: 'https://www.prarulebook.co.uk/pra-rules/fees' },
-      { name: 'Financial Conglomerates', url: 'https://www.prarulebook.co.uk/pra-rules/financial-conglomerates' },
-      { name: 'Fitness and Propriety', url: 'https://www.prarulebook.co.uk/pra-rules/fitness-and-propriety' },
-      { name: 'Fundamental Rules', url: 'https://www.prarulebook.co.uk/pra-rules/fundamental-rules' },
-      { name: 'General Organisational Requirements', url: 'https://www.prarulebook.co.uk/pra-rules/general-organisational-requirements' },
-      { name: 'General Provisions', url: 'https://www.prarulebook.co.uk/pra-rules/general-provisions' },
-      { name: 'Governance', url: 'https://www.prarulebook.co.uk/pra-rules/governance' },
-      { name: 'Group Supervision', url: 'https://www.prarulebook.co.uk/pra-rules/group-supervision' },
-      { name: 'Holding Companies', url: 'https://www.prarulebook.co.uk/pra-rules/holding-companies' },
-      { name: 'Information Gathering', url: 'https://www.prarulebook.co.uk/pra-rules/information-gathering' },
-      { name: 'Internal Capital Adequacy Assessment', url: 'https://www.prarulebook.co.uk/pra-rules/internal-capital-adequacy-assessment' },
-      { name: 'Internal Liquidity Adequacy Assessment', url: 'https://www.prarulebook.co.uk/pra-rules/internal-liquidity-adequacy-assessment' },
-      { name: 'Large Exposures (CRR)', url: 'https://www.prarulebook.co.uk/pra-rules/large-exposures-crr' },
-      { name: 'Large Non-Bank Exposures', url: 'https://www.prarulebook.co.uk/pra-rules/large-non-bank-exposures' },
-      { name: 'Lending Standards', url: 'https://www.prarulebook.co.uk/pra-rules/lending-standards' },
-      { name: 'Liquidity', url: 'https://www.prarulebook.co.uk/pra-rules/liquidity' },
-      { name: 'Market Risk (CRR)', url: 'https://www.prarulebook.co.uk/pra-rules/market-risk-crr' },
-      { name: 'Model Risk Management', url: 'https://www.prarulebook.co.uk/pra-rules/model-risk-management' },
-      { name: 'Notification', url: 'https://www.prarulebook.co.uk/pra-rules/notification' },
-      { name: 'Operational Continuity Part', url: 'https://www.prarulebook.co.uk/pra-rules/operational-continuity-part' },
-      { name: 'Overseas Firms', url: 'https://www.prarulebook.co.uk/pra-rules/overseas-firms' },
-      { name: 'Own Funds (CRR)', url: 'https://www.prarulebook.co.uk/pra-rules/own-funds-crr' },
-      { name: 'Pensions', url: 'https://www.prarulebook.co.uk/pra-rules/pensions' },
-      { name: 'Provisions', url: 'https://www.prarulebook.co.uk/pra-rules/provisions' },
-      { name: 'Recovery Plans', url: 'https://www.prarulebook.co.uk/pra-rules/recovery-plans' },
-      { name: 'Regulatory Reporting', url: 'https://www.prarulebook.co.uk/pra-rules/regulatory-reporting' },
-      { name: 'Remuneration', url: 'https://www.prarulebook.co.uk/pra-rules/remuneration' },
-      { name: 'Ring-fencing', url: 'https://www.prarulebook.co.uk/pra-rules/ring-fencing' },
-      { name: 'Risk Management', url: 'https://www.prarulebook.co.uk/pra-rules/risk-management' },
-      { name: 'Rulebook Glossary', url: 'https://www.prarulebook.co.uk/pra-rules/rulebook-glossary' },
-      { name: 'Senior Management Functions', url: 'https://www.prarulebook.co.uk/pra-rules/senior-management-functions' },
-      { name: 'Supervisory Disclosure', url: 'https://www.prarulebook.co.uk/pra-rules/supervisory-disclosure' },
-      { name: 'Third Country Branches', url: 'https://www.prarulebook.co.uk/pra-rules/third-country-branches' },
-      { name: 'Trading Book (CRR)', url: 'https://www.prarulebook.co.uk/pra-rules/trading-book-crr' },
-      { name: 'Wind Down Planning', url: 'https://www.prarulebook.co.uk/pra-rules/wind-down-planning' }
-    ];
+   const sections = [...PRA_RULES, ...PRA_INSURANCE_RULES];
 
     // Dynamically discover additional sections by crawling the main rulebook index
     const additionalSections = await this.discoverAdditionalSections();
