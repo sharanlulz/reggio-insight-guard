@@ -74,7 +74,7 @@ export default function App() {
                               <Route path="/brief" element={<BoardBrief />} />
                               <Route path="/regs" element={<Regs />} />
                               <Route path="/regulations" element={<Regs />} />
-                              <Route path="/pra-collection" element={<PRACollectionDashboard />} />
+                              <Route path="/pra-collection" element={<PRACollection />} />
                               <Route path="/risk" element={<StressTestDashboard />} />
                               <Route path="/stress-test" element={<StressTestDashboard />} />
                               <Route path="/stress-tests" element={<StressTestDashboard />} />
