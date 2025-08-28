@@ -1,20 +1,28 @@
-// src/pages/PRACollection.tsx
-// Fixed for Vite/Vercel Preview: uses import.meta.env (not process.env),
-// adds defensive env checks + clearer UI feedback, keeps your async ingest flow.
-
+// src/pages/PRACollection.tsx - Fixed imports for Vercel deployment
 import React, { useState, useEffect } from 'react';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { PRA_RULES, PRA_INSURANCE_RULES } from '@/data/pra-rules.generated.js';
+import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+// Import JSON files directly (Vercel/Vite compatible)
+import NON_INSURANCE_DATA from '@/data/pra-rules.non-insurance.json';
+import INSURANCE_DATA from '@/data/pra-rules.insurance-only.json';
 
-let supabase: SupabaseClient | null = null;
-if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-  supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false }
-  });
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+// Process data inline to avoid import issues
+const stripDate = (url: string) => url.replace(/\/\d{2}-\d{2}-\d{4}$/, '');
+
+const PRA_RULES = (NON_INSURANCE_DATA || []).map(({ name, url }: any) => ({
+  name,
+  url: stripDate(url),
+}));
+
+const PRA_INSURANCE_RULES = (INSURANCE_DATA || []).map(({ name, url }: any) => ({
+  name,
+  url: stripDate(url),
+}));
 
 interface ProcessingJob {
   id: string;
@@ -28,7 +36,6 @@ interface ProcessingJob {
   completed_at?: string;
   progress_percentage: number;
   duration_seconds: number;
-  created_at?: string; // in case your view returns it
 }
 
 interface AsyncJobResult {
@@ -46,37 +53,24 @@ export default function PRACollection() {
   const [message, setMessage] = useState('');
   const [processingJobs, setProcessingJobs] = useState<ProcessingJob[]>([]);
   const [stats, setStats] = useState({ processed: 0, failed: 0, total: 0 });
-  const [envError, setEnvError] = useState<string | null>(null);
-
-  // Env guard so the page shows a clear error on Vercel Preview if vars aren't set
-  useEffect(() => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      setEnvError(
-        "Missing env vars for Supabase. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel."
-      );
-    }
-  }, []);
 
   // Poll for async job updates every 10 seconds
   useEffect(() => {
-    if (!supabase) return;
-    const poll = setInterval(async () => {
-      if (processingJobs.some(j => j.status === 'STARTED' || j.status === 'IN_PROGRESS')) {
+    const pollInterval = setInterval(async () => {
+      if (processingJobs.some(job => job.status === 'STARTED' || job.status === 'IN_PROGRESS')) {
         await refreshProcessingJobs();
       }
     }, 10000);
-    return () => clearInterval(poll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => clearInterval(pollInterval);
   }, [processingJobs]);
 
   // Load existing processing jobs on mount
   useEffect(() => {
-    if (!supabase) return;
     refreshProcessingJobs();
   }, []);
 
   async function refreshProcessingJobs() {
-    if (!supabase) return;
     try {
       const { data, error } = await supabase
         .from('processing_jobs_status_v')
@@ -85,19 +79,15 @@ export default function PRACollection() {
         .limit(10);
 
       if (error) throw error;
-      setProcessingJobs((data || []) as ProcessingJob[]);
+      setProcessingJobs(data || []);
     } catch (error) {
       console.error('Failed to refresh processing jobs:', error);
     }
   }
 
   async function processRule(rule: any, regulationId: string, ruleType: string): Promise<AsyncJobResult> {
-    if (!supabase) {
-      throw new Error('Supabase not initialized (missing env).');
-    }
-
     console.log(`Processing ${ruleType} rule: ${rule.name}`);
-
+    
     const { data, error } = await supabase.functions.invoke('reggio-ingest', {
       body: {
         regulationId: regulationId,
@@ -121,42 +111,41 @@ export default function PRACollection() {
   }
 
   async function startCollection(type: 'non_insurance' | 'insurance' | 'complete') {
-    if (!supabase) {
-      setEnvError('Supabase not initialized. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
-      return;
-    }
     if (loading) return;
-
+    
     setLoading(true);
     setMessage('Starting PRA collection with GPT-5 Mini analysis...');
-
+    
     try {
-      // Get the regulation ID for PRA rules
+      // Get the regulation ID for PRA rules (you'll need to create this regulation first)
       const { data: regulation, error: regError } = await supabase
         .from('regulations')
         .select('id')
-        .eq('short_code', 'PRA-LIQ-TEST') // Adjust this to your actual regulation code
+        .eq('short_code', 'PRA-LIQ-TEST') // Adjust this to your actual regulation
         .single();
 
       if (regError || !regulation) {
         throw new Error('PRA regulation not found. Please create the regulation first.');
       }
 
-      const regulationId = regulation.id as string;
+      const regulationId = regulation.id;
       let rulesToProcess: any[] = [];
       let totalRules = 0;
 
+      // Determine which rules to process
       switch (type) {
         case 'non_insurance':
           rulesToProcess = PRA_RULES;
           totalRules = PRA_RULES.length;
           setMessage(`🚀 Starting Non-Insurance PRA Collection: ${totalRules} rules`);
           break;
+          
         case 'insurance':
           rulesToProcess = PRA_INSURANCE_RULES;
           totalRules = PRA_INSURANCE_RULES.length;
           setMessage(`🚀 Starting Insurance PRA Collection: ${totalRules} rules`);
           break;
+          
         case 'complete':
           rulesToProcess = [...PRA_RULES, ...PRA_INSURANCE_RULES];
           totalRules = PRA_RULES.length + PRA_INSURANCE_RULES.length;
@@ -164,46 +153,61 @@ export default function PRACollection() {
           break;
       }
 
+      // Process rules and track sync vs async
       let processedCount = 0;
       let failedCount = 0;
       const activeJobs: string[] = [];
+      
       setStats({ processed: 0, failed: 0, total: totalRules });
 
       for (let i = 0; i < rulesToProcess.length; i++) {
         const rule = rulesToProcess[i];
-
+        
         try {
           setMessage(`📄 Processing ${rule.name} (${i + 1}/${totalRules})`);
+          
           const result = await processRule(rule, regulationId, type);
-
+          
           if (result.processing_type === 'synchronous') {
+            // Immediate completion
             processedCount++;
             setMessage(`✅ Completed: ${rule.name} - ${result.chunks_processed} chunks analyzed`);
+            
           } else if (result.processing_type === 'asynchronous') {
+            // Async job queued
             activeJobs.push(result.job_id!);
             setMessage(`🔄 Queued: ${rule.name} - Job ${result.job_id} (${result.total_chunks} chunks)`);
           }
+
         } catch (error: any) {
           failedCount++;
           console.error(`Error processing ${rule.name}:`, error);
           setMessage(`❌ Failed: ${rule.name} - ${error.message}`);
         }
 
-        setStats(prev => ({ ...prev, processed: processedCount, failed: failedCount }));
+        // Update stats
+        setStats(prev => ({
+          ...prev,
+          processed: processedCount,
+          failed: failedCount
+        }));
 
-        // polite pacing
+        // Short delay between requests
         if (i < rulesToProcess.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 800));
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
       }
 
+      // Final status message
       if (activeJobs.length > 0) {
         setMessage(`🎯 Collection Started: ${processedCount} completed immediately, ${activeJobs.length} processing in background, ${failedCount} failed`);
       } else {
         setMessage(`🎉 Collection Complete: ${processedCount} processed, ${failedCount} failed`);
       }
 
+      // Refresh processing jobs to show new async jobs
       await refreshProcessingJobs();
+
     } catch (error: any) {
       console.error('Collection error:', error);
       setMessage(`❌ Collection Failed: ${error.message}`);
@@ -212,19 +216,16 @@ export default function PRACollection() {
     }
   }
 
+  // Single document test function
   async function testSingleDocument() {
-    if (!supabase) {
-      setEnvError('Supabase not initialized. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
-      return;
-    }
     if (loading) return;
-
+    
     setLoading(true);
     setMessage('Testing single document processing...');
-
+    
     try {
-      const testRule = PRA_RULES[0];
-
+      const testRule = PRA_RULES[0]; // Use first rule for testing
+      
       const { data: regulation } = await supabase
         .from('regulations')
         .select('id')
@@ -235,15 +236,16 @@ export default function PRACollection() {
         throw new Error('PRA regulation not found');
       }
 
-      const result = await processRule(testRule, regulation.id as string, 'test');
-
+      const result = await processRule(testRule, regulation.id, 'test');
+      
       if (result.processing_type === 'synchronous') {
         setMessage(`✅ Test Complete: ${result.chunks_processed} chunks processed synchronously`);
       } else {
         setMessage(`🔄 Test Queued: Job ${result.job_id} processing ${result.total_chunks} chunks asynchronously`);
       }
-
+      
       await refreshProcessingJobs();
+      
     } catch (error: any) {
       console.error('Test error:', error);
       setMessage(`❌ Test Failed: ${error.message}`);
@@ -266,23 +268,6 @@ export default function PRACollection() {
     if (seconds < 60) return `${Math.round(seconds)}s`;
     if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
     return `${Math.round(seconds / 3600)}h`;
-  }
-
-  // Render
-  if (envError) {
-    return (
-      <div className="container mx-auto px-4 py-12 max-w-3xl">
-        <h1 className="text-2xl font-bold mb-4">PRA Collection + GPT-5 Mini Analysis</h1>
-        <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4">
-          <p className="font-semibold mb-2">Configuration error</p>
-          <p className="text-sm">{envError}</p>
-          <ul className="list-disc ml-5 mt-3 text-sm">
-            <li>On Vercel, set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in Project → Settings → Environment Variables.</li>
-            <li>Trigger a new Preview deployment.</li>
-          </ul>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -312,9 +297,7 @@ export default function PRACollection() {
           <div className="text-sm text-red-800">Failed</div>
         </div>
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-gray-600">
-            {processingJobs.filter(j => j.status === 'STARTED' || j.status === 'IN_PROGRESS').length}
-          </div>
+          <div className="text-2xl font-bold text-gray-600">{processingJobs.filter(j => j.status === 'STARTED' || j.status === 'IN_PROGRESS').length}</div>
           <div className="text-sm text-gray-800">Active Jobs</div>
         </div>
       </div>
@@ -334,16 +317,16 @@ export default function PRACollection() {
                     {formatDuration(job.duration_seconds)}
                   </span>
                 </div>
-
+                
                 <div className="mb-2">
                   <div className="flex justify-between text-sm text-gray-600 mb-1">
                     <span>Progress</span>
                     <span>{job.processed_chunks}/{job.total_chunks} chunks</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
+                    <div 
                       className={`h-2 rounded-full transition-all duration-300 ${
-                        job.status === 'COMPLETED' ? 'bg-green-500' :
+                        job.status === 'COMPLETED' ? 'bg-green-500' : 
                         job.status === 'FAILED' ? 'bg-red-500' : 'bg-blue-500'
                       }`}
                       style={{ width: `${job.progress_percentage}%` }}
@@ -356,7 +339,7 @@ export default function PRACollection() {
                     Error: {job.error_message}
                   </div>
                 )}
-
+                
                 <div className="text-xs text-gray-500 mt-2">
                   Started: {new Date(job.started_at).toLocaleString()}
                   {job.completed_at && (
@@ -383,7 +366,7 @@ export default function PRACollection() {
         <h2 className="text-2xl font-bold mb-6">
           Collection Controls - Async Processing Ready
         </h2>
-
+        
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Test Single Document */}
           <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 rounded-lg p-6">
