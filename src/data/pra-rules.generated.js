@@ -1,21 +1,672 @@
 // src/data/pra-rules.generated.js
-// Exports two arrays with base URLs (no /dd-mm-yyyy suffix).
-// Assumes the two JSON files below are present in the same folder.
+// PURE MODULE — no JSON imports.
+// This avoids Vercel/Vite quirks around JS→JSON import chains in preview builds.
 
-import NON_INSURANCE from './pra-rules.non-insurance.json';
-import INSURANCE_ONLY from './pra-rules.insurance-only.json';
+// Paste your arrays EXACTLY here.
+// Example shape:
+export const PRA_RULES = [
+  {
+    "name": "CRR Firms Algorithmic Trading",
+    "url": "https://www.prarulebook.co.uk/pra-rules/algorithmic-trading"
+  },
+  {
+    "name": "CRR Firms Benchmarking of Internal Approaches",
+    "url": "https://www.prarulebook.co.uk/pra-rules/benchmarking-of-internal-approaches"
+  },
+  {
+    "name": "CRR Firms Capital Buffers",
+    "url": "https://www.prarulebook.co.uk/pra-rules/capital-buffers"
+  },
+  {
+    "name": "CRR Firms Compliance and Internal Audit",
+    "url": "https://www.prarulebook.co.uk/pra-rules/compliance-and-internal-audit"
+  },
+  {
+    "name": "CRR Firms Counterparty Credit Risk (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/counterparty-credit-risk-crr"
+  },
+  {
+    "name": "CRR Firms Counterparty Credit Risk (Deleted)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/counterparty-credit-risk"
+  },
+  {
+    "name": "CRR Firms Credit Risk",
+    "url": "https://www.prarulebook.co.uk/pra-rules/credit-risk"
+  },
+  {
+    "name": "CRR Firms Credit Valuation Adjustment Risk (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/credit-valuation-adjustment-risk-crr"
+  },
+  {
+    "name": "CRR Firms Definition of Capital",
+    "url": "https://www.prarulebook.co.uk/pra-rules/definition-of-capital"
+  },
+  {
+    "name": "CRR Firms Designation",
+    "url": "https://www.prarulebook.co.uk/pra-rules/designation"
+  },
+  {
+    "name": "CRR Firms Disclosure (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/disclosure-crr"
+  },
+  {
+    "name": "CRR Firms General Organisational Requirements",
+    "url": "https://www.prarulebook.co.uk/pra-rules/general-organisational-requirements"
+  },
+  {
+    "name": "CRR Firms Group Risk Systems",
+    "url": "https://www.prarulebook.co.uk/pra-rules/group-risk-systems"
+  },
+  {
+    "name": "CRR Firms Groups",
+    "url": "https://www.prarulebook.co.uk/pra-rules/groups"
+  },
+  {
+    "name": "CRR Firms Internal Capital Adequacy Assessment",
+    "url": "https://www.prarulebook.co.uk/pra-rules/internal-capital-adequacy-assessment"
+  },
+  {
+    "name": "CRR Firms Internal Liquidity Adequacy Assessment",
+    "url": "https://www.prarulebook.co.uk/pra-rules/internal-liquidity-adequacy-assessment"
+  },
+  {
+    "name": "CRR Firms Large Exposures",
+    "url": "https://www.prarulebook.co.uk/pra-rules/large-exposures"
+  },
+  {
+    "name": "CRR Firms Large Exposures (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/large-exposures-crr"
+  },
+  {
+    "name": "CRR Firms Leverage Ratio – Capital Requirements and Buffers",
+    "url": "https://www.prarulebook.co.uk/pra-rules/leverage-ratio-capital-requirements-and-buffers"
+  },
+  {
+    "name": "CRR Firms Leverage Ratio (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/leverage-ratio-crr"
+  },
+  {
+    "name": "CRR Firms Liquidity (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/liquidity-crr"
+  },
+  {
+    "name": "CRR Firms Liquidity Coverage Ratio (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/liquidity-coverage-ratio-crr"
+  },
+  {
+    "name": "CRR Firms Liquidity Coverage Requirement - UK Designated Investment Firms",
+    "url": "https://www.prarulebook.co.uk/pra-rules/liquidity-coverage-requirement---uk-designated-investment-firms"
+  },
+  {
+    "name": "CRR Firms Market Risk",
+    "url": "https://www.prarulebook.co.uk/pra-rules/market-risk"
+  },
+  {
+    "name": "CRR Firms Non-Performing Exposures Securitisation (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-performing-exposures-securitisation-crr"
+  },
+  {
+    "name": "CRR Firms Operational Continuity",
+    "url": "https://www.prarulebook.co.uk/pra-rules/operational-continuity"
+  },
+  {
+    "name": "CRR Firms Operational Resilience",
+    "url": "https://www.prarulebook.co.uk/pra-rules/operational-resilience"
+  },
+  {
+    "name": "CRR Firms Operational Risk (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/operational-risk-crr"
+  },
+  {
+    "name": "CRR Firms Outsourcing",
+    "url": "https://www.prarulebook.co.uk/pra-rules/outsourcing"
+  },
+  {
+    "name": "CRR Firms Own Funds and Eligible Liabilities (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/own-funds-and-eligible-liabilities-crr"
+  },
+  {
+    "name": "CRR Firms Permissions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/permissions"
+  },
+  {
+    "name": "CRR Firms Public Disclosure",
+    "url": "https://www.prarulebook.co.uk/pra-rules/public-disclosure"
+  },
+  {
+    "name": "CRR Firms Record Keeping",
+    "url": "https://www.prarulebook.co.uk/pra-rules/record-keeping"
+  },
+  {
+    "name": "CRR Firms Regulatory Reporting",
+    "url": "https://www.prarulebook.co.uk/pra-rules/regulatory-reporting"
+  },
+  {
+    "name": "CRR Firms Related Party Transaction Risk",
+    "url": "https://www.prarulebook.co.uk/pra-rules/related-party-transaction-risk"
+  },
+  {
+    "name": "CRR Firms Remuneration",
+    "url": "https://www.prarulebook.co.uk/pra-rules/remuneration"
+  },
+  {
+    "name": "CRR Firms Reporting (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/reporting-crr"
+  },
+  {
+    "name": "CRR Firms Reporting Leverage Ratio (Deleted)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/reporting-leverage-ratio"
+  },
+  {
+    "name": "CRR Firms Reporting Pillar 2",
+    "url": "https://www.prarulebook.co.uk/pra-rules/reporting-pillar-2"
+  },
+  {
+    "name": "CRR Firms Resolution Assessment",
+    "url": "https://www.prarulebook.co.uk/pra-rules/resolution-assessment"
+  },
+  {
+    "name": "CRR Firms Risk Control",
+    "url": "https://www.prarulebook.co.uk/pra-rules/risk-control"
+  },
+  {
+    "name": "CRR Firms SDDT Regime – General Application",
+    "url": "https://www.prarulebook.co.uk/pra-rules/sddt-regime--general-application"
+  },
+  {
+    "name": "CRR Firms Skills, Knowledge and Expertise",
+    "url": "https://www.prarulebook.co.uk/pra-rules/skills-knowledge-and-expertise"
+  },
+  {
+    "name": "CRR Firms Standardised Approach and Internal Ratings Based Approach to Credit Risk (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/standardised-approach-and-internal-ratings-based-approach-to-credit-risk-crr"
+  },
+  {
+    "name": "CRR Firms Supervised Run-Off",
+    "url": "https://www.prarulebook.co.uk/pra-rules/supervised-run-off"
+  },
+  {
+    "name": "CRR Firms Trading Book (CRR)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/trading-book-crr"
+  },
+  {
+    "name": "CRR Firms Waivers Transitional Provisions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/waivers-transitional-provisions"
+  },
+  {
+    "name": "Non-authorised persons Auditors",
+    "url": "https://www.prarulebook.co.uk/pra-rules/auditors"
+  },
+  {
+    "name": "Non-authorised persons Contractual Recognition Of Bail-In",
+    "url": "https://www.prarulebook.co.uk/pra-rules/contractual-recognition-of-bail-in"
+  },
+  {
+    "name": "Non-authorised persons Critical Third Parties",
+    "url": "https://www.prarulebook.co.uk/pra-rules/critical-third-parties"
+  },
+  {
+    "name": "Non-authorised persons Depositor Protection",
+    "url": "https://www.prarulebook.co.uk/pra-rules/depositor-protection"
+  },
+  {
+    "name": "Non-authorised persons Dormant Account Scheme (Deleted)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/dormant-account-scheme"
+  },
+  {
+    "name": "Non-authorised persons Fees",
+    "url": "https://www.prarulebook.co.uk/pra-rules/fees"
+  },
+  {
+    "name": "Non-authorised persons Financial Conglomerates",
+    "url": "https://www.prarulebook.co.uk/pra-rules/financial-conglomerates"
+  },
+  {
+    "name": "Non-authorised persons FSCS Management Expenses Levy Limit and Base Costs",
+    "url": "https://www.prarulebook.co.uk/pra-rules/fscs-management-expenses-levy-limit-and-base-costs"
+  },
+  {
+    "name": "Non-authorised persons General Provisions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/general-provisions"
+  },
+  {
+    "name": "Non-authorised persons Group Financial Support",
+    "url": "https://www.prarulebook.co.uk/pra-rules/group-financial-support"
+  },
+  {
+    "name": "Non-authorised persons Interpretation",
+    "url": "https://www.prarulebook.co.uk/pra-rules/interpretation"
+  },
+  {
+    "name": "Non-authorised persons Management Expenses in Respect of Relevant Schemes",
+    "url": "https://www.prarulebook.co.uk/pra-rules/management-expenses-in-respect-of-relevant-schemes"
+  },
+  {
+    "name": "Non-authorised persons Recovery Plans",
+    "url": "https://www.prarulebook.co.uk/pra-rules/recovery-plans"
+  },
+  {
+    "name": "Non-authorised persons Resolution Pack",
+    "url": "https://www.prarulebook.co.uk/pra-rules/resolution-pack"
+  },
+  {
+    "name": "Non-authorised persons Ring-fenced Bodies",
+    "url": "https://www.prarulebook.co.uk/pra-rules/ring-fenced-bodies"
+  },
+  {
+    "name": "Non-authorised persons Stay in Resolution",
+    "url": "https://www.prarulebook.co.uk/pra-rules/stay-in-resolution"
+  },
+  {
+    "name": "Non-CRR Firms Allocation of Responsibilities",
+    "url": "https://www.prarulebook.co.uk/pra-rules/allocation-of-responsibilities"
+  },
+  {
+    "name": "Non-CRR Firms Certification",
+    "url": "https://www.prarulebook.co.uk/pra-rules/certification"
+  },
+  {
+    "name": "Non-CRR Firms Change in Control",
+    "url": "https://www.prarulebook.co.uk/pra-rules/change-in-control"
+  },
+  {
+    "name": "Non-CRR Firms Close Links",
+    "url": "https://www.prarulebook.co.uk/pra-rules/close-links"
+  },
+  {
+    "name": "Non-CRR Firms Conduct Rules",
+    "url": "https://www.prarulebook.co.uk/pra-rules/conduct-rules"
+  },
+  {
+    "name": "Non-CRR Firms Credit Unions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/credit-unions"
+  },
+  {
+    "name": "Non-CRR Firms Fitness and Propriety",
+    "url": "https://www.prarulebook.co.uk/pra-rules/fitness-and-propriety"
+  },
+  {
+    "name": "Non-CRR Firms Fundamental Rules",
+    "url": "https://www.prarulebook.co.uk/pra-rules/fundamental-rules"
+  },
+  {
+    "name": "Non-CRR Firms Housing",
+    "url": "https://www.prarulebook.co.uk/pra-rules/housing"
+  },
+  {
+    "name": "Non-CRR Firms Information Gathering",
+    "url": "https://www.prarulebook.co.uk/pra-rules/information-gathering"
+  },
+  {
+    "name": "Non-CRR Firms Internal Governance of Third Country Branches",
+    "url": "https://www.prarulebook.co.uk/pra-rules/internal-governance-of-third-country-branches"
+  },
+  {
+    "name": "Non-CRR Firms Notifications",
+    "url": "https://www.prarulebook.co.uk/pra-rules/notifications"
+  },
+  {
+    "name": "Non-CRR Firms Passporting (Deleted)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/passporting-deleted"
+  },
+  {
+    "name": "Non-CRR Firms Permissions and Waivers",
+    "url": "https://www.prarulebook.co.uk/pra-rules/permissions-and-waivers"
+  },
+  {
+    "name": "Non-CRR Firms Recovery and Resolution (Deleted)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/recovery-and-resolution"
+  },
+  {
+    "name": "Non-CRR Firms Remuneration Reporting Requirements (Deleted)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/remuneration-reporting-requirements"
+  },
+  {
+    "name": "Non-CRR Firms Securitisation",
+    "url": "https://www.prarulebook.co.uk/pra-rules/securitisation"
+  },
+  {
+    "name": "Non-CRR Firms Senior Management Functions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/senior-management-functions"
+  },
+  {
+    "name": "Non-CRR Firms Senior Managers Regime - Applications and Notifications",
+    "url": "https://www.prarulebook.co.uk/pra-rules/senior-managers-regime---applications-and-notifications"
+  },
+  {
+    "name": "Non-CRR Firms Senior Managers Regime - Transitional Provisions (Deleted)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/senior-managers-regime---transitional-provisions"
+  },
+  {
+    "name": "Non-CRR Firms Third Country Firms",
+    "url": "https://www.prarulebook.co.uk/pra-rules/third-country-firms"
+  },
+  {
+    "name": "Non-CRR Firms Use of Skilled Persons",
+    "url": "https://www.prarulebook.co.uk/pra-rules/use-of-skilled-persons"
+  },
+  {
+    "name": "Non-SII Firms Friendly Society - Asset Valuation",
+    "url": "https://www.prarulebook.co.uk/pra-rules/friendly-society---asset-valuation"
+  },
+  {
+    "name": "Non-SII Firms Friendly Society - Overall Resources and Guarantee Fund",
+    "url": "https://www.prarulebook.co.uk/pra-rules/friendly-society---overall-resources-and-guarantee-fund"
+  },
+  {
+    "name": "Non-SII Firms Friendly Society - Reporting",
+    "url": "https://www.prarulebook.co.uk/pra-rules/friendly-society---reporting"
+  },
+  {
+    "name": "Non-SII Firms Friendly Society – Financial Prudence",
+    "url": "https://www.prarulebook.co.uk/pra-rules/friendly-society-financial-prudence"
+  },
+  {
+    "name": "Non-SII Firms Friendly Society – Liability Valuation",
+    "url": "https://www.prarulebook.co.uk/pra-rules/friendly-society-liability-valuation"
+  },
+  {
+    "name": "Non-SII Firms Friendly Society – Required Margin",
+    "url": "https://www.prarulebook.co.uk/pra-rules/friendly-society-required-margin"
+  },
+  {
+    "name": "Non-SII Firms Insurance Company - Capital Resources",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-company---capital-resources"
+  },
+  {
+    "name": "Non-SII Firms Insurance Company - Internal Contagion Risk",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-company---internal-contagion-risk"
+  },
+  {
+    "name": "Non-SII Firms Insurance Company - Reporting",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-company---reporting"
+  },
+  {
+    "name": "Non-SII Firms Insurance Company - Technical Provisions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-company---technical-provisions"
+  },
+  {
+    "name": "Non-SII Firms Insurance Company – Capital Resources Requirements",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-company-capital-resources-requirements"
+  },
+  {
+    "name": "Non-SII Firms Insurance Company – Capital Resources Table",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-company-capital-resources-table"
+  },
+  {
+    "name": "Non-SII Firms Insurance Company – Exposure Limits",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-company-exposure-limits"
+  },
+  {
+    "name": "Non-SII Firms Insurance Company – Mathematical Reserves",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-company-mathematical-reserves"
+  },
+  {
+    "name": "Non-SII Firms Insurance Company – Overall Resources and Valuation",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-company-overall-resources-and-valuation"
+  },
+  {
+    "name": "Non-SII Firms Insurance Company – Risk Management",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-company-risk-management"
+  },
+  {
+    "name": "Non-SII Firms Large Non-Solvency II Firms – Allocation of Responsibilities",
+    "url": "https://www.prarulebook.co.uk/pra-rules/large-non-solvency-ii-firms-allocation-of-responsibilities"
+  },
+  {
+    "name": "Non-SII Firms Large Non-Solvency II Firms – Certification",
+    "url": "https://www.prarulebook.co.uk/pra-rules/large-non-solvency-ii-firms-certification"
+  },
+  {
+    "name": "Non-SII Firms Large Non-Solvency II Firms – Conduct Standards",
+    "url": "https://www.prarulebook.co.uk/pra-rules/large-non-solvency-ii-firms-conduct-standards"
+  },
+  {
+    "name": "Non-SII Firms Large Non-Solvency II Firms – Fitness and Propriety",
+    "url": "https://www.prarulebook.co.uk/pra-rules/large-non-solvency-ii-firms-fitness-and-propriety"
+  },
+  {
+    "name": "Non-SII Firms Large Non-Solvency II Firms – Key Function Holder – Notifications",
+    "url": "https://www.prarulebook.co.uk/pra-rules/large-non-solvency-ii-firms-key-function-holder-notifications"
+  },
+  {
+    "name": "Non-SII Firms Large Non-Solvency II Firms – Senior Management Functions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/large-non-solvency-ii-firms-senior-management-functions"
+  },
+  {
+    "name": "Non-SII Firms Large Non-Solvency II Firms – Senior Managers Regime – Applications and Notifications",
+    "url": "https://www.prarulebook.co.uk/pra-rules/large-non-solvency-ii-firms-senior-managers-regime-applications-and-notifications"
+  },
+  {
+    "name": "Non-SII Firms Large Non-Solvency II Firms – Senior Managers Regime – Transitional Provisions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/large-non-solvency-ii-firms-senior-managers-regime-transitional-provisions"
+  },
+  {
+    "name": "Non-SII Firms Non-solvency II Firms - Allocation of Responsibilities",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms---allocation-of-responsibilities"
+  },
+  {
+    "name": "Non-SII Firms Non-Solvency II Firms - Conduct Standards",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms---conduct-standards"
+  },
+  {
+    "name": "Non-SII Firms Non-Solvency II Firms - Fitness and Propriety",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms---fitness-and-propriety"
+  },
+  {
+    "name": "Non-SII Firms Non-Solvency II Firms - Run-off Firms",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms---run-off-firms"
+  },
+  {
+    "name": "Non-SII Firms Non-Solvency II Firms - Senior Management Functions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms---senior-management-functions"
+  },
+  {
+    "name": "Non-SII Firms Non-Solvency II Firms – Certification",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms-certification"
+  },
+  {
+    "name": "Non-SII Firms Non-Solvency II Firms – Governance",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms-governance"
+  },
+  {
+    "name": "Non-SII Firms Non-Solvency II Firms – Senior Managers Regime – Applications and Notifications",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms-senior-managers-regime-applications-and-notifications"
+  },
+  {
+    "name": "Non-SII Firms Non-Solvency II Firms – Senior Managers Regime – Transitional Provisions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms-senior-managers-regime-transitional-provisions"
+  },
+  {
+    "name": "Non-SII Firms Non-Solvency II Firms – With-Profits",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms-with-profits"
+  },
+  {
+    "name": "Non-SII Firms Non–Solvency II Firms – Transitional Measures",
+    "url": "https://www.prarulebook.co.uk/pra-rules/nonsolvency-ii-firms-transitional-measures"
+  },
+  {
+    "name": "Non-SII Firms Run-Off Operations",
+    "url": "https://www.prarulebook.co.uk/pra-rules/run-off-operations-non_directive-insurers"
+  },
+  {
+    "name": "SII Firms Actuaries",
+    "url": "https://www.prarulebook.co.uk/pra-rules/actuaries"
+  },
+  {
+    "name": "SII Firms Audit Committee",
+    "url": "https://www.prarulebook.co.uk/pra-rules/audit-committee"
+  },
+  {
+    "name": "SII Firms Composites",
+    "url": "https://www.prarulebook.co.uk/pra-rules/composites"
+  },
+  {
+    "name": "SII Firms Conditions Governing Business",
+    "url": "https://www.prarulebook.co.uk/pra-rules/conditions-governing-business"
+  },
+  {
+    "name": "SII Firms Group Supervision",
+    "url": "https://www.prarulebook.co.uk/pra-rules/group-supervision"
+  },
+  {
+    "name": "SII Firms Insurance - Allocation of Responsibilities",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance---allocation-of-responsibilities"
+  },
+  {
+    "name": "SII Firms Insurance - Certification",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance---certification"
+  },
+  {
+    "name": "SII Firms Insurance - Conduct Standards",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance---conduct-standards"
+  },
+  {
+    "name": "SII Firms Insurance - Fitness and Propriety",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance---fitness-and-propriety"
+  },
+  {
+    "name": "SII Firms Insurance - Operational Resilience",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance---operational-resilience"
+  },
+  {
+    "name": "SII Firms Insurance - Senior Management Functions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance---senior-management-functions"
+  },
+  {
+    "name": "SII Firms Insurance - Senior Managers Regime - Applications and Notifications",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance---senior-managers-regime---applications-and-notifications"
+  },
+  {
+    "name": "SII Firms Insurance - Senior Managers Regime - Transitional Provisions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance---senior-managers-regime---transitional-provisions"
+  },
+  {
+    "name": "SII Firms Insurance – Supervised Run-off",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-supervised-run-off"
+  },
+  {
+    "name": "SII Firms Insurance Special Purpose Vehicles",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-special-purpose-vehicles"
+  },
+  {
+    "name": "SII Firms Insurers in Financial Difficulties: Notification of Affected Persons",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurers-in-financial-difficulties-notification-of-affected-persons"
+  },
+  {
+    "name": "SII Firms Investments",
+    "url": "https://www.prarulebook.co.uk/pra-rules/investments"
+  },
+  {
+    "name": "SII Firms Key Function Holder - Notifications",
+    "url": "https://www.prarulebook.co.uk/pra-rules/key-function-holder---notifications"
+  },
+  {
+    "name": "SII Firms Lloyd’s",
+    "url": "https://www.prarulebook.co.uk/pra-rules/lloyds"
+  },
+  {
+    "name": "SII Firms Matching Adjustment",
+    "url": "https://www.prarulebook.co.uk/pra-rules/matching-adjustment"
+  },
+  {
+    "name": "SII Firms Minimum Capital Requirement",
+    "url": "https://www.prarulebook.co.uk/pra-rules/minimum-capital-requirement"
+  },
+  {
+    "name": "SII Firms Own Funds",
+    "url": "https://www.prarulebook.co.uk/pra-rules/own-funds"
+  },
+  {
+    "name": "SII Firms Reporting",
+    "url": "https://www.prarulebook.co.uk/pra-rules/reporting"
+  },
+  {
+    "name": "SII Firms Run-off Operations",
+    "url": "https://www.prarulebook.co.uk/pra-rules/run-off-operations-solvency-ii"
+  },
+  {
+    "name": "SII Firms Solvency Capital Requirement - General Provisions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/solvency-capital-requirement---general-provisions"
+  },
+  {
+    "name": "SII Firms Solvency Capital Requirement - Internal Models",
+    "url": "https://www.prarulebook.co.uk/pra-rules/solvency-capital-requirement---internal-models"
+  },
+  {
+    "name": "SII Firms Solvency Capital Requirement - Standard Formula",
+    "url": "https://www.prarulebook.co.uk/pra-rules/solvency-capital-requirement---standard-formula"
+  },
+  {
+    "name": "SII Firms Solvency Capital Requirement - Undertaking Specific Parameters",
+    "url": "https://www.prarulebook.co.uk/pra-rules/solvency-capital-requirement---undertaking-specific-parameters"
+  },
+  {
+    "name": "SII Firms Surplus Funds",
+    "url": "https://www.prarulebook.co.uk/pra-rules/surplus-funds"
+  },
+  {
+    "name": "SII Firms Technical Provisions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/technical-provisions"
+  },
+  {
+    "name": "SII Firms Technical Provisions - Further Requirements",
+    "url": "https://www.prarulebook.co.uk/pra-rules/technical-provisions-further-requirements"
+  },
+  {
+    "name": "SII Firms Third Country Branches",
+    "url": "https://www.prarulebook.co.uk/pra-rules/third-country-branches"
+  },
+  {
+    "name": "SII Firms Transitional Measure on Technical Provisions",
+    "url": "https://www.prarulebook.co.uk/pra-rules/transitional-measure-on-technical-provisions"
+  },
+  {
+    "name": "SII Firms Transitional Measures",
+    "url": "https://www.prarulebook.co.uk/pra-rules/transitional-measures"
+  },
+  {
+    "name": "SII Firms Undertakings in Difficulty",
+    "url": "https://www.prarulebook.co.uk/pra-rules/undertakings-in-difficulty"
+  },
+  {
+    "name": "SII Firms Valuation",
+    "url": "https://www.prarulebook.co.uk/pra-rules/valuation"
+  },
+  {
+    "name": "SII Firms Whistleblowing",
+    "url": "https://www.prarulebook.co.uk/pra-rules/whistleblowing"
+  },
+  {
+    "name": "SII Firms With-Profits",
+    "url": "https://www.prarulebook.co.uk/pra-rules/with-profits"
+  }
+];
 
-// Helper: remove trailing /dd-mm-yyyy if present
-const stripDate = (url) => url.replace(/\/\d{2}-\d{2}-\d{4}$/, '');
+export const PRA_INSURANCE_RULES = [
+  {
+    "name": "Non-authorised persons External Audit",
+    "url": "https://www.prarulebook.co.uk/pra-rules/external-audit"
+  },
+  {
+    "name": "Non-authorised persons Lloyd's: Actuaries, Auditors and FSCS (Deleted)",
+    "url": "https://www.prarulebook.co.uk/pra-rules/lloyds-actuaries-auditors-and-fscs"
+  },
+  {
+    "name": "Non-authorised persons Non-Solvency II Firms – Actuarial Requirements",
+    "url": "https://www.prarulebook.co.uk/pra-rules/non-solvency-ii-firms-actuarial-requirements"
+  },
+  {
+    "name": "Non-authorised persons Policyholder Protection",
+    "url": "https://www.prarulebook.co.uk/pra-rules/policyholder-protection"
+  },
+  {
+    "name": "Non-SII Firms Insurance General Application",
+    "url": "https://www.prarulebook.co.uk/pra-rules/insurance-general-application"
+  }
+];
 
-export const PRA_RULES = (NON_INSURANCE || []).map(({ name, url }) => ({
-  name,
-  url: stripDate(url),
-}));
-
-export const PRA_INSURANCE_RULES = (INSURANCE_ONLY || []).map(({ name, url }) => ({
-  name,
-  url: stripDate(url),
-}));
-
-export default { PRA_RULES, PRA_INSURANCE_RULES };
+// Optionally export types via JSDoc if you want autocompletion.
+/**
+ * @typedef {{ name: string, url: string, reference?: string }} Rule
+ */
