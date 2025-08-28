@@ -26,7 +26,7 @@ const OperatorDashboard = lazy(() => import("./pages/OperatorDashboard"));
 const OperatorIngestions = lazy(() => import("./pages/operator/operator-ingestions"));
 const OperatorVersions = lazy(() => import("./pages/operator/operator-versions"));
 const Regs = lazy(() => import("./pages/Regs"));
-const PRACollectionDashboard = lazy(() => import("./pages/PRACollection"));
+const PRACollection = lazy(() => import("./pages/PRACollection"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // ---- Suspense fallback ----
