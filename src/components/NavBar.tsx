@@ -18,9 +18,7 @@ const NavBar = () => {
           <Link to="/" className="font-semibold">Reggio</Link>
           <Link to="/dashboard" className={isActive("/dashboard") ? "text-primary" : "text-muted-foreground"}>Dashboard</Link>
           <Link to="/clauses" className={isActive("/clauses") ? "text-primary" : "text-muted-foreground"}>Clauses</Link>
-          <Link to="/brief" className={isActive("/brief") ? "text-primary" : "text-muted-foreground"}>Board Brief</Link>
-          <Link to="/brief" className={isActive("/brief") ? "text-primary" : "text-muted-foreground"}>OperatorDashboard</Link>
-          <Link to="/brief" className={isActive("/brief") ? "text-primary" : "text-muted-foreground"}>PRACollectionDashboard</Link>
+          <Link to="/brief" className={isActive("/brief") ? "text-primary" : "text-muted-foreground"}>Board Brief</Link> 
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
