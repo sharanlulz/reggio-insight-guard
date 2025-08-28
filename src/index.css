@@ -11,7 +11,7 @@
   :root {
     /* Core System Colors */
     --background: 0 0% 100%;
-    --foreground: 0 0% 9%; /* neutral-900 equivalent */
+    --foreground: 0 0% 9%;
 
     --card: 0 0% 100%;
     --card-foreground: 0 0% 9%;
@@ -19,41 +19,41 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 9%;
 
-    /* Primary - Professional blue that inspires trust */
-    --primary: 217 91% 60%; /* #3b82f6 */
+    /* Primary */
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary - Sophisticated neutrals */
-    --secondary: 0 0% 96%; /* neutral-100 */
-    --secondary-foreground: 0 0% 25%; /* neutral-700 */
+    /* Secondary */
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 25%;
 
     --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%; /* neutral-500 */
+    --muted-foreground: 0 0% 45%;
 
     --accent: 0 0% 96%;
     --accent-foreground: 0 0% 9%;
 
-    /* Semantic Colors */
-    --destructive: 0 84% 60%; /* danger-500 */
+    /* Semantic */
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 158 64% 52%; /* success-500 #10b981 */
+    --success: 158 64% 52%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 43 96% 56%; /* warning-500 #f59e0b */
+    --warning: 43 96% 56%;
     --warning-foreground: 0 0% 100%;
 
     /* Borders and Inputs */
-    --border: 0 0% 90%; /* neutral-200 */
+    --border: 0 0% 90%;
     --input: 0 0% 90%;
     --ring: 217 91% 60%;
 
-    /* Border Radius */
+    /* Radius */
     --radius: 0.5rem;
 
-    /* Sidebar Colors */
+    /* Sidebar */
     --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 0 0% 32%; /* neutral-600 */
+    --sidebar-foreground: 0 0% 32%;
     --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 96%;
@@ -61,19 +61,17 @@
     --sidebar-border: 0 0% 90%;
     --sidebar-ring: 217 91% 60%;
 
-    /* REGGIO Brand Colors - Enhanced System */
-    --reggio-primary: 217 91% 60%; /* #3b82f6 - Main primary */
-    --reggio-primary-hover: 217 91% 54%; /* #2563eb - Hover state */
-    --reggio-primary-active: 217 91% 48%; /* #1d4ed8 - Active state */
-    
-    --reggio-accent: 158 64% 52%; /* #10b981 - Success/accent */
-    --reggio-accent-hover: 158 73% 46%; /* #059669 - Hover */
-    
-    --reggio-success: 158 64% 52%; /* #10b981 - Compliant status */
-    --reggio-warning: 43 96% 56%; /* #f59e0b - Warning status */
-    --reggio-error: 0 84% 60%; /* #ef4444 - Breach status */
+    /* REGGIO Brand */
+    --reggio-primary: 217 91% 60%;
+    --reggio-primary-hover: 217 91% 54%;
+    --reggio-primary-active: 217 91% 48%;
+    --reggio-accent: 158 64% 52%;
+    --reggio-accent-hover: 158 73% 46%;
+    --reggio-success: 158 64% 52%;
+    --reggio-warning: 43 96% 56%;
+    --reggio-error: 0 84% 60%;
 
-    /* Neutral Scale - Stripe-inspired grays */
+    /* Neutral Scale */
     --neutral-0: 0 0% 100%;
     --neutral-50: 0 0% 98%;
     --neutral-100: 0 0% 96%;
@@ -87,7 +85,7 @@
     --neutral-900: 0 0% 9%;
     --neutral-950: 0 0% 4%;
 
-    /* Primary Color Scale */
+    /* Primary Scale */
     --primary-50: 214 100% 97%;
     --primary-100: 214 95% 93%;
     --primary-200: 213 97% 87%;
@@ -99,28 +97,28 @@
     --primary-800: 226 71% 40%;
     --primary-900: 224 64% 33%;
 
-    /* Success Color Scale */
+    /* Success Scale */
     --success-50: 166 76% 97%;
     --success-100: 167 85% 89%;
     --success-500: 158 64% 52%;
     --success-600: 158 73% 46%;
     --success-700: 158 75% 40%;
 
-    /* Warning Color Scale */
+    /* Warning Scale */
     --warning-50: 48 100% 96%;
     --warning-100: 48 96% 89%;
     --warning-500: 43 96% 56%;
     --warning-600: 32 95% 44%;
     --warning-700: 26 90% 37%;
 
-    /* Danger Color Scale */
+    /* Danger Scale */
     --danger-50: 0 86% 97%;
     --danger-100: 0 93% 94%;
     --danger-500: 0 84% 60%;
     --danger-600: 0 72% 51%;
     --danger-700: 0 74% 42%;
 
-    /* Shadows - Sophisticated elevation */
+    /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-base: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -134,8 +132,8 @@
   }
 
   .dark {
-    --background: 0 0% 4%; /* neutral-950 */
-    --foreground: 0 0% 98%; /* neutral-50 */
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
 
     --card: 0 0% 4%;
     --card-foreground: 0 0% 98%;
@@ -146,16 +144,16 @@
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 15%; /* neutral-800 */
+    --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 98%;
 
     --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 64%; /* neutral-400 */
+    --muted-foreground: 0 0% 64%;
 
     --accent: 0 0% 15%;
     --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 62% 31%; /* Darker red for dark mode */
+    --destructive: 0 62% 31%;
     --destructive-foreground: 0 0% 98%;
 
     --success: 158 64% 52%;
@@ -164,11 +162,11 @@
     --warning: 43 96% 56%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 0 0% 15%; /* neutral-800 */
+    --border: 0 0% 15%;
     --input: 0 0% 15%;
     --ring: 217 91% 60%;
 
-    --sidebar-background: 0 0% 9%; /* neutral-900 */
+    --sidebar-background: 0 0% 9%;
     --sidebar-foreground: 0 0% 96%;
     --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
@@ -177,19 +175,7 @@
     --sidebar-border: 0 0% 15%;
     --sidebar-ring: 217 91% 60%;
 
-    /* REGGIO Brand Colors for Dark Mode */
-    --reggio-primary: 217 91% 60%;
-    --reggio-primary-hover: 217 91% 54%;
-    --reggio-primary-active: 217 91% 48%;
-    
-    --reggio-accent: 158 64% 52%;
-    --reggio-accent-hover: 158 73% 46%;
-    
-    --reggio-success: 158 64% 52%;
-    --reggio-warning: 43 96% 56%;
-    --reggio-error: 0 84% 60%;
-
-    /* Dark mode neutral scale adjustments */
+    /* Dark neutrals */
     --neutral-0: 0 0% 4%;
     --neutral-50: 0 0% 9%;
     --neutral-100: 0 0% 15%;
@@ -217,78 +203,60 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Typography improvements */
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
   }
 
-  h1 {
-    @apply text-4xl lg:text-5xl;
-  }
+  h1 { @apply text-4xl lg:text-5xl; }
+  h2 { @apply text-3xl lg:text-4xl; }
+  h3 { @apply text-2xl lg:text-3xl; }
 
-  h2 {
-    @apply text-3xl lg:text-4xl;
-  }
-
-  h3 {
-    @apply text-2xl lg:text-3xl;
-  }
-
-  /* Smooth transitions for all interactive elements */
   button, a, [role="button"] {
     @apply transition-all duration-200 ease-in-out;
   }
 }
 
 @layer components {
-  /* Enhanced button variants */
+  /* Buttons */
   .btn-primary {
     @apply bg-reggio-primary text-white hover:bg-reggio-primary-hover focus:ring-2 focus:ring-reggio-primary focus:ring-offset-2 transition-all duration-200;
   }
-
   .btn-secondary {
     @apply bg-neutral-100 text-neutral-700 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-300 focus:ring-offset-2 transition-all duration-200;
   }
-
   .btn-success {
     @apply bg-reggio-success text-white hover:bg-success-600 focus:ring-2 focus:ring-reggio-success focus:ring-offset-2 transition-all duration-200;
   }
-
   .btn-warning {
     @apply bg-reggio-warning text-white hover:bg-warning-600 focus:ring-2 focus:ring-reggio-warning focus:ring-offset-2 transition-all duration-200;
   }
-
   .btn-danger {
     @apply bg-reggio-error text-white hover:bg-danger-600 focus:ring-2 focus:ring-reggio-error focus:ring-offset-2 transition-all duration-200;
   }
 
-  /* Card variants */
+  /* Cards */
   .card-elevated {
     @apply bg-card border-0 shadow-lg hover:shadow-xl transition-shadow duration-200;
   }
-
   .card-interactive {
     @apply hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer;
   }
 
-  /* Status indicators */
+  /* Status */
   .status-compliant {
     @apply bg-success-50 border-success-200 text-success-700;
   }
-
   .status-warning {
     @apply bg-warning-50 border-warning-200 text-warning-700;
   }
-
   .status-breach {
     @apply bg-danger-50 border-danger-200 text-danger-700;
   }
 
-  /* Gradient backgrounds */
+  /* Gradients */
   .gradient-primary {
     background: linear-gradient(135deg, hsl(var(--reggio-primary)), hsl(var(--reggio-accent)));
   }
-
   .gradient-subtle {
     background: linear-gradient(180deg, hsl(var(--neutral-50)), hsl(var(--background)));
   }
