@@ -26,6 +26,8 @@ const navigation = [
   { name: 'Compliance', href: '/compliance', icon: Shield },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Reports', href: '/reports', icon: FileText },
+  { name: 'Regulation Test', href: '/pra-collection', icon: Monitor },
+  { name: 'Operator Test', href: '/operator', icon: Monitor }
 ];
 
 interface AppShellProps {
