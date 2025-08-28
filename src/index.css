@@ -1,6 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -12,18 +9,16 @@
     /* Core System Colors */
     --background: 0 0% 100%;
     --foreground: 0 0% 9%;
-
     --card: 0 0% 100%;
     --card-foreground: 0 0% 9%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 9%;
 
-    /* Primary */
+    /* Primary - Professional blue that inspires trust */
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary */
+    /* Secondary - Sophisticated neutrals */
     --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 25%;
 
@@ -33,7 +28,7 @@
     --accent: 0 0% 96%;
     --accent-foreground: 0 0% 9%;
 
-    /* Semantic */
+    /* Semantic Colors */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
@@ -48,10 +43,10 @@
     --input: 0 0% 90%;
     --ring: 217 91% 60%;
 
-    /* Radius */
+    /* Border Radius */
     --radius: 0.5rem;
 
-    /* Sidebar */
+    /* Sidebar Colors */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 0 0% 32%;
     --sidebar-primary: 217 91% 60%;
@@ -61,7 +56,7 @@
     --sidebar-border: 0 0% 90%;
     --sidebar-ring: 217 91% 60%;
 
-    /* REGGIO Brand */
+    /* REGGIO Brand Colors - Enhanced System */
     --reggio-primary: 217 91% 60%;
     --reggio-primary-hover: 217 91% 54%;
     --reggio-primary-active: 217 91% 48%;
@@ -71,7 +66,7 @@
     --reggio-warning: 43 96% 56%;
     --reggio-error: 0 84% 60%;
 
-    /* Neutral Scale */
+    /* Neutral Scale - Stripe-inspired grays */
     --neutral-0: 0 0% 100%;
     --neutral-50: 0 0% 98%;
     --neutral-100: 0 0% 96%;
@@ -85,7 +80,7 @@
     --neutral-900: 0 0% 9%;
     --neutral-950: 0 0% 4%;
 
-    /* Primary Scale */
+    /* Primary Color Scale */
     --primary-50: 214 100% 97%;
     --primary-100: 214 95% 93%;
     --primary-200: 213 97% 87%;
@@ -97,28 +92,28 @@
     --primary-800: 226 71% 40%;
     --primary-900: 224 64% 33%;
 
-    /* Success Scale */
+    /* Success Color Scale */
     --success-50: 166 76% 97%;
     --success-100: 167 85% 89%;
     --success-500: 158 64% 52%;
     --success-600: 158 73% 46%;
     --success-700: 158 75% 40%;
 
-    /* Warning Scale */
+    /* Warning Color Scale */
     --warning-50: 48 100% 96%;
     --warning-100: 48 96% 89%;
     --warning-500: 43 96% 56%;
     --warning-600: 32 95% 44%;
     --warning-700: 26 90% 37%;
 
-    /* Danger Scale */
+    /* Danger Color Scale */
     --danger-50: 0 86% 97%;
     --danger-100: 0 93% 94%;
     --danger-500: 0 84% 60%;
     --danger-600: 0 72% 51%;
     --danger-700: 0 74% 42%;
 
-    /* Shadows */
+    /* Shadows - Sophisticated elevation */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-base: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -134,38 +129,27 @@
   .dark {
     --background: 0 0% 4%;
     --foreground: 0 0% 98%;
-
     --card: 0 0% 4%;
     --card-foreground: 0 0% 98%;
-
     --popover: 0 0% 4%;
     --popover-foreground: 0 0% 98%;
-
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 98%;
-
     --muted: 0 0% 15%;
     --muted-foreground: 0 0% 64%;
-
     --accent: 0 0% 15%;
     --accent-foreground: 0 0% 98%;
-
     --destructive: 0 62% 31%;
     --destructive-foreground: 0 0% 98%;
-
     --success: 158 64% 52%;
     --success-foreground: 0 0% 100%;
-
     --warning: 43 96% 56%;
     --warning-foreground: 0 0% 100%;
-
     --border: 0 0% 15%;
     --input: 0 0% 15%;
     --ring: 217 91% 60%;
-
     --sidebar-background: 0 0% 9%;
     --sidebar-foreground: 0 0% 96%;
     --sidebar-primary: 217 91% 60%;
@@ -175,7 +159,7 @@
     --sidebar-border: 0 0% 15%;
     --sidebar-ring: 217 91% 60%;
 
-    /* Dark neutrals */
+    /* Dark mode neutral scale adjustments */
     --neutral-0: 0 0% 4%;
     --neutral-50: 0 0% 9%;
     --neutral-100: 0 0% 15%;
@@ -192,9 +176,7 @@
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
 
   body {
     @apply bg-background text-foreground font-sans;
@@ -203,61 +185,34 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold tracking-tight;
-  }
-
+  /* Typography */
+  h1, h2, h3, h4, h5, h6 { @apply font-semibold tracking-tight; }
   h1 { @apply text-4xl lg:text-5xl; }
   h2 { @apply text-3xl lg:text-4xl; }
   h3 { @apply text-2xl lg:text-3xl; }
 
-  button, a, [role="button"] {
-    @apply transition-all duration-200 ease-in-out;
-  }
+  /* Smooth transitions */
+  button, a, [role="button"] { @apply transition-all duration-200 ease-in-out; }
 }
 
 @layer components {
   /* Buttons */
-  .btn-primary {
-    @apply bg-reggio-primary text-white hover:bg-reggio-primary-hover focus:ring-2 focus:ring-reggio-primary focus:ring-offset-2 transition-all duration-200;
-  }
-  .btn-secondary {
-    @apply bg-neutral-100 text-neutral-700 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-300 focus:ring-offset-2 transition-all duration-200;
-  }
-  .btn-success {
-    @apply bg-reggio-success text-white hover:bg-success-600 focus:ring-2 focus:ring-reggio-success focus:ring-offset-2 transition-all duration-200;
-  }
-  .btn-warning {
-    @apply bg-reggio-warning text-white hover:bg-warning-600 focus:ring-2 focus:ring-reggio-warning focus:ring-offset-2 transition-all duration-200;
-  }
-  .btn-danger {
-    @apply bg-reggio-error text-white hover:bg-danger-600 focus:ring-2 focus:ring-reggio-error focus:ring-offset-2 transition-all duration-200;
-  }
+  .btn-primary { @apply bg-reggio-primary text-white hover:bg-reggio-primary-hover focus:ring-2 focus:ring-reggio-primary focus:ring-offset-2 transition-all duration-200; }
+  .btn-secondary { @apply bg-neutral-100 text-neutral-700 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-300 focus:ring-offset-2 transition-all duration-200; }
+  .btn-success { @apply bg-reggio-success text-white hover:bg-success-600 focus:ring-2 focus:ring-reggio-success focus:ring-offset-2 transition-all duration-200; }
+  .btn-warning { @apply bg-reggio-warning text-white hover:bg-warning-600 focus:ring-2 focus:ring-reggio-warning focus:ring-offset-2 transition-all duration-200; }
+  .btn-danger { @apply bg-reggio-error text-white hover:bg-danger-600 focus:ring-2 focus:ring-reggio-error focus:ring-offset-2 transition-all duration-200; }
 
   /* Cards */
-  .card-elevated {
-    @apply bg-card border-0 shadow-lg hover:shadow-xl transition-shadow duration-200;
-  }
-  .card-interactive {
-    @apply hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer;
-  }
+  .card-elevated { @apply bg-card border-0 shadow-lg hover:shadow-xl transition-shadow duration-200; }
+  .card-interactive { @apply hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer; }
 
   /* Status */
-  .status-compliant {
-    @apply bg-success-50 border-success-200 text-success-700;
-  }
-  .status-warning {
-    @apply bg-warning-50 border-warning-200 text-warning-700;
-  }
-  .status-breach {
-    @apply bg-danger-50 border-danger-200 text-danger-700;
-  }
+  .status-compliant { @apply bg-success-50 border-success-200 text-success-700; }
+  .status-warning   { @apply bg-warning-50 border-warning-200 text-warning-700; }
+  .status-breach    { @apply bg-danger-50 border-danger-200 text-danger-700; }
 
   /* Gradients */
-  .gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--reggio-primary)), hsl(var(--reggio-accent)));
-  }
-  .gradient-subtle {
-    background: linear-gradient(180deg, hsl(var(--neutral-50)), hsl(var(--background)));
-  }
+  .gradient-primary { background: linear-gradient(135deg, hsl(var(--reggio-primary)), hsl(var(--reggio-accent))); }
+  .gradient-subtle  { background: linear-gradient(180deg, hsl(var(--neutral-50)), hsl(var(--background))); }
 }
