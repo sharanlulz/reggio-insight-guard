@@ -1,28 +1,31 @@
-import { useCallback, useEffect, useState } from "react";
+// src/pages/Clauses.tsx (hybrid-friendly)
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { withRetry } from "@/lib/supaRetry";
 
 type Regulation = { id: string; title: string; short_code: string };
-type Clause = {
+
+type ClauseRow = {
   id: string;
   regulation_id: string | null;
   document_id: string | null;
-  path_hierarchy: string;
-  number_label: string | null;
-  text_raw: string;
-  summary_plain: string | null;
+  path_hierarchy: string | null;   // from source_clauses: clause_number::text
+  number_label: string | null;     // ditto
+  text_raw: string;                // ALWAYS present in both sources
+  summary_plain: string | null;    // may be null for source_clauses
   obligation_type: string | null;
   risk_area: string | null;
-  themes: string[] | null;
-  industries: string[] | null;
+  themes: string[] | null;         // might be {}::text[] in view
+  industries: string[] | null;     // "
   created_at: string;
-  regulation_title: string | null;
-  regulation_short_code: string | null;
+  regulation_title: string | null;       // joined in the view
+  regulation_short_code: string | null;  // "
 };
 
+// -------- UI helpers --------
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50];
+
 const OBLIGATION_TYPES = [
   "MANDATORY",
   "RECOMMENDED",
@@ -33,6 +36,7 @@ const OBLIGATION_TYPES = [
   "RISK_MANAGEMENT",
   "RECORD_KEEPING",
 ];
+
 const RISK_AREAS = [
   "LIQUIDITY",
   "CAPITAL",
@@ -73,8 +77,16 @@ function highlightText(text: string, q: string) {
   );
 }
 
-export default function ClausesPage() {
-  // Filters
+function makePreview(summary: string | null, text: string, q: string) {
+  // Prefer summary when present; fallback to text_raw
+  const base = (summary && summary.trim().length > 0 ? summary : text).trim();
+  const trimmed = base.length > 600 ? base.slice(0, 600) + "…" : base;
+  return highlightText(trimmed, q);
+}
+
+// -------- Page --------
+export default function Clauses() {
+  // filters
   const [regs, setRegs] = useState<Regulation[]>([]);
   const [regId, setRegId] = useState("");
   const [risk, setRisk] = useState("");
@@ -82,106 +94,107 @@ export default function ClausesPage() {
   const [search, setSearch] = useState("");
   const [searchIn, setSearchIn] = useState<"both" | "summary" | "text">("both");
 
-  // Pagination
+  // paging
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(30);
   const [total, setTotal] = useState(0);
 
-  // Data
-  const [rows, setRows] = useState<Clause[]>([]);
+  // data
+  const [rows, setRows] = useState<ClauseRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   const debouncedQ = useDebounced(search, 350);
 
-  // Load regulations (for the dropdown)
+  // Load regulation drop-down
   useEffect(() => {
     (async () => {
-      const result = await withRetry(async () => {
-        const response = await supabase.from("regulations").select("id, title, short_code").order("title");
-        return response;
-      });
-      if (!result.error && result.data) setRegs(result.data as Regulation[]);
+      const { data, error } = await supabase
+        .from("regulations")
+        .select("id, title, short_code")
+        .order("title");
+      if (!error && data) setRegs(data as Regulation[]);
     })();
   }, []);
 
-  // COUNT + PAGE fetch via public.clauses_v
+  // Reset to first page on filter/search changes
+  useEffect(() => setPage(1), [regId, risk, obType, debouncedQ, searchIn]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(total / pageSize)),
+    [total, pageSize]
+  );
+
+  // Build base filter for both count & data queries
+  const applyFilters = useCallback(
+    (q: any) => {
+      if (regId) q = q.eq("regulation_id", regId);
+      if (risk) q = q.eq("risk_area", risk);
+      if (obType) q = q.eq("obligation_type", obType);
+
+      if (debouncedQ) {
+        const like = `%${debouncedQ}%`;
+        if (searchIn === "both") {
+          // summary OR raw text OR regulation title
+          q = q.or(
+            `summary_plain.ilike.${like},text_raw.ilike.${like},regulation_title.ilike.${like}`
+          );
+        } else if (searchIn === "summary") {
+          q = q.ilike("summary_plain", like);
+        } else {
+          q = q.ilike("text_raw", like);
+        }
+      }
+      return q;
+    },
+    [regId, risk, obType, debouncedQ, searchIn]
+  );
+
+  // Load (count + page)
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    // ----- COUNT (headers only) -----
+    // Count
     let countQ = supabase.from("clauses_v").select("*", { count: "exact", head: true });
-    if (regId) countQ = countQ.eq("regulation_id", regId);
-    if (risk) countQ = countQ.eq("risk_area", risk);
-    if (obType) countQ = countQ.eq("obligation_type", obType);
-    if (debouncedQ) {
-      const like = `%${debouncedQ}%`;
-      if (searchIn === "both") {
-        // Search across summary, raw text, AND regulation title for convenience
-        countQ = countQ.or(
-          `summary_plain.ilike.${like},text_raw.ilike.${like},regulation_title.ilike.${like}`
-        );
-      } else if (searchIn === "summary") {
-        countQ = countQ.ilike("summary_plain", like);
-      } else {
-        countQ = countQ.ilike("text_raw", like);
-      }
-    }
-    const countResult = await withRetry(async () => {
-      const response = await countQ;
-      return response;
-    });
-    setTotal(Number(countResult.count || 0));
+    countQ = applyFilters(countQ);
+    const countRes = await countQ;
+    setTotal(Number(countRes.count || 0));
 
-    // ----- DATA -----
-    let q = supabase
+    // Page
+    let dataQ = supabase
       .from("clauses_v")
       .select(
         "id, regulation_id, document_id, path_hierarchy, number_label, text_raw, summary_plain, obligation_type, risk_area, themes, industries, created_at, regulation_title, regulation_short_code"
       )
       .order("created_at", { ascending: false });
 
-    if (regId) q = q.eq("regulation_id", regId);
-    if (risk) q = q.eq("risk_area", risk);
-    if (obType) q = q.eq("obligation_type", obType);
-    if (debouncedQ) {
-      const like = `%${debouncedQ}%`;
-      if (searchIn === "both") {
-        q = q.or(
-          `summary_plain.ilike.${like},text_raw.ilike.${like},regulation_title.ilike.${like}`
-        );
-      } else if (searchIn === "summary") {
-        q = q.ilike("summary_plain", like);
-      } else {
-        q = q.ilike("text_raw", like);
-      }
-    }
+    dataQ = applyFilters(dataQ);
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
-    q = q.range(from, to);
+    dataQ = dataQ.range(from, to);
 
-    const result = await withRetry(async () => {
-      const response = await q;
-      return response;
-    });
-    setRows(!result.error && result.data ? (result.data as Clause[]) : []);
+    const dataRes = await dataQ;
+    setRows(!dataRes.error && dataRes.data ? (dataRes.data as ClauseRow[]) : []);
     setLoading(false);
-  }, [regId, risk, obType, debouncedQ, searchIn, page, pageSize]);
+  }, [applyFilters, page, pageSize]);
 
-  useEffect(() => setPage(1), [regId, risk, obType, debouncedQ, searchIn]);
-  useEffect(() => { fetchData(); }, [fetchData, page, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return (
-        <div className="space-y-4">
-          <div className="bg-card rounded-lg border p-4">
-            <h1 className="text-2xl font-bold text-card-foreground mb-4">Clauses</h1>
-          </div>
+    <div className="space-y-4">
+      <div className="bg-card rounded-lg border p-4">
+        <h1 className="text-2xl font-bold text-card-foreground mb-2">Clauses</h1>
+        <p className="text-sm text-muted-foreground">
+          Showing scraped clauses (hybrid ingest). Summaries appear when AI analysis has been run;
+          otherwise you’ll see the raw clause text preview.
+        </p>
+      </div>
 
-          {/* Filters */}
-          <Card className="p-4 space-y-3 border bg-card">
-            <div className="grid gap-3 md:grid-cols-4">
+      {/* Filters */}
+      <Card className="p-4 space-y-3 border bg-card">
+        <div className="grid gap-3 md:grid-cols-4">
           {/* Regulation */}
           <div>
             <label className="block text-sm font-medium text-card-foreground">Regulation</label>
@@ -193,7 +206,7 @@ export default function ClausesPage() {
               <option value="">All</option>
               {regs.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.title} ({r.short_code})
+                  {r.title} {r.short_code ? `(${r.short_code})` : ""}
                 </option>
               ))}
             </select>
@@ -289,7 +302,9 @@ export default function ClausesPage() {
               onChange={(e) => setPageSize(Number(e.target.value))}
             >
               {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>{n}</option>
+                <option key={n} value={n}>
+                  {n}
+                </option>
               ))}
             </select>
           </div>
@@ -299,40 +314,41 @@ export default function ClausesPage() {
       {/* Results */}
       <div className="space-y-3">
         {rows.map((cl) => {
-          const showText = searchIn !== "summary";
-          const showSummary = searchIn !== "text";
           return (
             <Card key={cl.id} className="p-4 border bg-card hover:shadow-md transition-shadow">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
-                {/* NEW: regulation tag */}
+                {/* regulation pill */}
                 {cl.regulation_title && (
-                  <span className="px-2 py-1 rounded bg-reggio-primary/10 text-reggio-primary border border-reggio-primary/20">
+                  <span className="px-2 py-1 rounded bg-primary/10 text-primary border border-primary/20">
                     {cl.regulation_short_code || ""} {cl.regulation_short_code ? "·" : ""}
                     {cl.regulation_title}
                   </span>
                 )}
-                <span className="px-2 py-1 rounded bg-muted text-muted-foreground border">{cl.path_hierarchy}</span>
-                {cl.risk_area && <span className="px-2 py-1 rounded bg-reggio-secondary/10 text-reggio-secondary border border-reggio-secondary/20">{cl.risk_area}</span>}
-                {cl.obligation_type && <span className="px-2 py-1 rounded bg-reggio-accent/10 text-reggio-accent border border-reggio-accent/20">{cl.obligation_type}</span>}
-                {cl.themes?.slice(0, 3).map((t) => (
-                  <span key={t} className="px-2 py-1 rounded bg-reggio-tertiary/10 text-reggio-tertiary border border-reggio-tertiary/20">#{t}</span>
-                ))}
+                {/* path/number */}
+                {cl.path_hierarchy && (
+                  <span className="px-2 py-1 rounded bg-muted text-muted-foreground border">
+                    {cl.path_hierarchy}
+                  </span>
+                )}
+                {/* risk + obligation */}
+                {cl.risk_area && (
+                  <span className="px-2 py-1 rounded bg-secondary/10 text-secondary-foreground border border-secondary/20">
+                    {cl.risk_area}
+                  </span>
+                )}
+                {cl.obligation_type && (
+                  <span className="px-2 py-1 rounded bg-accent/10 text-accent-foreground border border-accent/20">
+                    {cl.obligation_type}
+                  </span>
+                )}
+                {/* created */}
                 <span className="ml-auto">{new Date(cl.created_at).toLocaleString()}</span>
               </div>
 
-              {showSummary && cl.summary_plain && (
-                <div className="mb-2">
-                  <div className="text-xs font-medium text-muted-foreground mb-1">Summary</div>
-                  <div className="leading-relaxed">{highlightText(cl.summary_plain, debouncedQ)}</div>
-                </div>
-              )}
-
-              {showText && (
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1">Clause text</div>
-                  <div className="leading-relaxed line-clamp-6">{highlightText(cl.text_raw, debouncedQ)}</div>
-                </div>
-              )}
+              {/* Preview (summary preferred, fallback to text_raw) */}
+              <div className="leading-relaxed">
+                {makePreview(cl.summary_plain, cl.text_raw, debouncedQ)}
+              </div>
             </Card>
           );
         })}
@@ -346,12 +362,34 @@ export default function ClausesPage() {
 
       {/* Pager */}
       <div className="flex items-center justify-between pt-2">
-        <div className="text-sm text-muted-foreground">Page {page} / {totalPages}</div>
+        <div className="text-sm text-muted-foreground">
+          Page {page} / {totalPages}
+        </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setPage(1)} disabled={page <= 1}>« First</Button>
-          <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>‹ Prev</Button>
-          <Button variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next ›</Button>
-          <Button variant="outline" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>Last »</Button>
+          <Button variant="outline" onClick={() => setPage(1)} disabled={page <= 1}>
+            « First
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+          >
+            ‹ Prev
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+          >
+            Next ›
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPage(totalPages)}
+            disabled={page >= totalPages}
+          >
+            Last »
+          </Button>
         </div>
       </div>
     </div>
