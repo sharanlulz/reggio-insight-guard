@@ -50,7 +50,7 @@ export default function Landing() {
   
   useSEO({ 
     title: "Reggio – AI-Driven Regulatory & Financial Intelligence Platform", 
-    description: "Reggio helps financial institutions understand regulations, model financial impact, and stay ahead of regulatory changes with real-time intelligence." 
+    description: "Reggio helps financial institutions understand regulations, model financial impact and stay ahead of regulatory changes with real-time intelligence." 
   });
 
   return (
@@ -87,8 +87,8 @@ export default function Landing() {
           </h1>
           
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Reggio empowers financial institutions to decode regulations instantly, simulate real-world financial impact, 
-            and stay ahead of change with real-time intelligence and automated compliance—so you can move faster, safer, and smarter.
+            Reggio empowers financial institutions to decode regulations instantly, simulate real-world financial impact
+            and stay ahead of change with real-time intelligence and automated compliance so you can move faster, safer, and smarter.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
