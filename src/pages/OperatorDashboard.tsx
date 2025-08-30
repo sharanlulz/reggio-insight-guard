@@ -5,12 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, RefreshCw, Brain, Target, FileText, Play, Pause, CheckCircle } from "lucide-react";
 
 import IngestModal from "@/components/ingest/IngestModal";
@@ -109,7 +108,6 @@ function ErrorNote({ text }: { text?: string | null }) {
   );
 }
 
-// AI Analysis Components
 function AnalysisJobCard({ job, onStart, onPause, onResume }: {
   job: AnalysisJob;
   onStart: () => void;
@@ -240,7 +238,6 @@ export default function OperatorDashboard() {
 
   const lastProgress = useRef<Record<string, number>>({});
 
-  // Original functions remain the same
   async function loadLegacy() {
     const { data, error } = await supabase
       .from("ingestions_v")
@@ -343,46 +340,118 @@ export default function OperatorDashboard() {
     setSessionRows(hydrated);
   }
 
-  // New AI Analysis functions
+  async function checkAnalysisStatus(regulationId: string): Promise<{
+    needsAnalysis: boolean;
+    totalClauses: number;
+    analyzedClauses: number;
+    lastAnalyzed?: string;
+  }> {
+    try {
+      const { data: sourceClauses, error: sourceError } = await supabase
+        .from('source_clauses')
+        .select('id')
+        .eq('regulation_id', regulationId);
+
+      if (sourceError) throw sourceError;
+
+      const { data: analyzedClauses, error: analyzedError } = await supabase
+        .from('clauses')
+        .select('id, created_at')
+        .eq('regulation_id', regulationId)
+        .not('metadata->analyzed_at', 'is', null);
+
+      if (analyzedError) throw analyzedError;
+
+      const totalClauses = sourceClauses?.length || 0;
+      const analyzedCount = analyzedClauses?.length || 0;
+      const needsAnalysis = analyzedCount < totalClauses;
+      
+      const lastAnalyzed = analyzedClauses?.length > 0 
+        ? analyzedClauses.reduce((latest, clause) => 
+            clause.created_at > latest ? clause.created_at : latest, 
+            analyzedClauses[0].created_at
+          )
+        : undefined;
+
+      return {
+        needsAnalysis,
+        totalClauses,
+        analyzedClauses: analyzedCount,
+        lastAnalyzed
+      };
+    } catch (error) {
+      console.error('Error checking analysis status:', error);
+      return { needsAnalysis: true, totalClauses: 0, analyzedClauses: 0 };
+    }
+  }
+
   async function loadAnalysisJobs() {
-    // Mock data for now - replace with actual database queries
-    const mockJobs: AnalysisJob[] = [
-      {
-        id: "job-1",
-        regulation_id: "reg-1",
-        regulation_title: "CRR Firms Internal Liquidity Adequacy Assessment",
-        status: "running",
-        total_clauses: 45,
-        processed_clauses: 23,
-        thresholds_extracted: 12,
-        obligations_extracted: 18,
-        stress_parameters_found: 3,
-        error_message: null,
-        started_at: new Date(Date.now() - 3600000).toISOString(),
-        updated_at: new Date().toISOString(),
-        finished_at: null,
-      },
-      {
-        id: "job-2",
-        regulation_id: "reg-2",
-        regulation_title: "SII Firms With-Profits",
-        status: "completed",
-        total_clauses: 28,
-        processed_clauses: 28,
-        thresholds_extracted: 8,
-        obligations_extracted: 15,
-        stress_parameters_found: 2,
-        error_message: null,
-        started_at: new Date(Date.now() - 7200000).toISOString(),
-        updated_at: new Date(Date.now() - 1800000).toISOString(),
-        finished_at: new Date(Date.now() - 1800000).toISOString(),
-      },
-    ];
-    setAnalysisJobs(mockJobs);
+    try {
+      const { data: regulationsWithData, error } = await supabase
+        .from('source_clauses')
+        .select(`
+          regulation_id,
+          regulations!inner(id, title, short_code)
+        `)
+        .not('regulation_id', 'is', null);
+
+      if (error) {
+        console.error('Error loading regulations with data:', error);
+        setAnalysisJobs([]);
+        return;
+      }
+
+      const regulationMap = new Map();
+      regulationsWithData?.forEach((row: any) => {
+        const regId = row.regulation_id;
+        if (!regulationMap.has(regId)) {
+          regulationMap.set(regId, {
+            id: regId,
+            title: row.regulations.title,
+            short_code: row.regulations.short_code
+          });
+        }
+      });
+
+      const analysisJobs: AnalysisJob[] = [];
+
+      for (const [regId, regulation] of regulationMap) {
+        const status = await checkAnalysisStatus(regId);
+        
+        let jobStatus: AnalysisStatus;
+        if (status.analyzedClauses === 0) {
+          jobStatus = "pending";
+        } else if (status.needsAnalysis) {
+          jobStatus = "running";
+        } else {
+          jobStatus = "completed";
+        }
+
+        analysisJobs.push({
+          id: `analysis-${regId}`,
+          regulation_id: regId,
+          regulation_title: regulation.title || "Unknown Regulation",
+          status: jobStatus,
+          total_clauses: status.totalClauses,
+          processed_clauses: status.analyzedClauses,
+          thresholds_extracted: 0,
+          obligations_extracted: 0,
+          stress_parameters_found: 0,
+          error_message: null,
+          started_at: status.lastAnalyzed || new Date().toISOString(),
+          updated_at: status.lastAnalyzed || new Date().toISOString(),
+          finished_at: !status.needsAnalysis ? (status.lastAnalyzed || new Date().toISOString()) : null,
+        });
+      }
+
+      setAnalysisJobs(analysisJobs);
+    } catch (error) {
+      console.error('Error loading analysis jobs:', error);
+      setAnalysisJobs([]);
+    }
   }
 
   async function loadAnalysisResults() {
-    // Mock results - replace with actual database queries
     const mockResults: AnalysisResult[] = [
       {
         clause_id: "clause-1",
@@ -408,6 +477,15 @@ export default function OperatorDashboard() {
 
   async function startAnalysis(regulationId: string) {
     try {
+      const analysisStatus = await checkAnalysisStatus(regulationId);
+      
+      if (!analysisStatus.needsAnalysis) {
+        setLastError(`Analysis skipped: ${regulationId} is already fully analyzed (${analysisStatus.analyzedClauses}/${analysisStatus.totalClauses} clauses)`);
+        return;
+      }
+
+      console.log(`Starting analysis for ${regulationId}: ${analysisStatus.analyzedClauses}/${analysisStatus.totalClauses} clauses already processed`);
+
       const { data, error } = await supabase.functions.invoke('reggio-analyze', {
         body: {
           regulation_id: regulationId,
@@ -417,20 +495,44 @@ export default function OperatorDashboard() {
 
       if (error) throw error;
       
-      console.log('Analysis started:', data);
+      console.log('Analysis batch completed:', data);
+      
+      if (data.processed > 0) {
+        setLastError(null);
+        console.log(`Successfully processed ${data.processed} clauses. ${data.errors || 0} errors.`);
+      }
+      
       await loadAnalysisJobs();
     } catch (err: any) {
-      setLastError(`Analysis start error: ${err.message}`);
+      setLastError(`Analysis error: ${err.message}`);
+    }
+  }
+
+  async function startBulkAnalysis() {
+    const pendingJobs = analysisJobs.filter(job => job.status === "pending" || job.status === "running");
+    
+    if (pendingJobs.length === 0) {
+      setLastError("No regulations require analysis");
+      return;
+    }
+
+    console.log(`Starting bulk analysis for ${pendingJobs.length} regulations`);
+    
+    for (const job of pendingJobs) {
+      try {
+        await startAnalysis(job.regulation_id);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (error) {
+        console.error(`Failed to process ${job.regulation_title}:`, error);
+      }
     }
   }
 
   async function pauseAnalysis(jobId: string) {
-    // Implementation for pausing analysis
     console.log('Pausing analysis:', jobId);
   }
 
   async function resumeAnalysis(jobId: string) {
-    // Implementation for resuming analysis
     console.log('Resuming analysis:', jobId);
   }
 
@@ -532,14 +634,42 @@ export default function OperatorDashboard() {
       </Card>
 
       {/* Tabbed Interface */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList>
-          <TabsTrigger value="ingestion">Data Ingestion</TabsTrigger>
-          <TabsTrigger value="analysis">AI Analysis</TabsTrigger>
-          <TabsTrigger value="results">Analysis Results</TabsTrigger>
-        </TabsList>
+      <div className="w-full">
+        <div className="flex space-x-1 mb-4 border-b">
+          <button
+            onClick={() => setActiveTab("ingestion")}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg ${
+              activeTab === "ingestion"
+                ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Data Ingestion
+          </button>
+          <button
+            onClick={() => setActiveTab("analysis")}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg ${
+              activeTab === "analysis"
+                ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            AI Analysis
+          </button>
+          <button
+            onClick={() => setActiveTab("results")}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg ${
+              activeTab === "results"
+                ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Analysis Results
+          </button>
+        </div>
 
-        <TabsContent value="ingestion">
+        {/* Tab Content */}
+        {activeTab === "ingestion" && (
           <Card className="p-4">
             <div className="mb-3 text-lg font-semibold">
               {useNewTracking ? "Ingestion Sessions" : "Recent Ingestions"}
@@ -624,55 +754,6 @@ export default function OperatorDashboard() {
                       </div>
                     )}
 
-                    {status === "succeeded" && (
-                      <div className="mt-3 flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="bg-blue-50 text-blue-700 border-blue-200"
-                          onClick={() => startAnalysis(row.regulation_id || row.id)}
-                        >
-                          <Brain className="h-4 w-4 mr-1" />
-                          Start AI Analysis
-                        </Button>
-                        
-                        {/* Show analysis status if available */}
-                        {analysisJobs.find(job => job.regulation_id === (row.regulation_id || row.id)) && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            {(() => {
-                              const job = analysisJobs.find(job => job.regulation_id === (row.regulation_id || row.id));
-                              if (!job) return null;
-                              
-                              if (job.status === "completed") {
-                                return (
-                                  <>
-                                    <CheckCircle className="h-4 w-4 text-green-600" />
-                                    Analysis Complete ({job.processed_clauses}/{job.total_clauses})
-                                  </>
-                                );
-                              }
-                              
-                              if (job.status === "running") {
-                                return (
-                                  <>
-                                    <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
-                                    Analyzing ({job.processed_clauses}/{job.total_clauses})
-                                  </>
-                                );
-                              }
-                              
-                              return (
-                                <>
-                                  <AlertCircle className="h-4 w-4 text-yellow-600" />
-                                  Ready for Analysis ({job.total_clauses} clauses)
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                     <ErrorNote text={isNew ? row.error_message : row.error} />
                   </div>
                 );
@@ -685,9 +766,9 @@ export default function OperatorDashboard() {
               )}
             </div>
           </Card>
-        </TabsContent>
+        )}
 
-        <TabsContent value="analysis">
+        {activeTab === "analysis" && (
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-lg font-semibold">AI Analysis Jobs</div>
@@ -710,8 +791,6 @@ export default function OperatorDashboard() {
                   onPause={() => pauseAnalysis(job.id)}
                   onResume={() => resumeAnalysis(job.id)}
                 />
-              ))}
-
               {analysisJobs.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   No analysis jobs yet. Complete an ingestion and start analysis.
@@ -719,15 +798,15 @@ export default function OperatorDashboard() {
               )}
             </div>
           </Card>
-        </TabsContent>
+        )}
 
-        <TabsContent value="results">
+        {activeTab === "results" && (
           <Card className="p-4">
             <div className="mb-3 text-lg font-semibold">Analysis Results</div>
             <AnalysisResults results={analysisResults} />
           </Card>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
 
       {autoRefresh && hasActive && (
         <div className="mt-4 text-xs text-muted-foreground flex items-center gap-2">
