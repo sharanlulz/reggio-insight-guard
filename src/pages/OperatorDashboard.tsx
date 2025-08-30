@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, RefreshCw, Brain, Target, FileText, Play, Pause, CheckCircle } from "lucide-react";
+import { AlertCircle, RefreshCw, Brain, Target, FileText, Play, Pause } from "lucide-react";
 
 import IngestModal from "@/components/ingest/IngestModal";
 
@@ -108,14 +108,20 @@ function ErrorNote({ text }: { text?: string | null }) {
   );
 }
 
-function AnalysisJobCard({ job, onStart, onPause, onResume }: {
+function AnalysisJobCard({
+  job,
+  onStart,
+  onPause,
+  onResume,
+}: {
   job: AnalysisJob;
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
 }) {
-  const progressPercentage = job.total_clauses > 0 ? Math.round((job.processed_clauses / job.total_clauses) * 100) : 0;
-  
+  const progressPercentage =
+    job.total_clauses > 0 ? Math.round((job.processed_clauses / job.total_clauses) * 100) : 0;
+
   return (
     <div className="border rounded-lg p-4">
       <div className="flex items-start justify-between mb-3">
@@ -151,7 +157,9 @@ function AnalysisJobCard({ job, onStart, onPause, onResume }: {
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
           <span>Progress</span>
-          <span>{job.processed_clauses}/{job.total_clauses} clauses</span>
+          <span>
+            {job.processed_clauses}/{job.total_clauses} clauses
+          </span>
         </div>
         <Progress value={progressPercentage} className="h-2" />
       </div>
@@ -180,11 +188,7 @@ function AnalysisJobCard({ job, onStart, onPause, onResume }: {
 
 function AnalysisResults({ results }: { results: AnalysisResult[] }) {
   if (results.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        No analysis results to display
-      </div>
-    );
+    return <div className="text-center py-8 text-muted-foreground">No analysis results to display</div>;
   }
 
   return (
@@ -228,7 +232,7 @@ export default function OperatorDashboard() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [loading, setLoading] = useState(false);
   const [ingestOpen, setIngestOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("ingestion");
+  const [activeTab, setActiveTab] = useState<"ingestion" | "analysis" | "results">("ingestion");
 
   const [legacyRows, setLegacyRows] = useState<IngestRow[]>([]);
   const [sessionRows, setSessionRows] = useState<SessionRow[]>([]);
@@ -273,17 +277,10 @@ export default function OperatorDashboard() {
     }
 
     const docIds = Array.from(
-      new Set(
-        sessions
-          .map((s) => s.regulation_document_id)
-          .filter(Boolean) as string[]
-      )
+      new Set(sessions.map((s) => s.regulation_document_id).filter(Boolean) as string[])
     );
 
-    let docsById: Record<
-      string,
-      { id: string; version_label: string | null; regulation_id: string | null }
-    > = {};
+    const docsById: Record<string, { id: string; version_label: string | null; regulation_id: string | null }> = {};
     if (docIds.length) {
       const docs = await supabase
         .from("regulation_documents")
@@ -301,27 +298,15 @@ export default function OperatorDashboard() {
       }
     }
 
-    const regIds = Array.from(
-      new Set(
-        Object.values(docsById)
-          .map((d) => d.regulation_id)
-          .filter(Boolean) as string[]
-      )
-    );
+    const regIds = Array.from(new Set(Object.values(docsById).map((d) => d.regulation_id).filter(Boolean) as string[]));
 
-    let regsById: Record<string, { title: string | null; short_code: string | null }> = {};
+    const regsById: Record<string, { title: string | null; short_code: string | null }> = {};
     if (regIds.length) {
-      const regs = await supabase
-        .from("regulations")
-        .select("id, title, short_code")
-        .in("id", regIds);
+      const regs = await supabase.from("regulations").select("id, title, short_code").in("id", regIds);
 
       if (!regs.error && regs.data) {
         regs.data.forEach((r: any) => {
-          regsById[r.id] = {
-            title: r.title ?? null,
-            short_code: r.short_code ?? null,
-          };
+          regsById[r.id] = { title: r.title ?? null, short_code: r.short_code ?? null };
         });
       }
     }
@@ -348,39 +333,41 @@ export default function OperatorDashboard() {
   }> {
     try {
       const { data: sourceClauses, error: sourceError } = await supabase
-        .from('source_clauses')
-        .select('id')
-        .eq('regulation_id', regulationId);
+        .from("source_clauses")
+        .select("id")
+        .eq("regulation_id", regulationId);
 
       if (sourceError) throw sourceError;
 
       const { data: analyzedClauses, error: analyzedError } = await supabase
-        .from('clauses')
-        .select('id, created_at')
-        .eq('regulation_id', regulationId)
-        .not('metadata->analyzed_at', 'is', null);
+        .from("clauses")
+        .select("id, created_at, metadata")
+        .eq("regulation_id", regulationId);
 
       if (analyzedError) throw analyzedError;
 
       const totalClauses = sourceClauses?.length || 0;
-      const analyzedCount = analyzedClauses?.length || 0;
+      const analyzedCount =
+        analyzedClauses?.filter((c: any) => c.metadata && c.metadata.analyzed_at)?.length || 0;
       const needsAnalysis = analyzedCount < totalClauses;
-      
-      const lastAnalyzed = analyzedClauses?.length > 0 
-        ? analyzedClauses.reduce((latest, clause) => 
-            clause.created_at > latest ? clause.created_at : latest, 
-            analyzedClauses[0].created_at
-          )
-        : undefined;
+
+      const lastAnalyzed =
+        analyzedClauses && analyzedClauses.length > 0
+          ? analyzedClauses.reduce(
+              (latest: string, clause: any) =>
+                clause.created_at > latest ? clause.created_at : latest,
+              analyzedClauses[0].created_at
+            )
+          : undefined;
 
       return {
         needsAnalysis,
         totalClauses,
         analyzedClauses: analyzedCount,
-        lastAnalyzed
+        lastAnalyzed,
       };
     } catch (error) {
-      console.error('Error checking analysis status:', error);
+      console.error("Error checking analysis status:", error);
       return { needsAnalysis: true, totalClauses: 0, analyzedClauses: 0 };
     }
   }
@@ -388,46 +375,39 @@ export default function OperatorDashboard() {
   async function loadAnalysisJobs() {
     try {
       const { data: regulationsWithData, error } = await supabase
-        .from('source_clauses')
-        .select(`
-          regulation_id,
-          regulations!inner(id, title, short_code)
-        `)
-        .not('regulation_id', 'is', null);
+        .from("source_clauses")
+        .select(`regulation_id, regulations!inner(id, title, short_code)`)
+        .not("regulation_id", "is", null);
 
       if (error) {
-        console.error('Error loading regulations with data:', error);
+        console.error("Error loading regulations with data:", error);
         setAnalysisJobs([]);
         return;
       }
 
-      const regulationMap = new Map();
+      const regulationMap = new Map<string, { title: string; short_code: string }>();
       regulationsWithData?.forEach((row: any) => {
-        const regId = row.regulation_id;
+        const regId = row.regulation_id as string;
         if (!regulationMap.has(regId)) {
           regulationMap.set(regId, {
-            id: regId,
             title: row.regulations.title,
-            short_code: row.regulations.short_code
+            short_code: row.regulations.short_code,
           });
         }
       });
 
-      const analysisJobs: AnalysisJob[] = [];
-
-      for (const [regId, regulation] of regulationMap) {
+      const jobs: AnalysisJob[] = [];
+      for (const [regId, regulation] of regulationMap.entries()) {
         const status = await checkAnalysisStatus(regId);
-        
-        let jobStatus: AnalysisStatus;
-        if (status.analyzedClauses === 0) {
-          jobStatus = "pending";
-        } else if (status.needsAnalysis) {
-          jobStatus = "running";
-        } else {
-          jobStatus = "completed";
-        }
 
-        analysisJobs.push({
+        const jobStatus: AnalysisStatus =
+          status.analyzedClauses === 0
+            ? "pending"
+            : status.needsAnalysis
+            ? "running"
+            : "completed";
+
+        jobs.push({
           id: `analysis-${regId}`,
           regulation_id: regId,
           regulation_title: regulation.title || "Unknown Regulation",
@@ -440,17 +420,18 @@ export default function OperatorDashboard() {
           error_message: null,
           started_at: status.lastAnalyzed || new Date().toISOString(),
           updated_at: status.lastAnalyzed || new Date().toISOString(),
-          finished_at: !status.needsAnalysis ? (status.lastAnalyzed || new Date().toISOString()) : null,
+          finished_at: !status.needsAnalysis ? status.lastAnalyzed || new Date().toISOString() : null,
         });
       }
 
-      setAnalysisJobs(analysisJobs);
+      setAnalysisJobs(jobs);
     } catch (error) {
-      console.error('Error loading analysis jobs:', error);
+      console.error("Error loading analysis jobs:", error);
       setAnalysisJobs([]);
     }
   }
 
+  // Placeholder data for the "Results" tab
   async function loadAnalysisResults() {
     const mockResults: AnalysisResult[] = [
       {
@@ -458,7 +439,8 @@ export default function OperatorDashboard() {
         clause_number: "RULE_1",
         thresholds_count: 2,
         obligations_count: 3,
-        summary: "Firms must maintain adequate capital where capital requirements are met and buffers are maintained",
+        summary:
+          "Firms must maintain adequate capital where capital requirements are met and buffers are maintained",
         risk_area: "CAPITAL",
         has_stress_parameters: true,
       },
@@ -467,7 +449,8 @@ export default function OperatorDashboard() {
         clause_number: "RULE_2",
         thresholds_count: 1,
         obligations_count: 2,
-        summary: "Distribution strategies must be affordable, sustainable and not adversely affect safety",
+        summary:
+          "Distribution strategies must be affordable, sustainable and not adversely affect safety",
         risk_area: "OPERATIONAL",
         has_stress_parameters: false,
       },
@@ -477,31 +460,21 @@ export default function OperatorDashboard() {
 
   async function startAnalysis(regulationId: string) {
     try {
-      const analysisStatus = await checkAnalysisStatus(regulationId);
-      
-      if (!analysisStatus.needsAnalysis) {
-        setLastError(`Analysis skipped: ${regulationId} is already fully analyzed (${analysisStatus.analyzedClauses}/${analysisStatus.totalClauses} clauses)`);
+      const status = await checkAnalysisStatus(regulationId);
+      if (!status.needsAnalysis) {
+        setLastError(
+          `Analysis skipped: ${regulationId} is already fully analyzed (${status.analyzedClauses}/${status.totalClauses} clauses)`
+        );
         return;
       }
 
-      console.log(`Starting analysis for ${regulationId}: ${analysisStatus.analyzedClauses}/${analysisStatus.totalClauses} clauses already processed`);
-
-      const { data, error } = await supabase.functions.invoke('reggio-analyze', {
-        body: {
-          regulation_id: regulationId,
-          batch_size: 4
-        }
+      const { data, error } = await supabase.functions.invoke("reggio-analyze", {
+        body: { regulation_id: regulationId, batch_size: 4 },
       });
 
       if (error) throw error;
-      
-      console.log('Analysis batch completed:', data);
-      
-      if (data.processed > 0) {
-        setLastError(null);
-        console.log(`Successfully processed ${data.processed} clauses. ${data.errors || 0} errors.`);
-      }
-      
+
+      console.log("Analysis batch completed:", data);
       await loadAnalysisJobs();
     } catch (err: any) {
       setLastError(`Analysis error: ${err.message}`);
@@ -509,31 +482,27 @@ export default function OperatorDashboard() {
   }
 
   async function startBulkAnalysis() {
-    const pendingJobs = analysisJobs.filter(job => job.status === "pending" || job.status === "running");
-    
-    if (pendingJobs.length === 0) {
+    const pending = analysisJobs.filter((j) => j.status === "pending" || j.status === "running");
+    if (pending.length === 0) {
       setLastError("No regulations require analysis");
       return;
     }
 
-    console.log(`Starting bulk analysis for ${pendingJobs.length} regulations`);
-    
-    for (const job of pendingJobs) {
+    for (const job of pending) {
       try {
         await startAnalysis(job.regulation_id);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (error) {
-        console.error(`Failed to process ${job.regulation_title}:`, error);
+        await new Promise((r) => setTimeout(r, 2000));
+      } catch (e) {
+        console.error(`Failed to process ${job.regulation_title}:`, e);
       }
     }
   }
 
   async function pauseAnalysis(jobId: string) {
-    console.log('Pausing analysis:', jobId);
+    console.log("Pausing analysis:", jobId);
   }
-
   async function resumeAnalysis(jobId: string) {
-    console.log('Resuming analysis:', jobId);
+    console.log("Resuming analysis:", jobId);
   }
 
   async function loadData() {
@@ -614,18 +583,10 @@ export default function OperatorDashboard() {
             <Button variant="outline" onClick={() => setUseNewTracking((v) => !v)}>
               Switch to {useNewTracking ? "Legacy" : "Enhanced"}
             </Button>
-            <Button
-              variant={autoRefresh ? "default" : "outline"}
-              onClick={() => setAutoRefresh((v) => !v)}
-            >
+            <Button variant={autoRefresh ? "default" : "outline"} onClick={() => setAutoRefresh((v) => !v)}>
               {autoRefresh ? "Auto-Refresh: On" : "Auto-Refresh: Off"}
             </Button>
-            <Button
-              variant="outline"
-              onClick={loadData}
-              disabled={loading}
-              className="flex items-center gap-2"
-            >
+            <Button variant="outline" onClick={loadData} disabled={loading} className="flex items-center gap-2">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
@@ -689,15 +650,12 @@ export default function OperatorDashboard() {
                 const shortCode = (row.regulation_short_code as string) || "";
                 const versionLabel = (row.version_label as string) || "—";
                 const status = row.status as LegacyStatus | SessionStatus;
-                const finishedAt = row.finished_at
-                  ? new Date(row.finished_at).toLocaleString()
-                  : "—";
+                const finishedAt = row.finished_at ? new Date(row.finished_at).toLocaleString() : "—";
 
-                const total = isNew ? row.chunks_total : row.chunks_total;
+                const total = row.chunks_total;
                 const done = isNew ? row.chunks_processed : row.chunks_done;
                 const success = isNew ? row.chunks_succeeded ?? 0 : undefined;
                 const failed = isNew ? row.chunks_failed ?? 0 : undefined;
-
                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
                 const prev = lastProgress.current[row.id] ?? -1;
@@ -712,9 +670,7 @@ export default function OperatorDashboard() {
                           {title ? (
                             <>
                               {title}
-                              {shortCode ? (
-                                <span className="text-muted-foreground"> ({shortCode})</span>
-                              ) : null}
+                              {shortCode ? <span className="text-muted-foreground"> ({shortCode})</span> : null}
                             </>
                           ) : (
                             <span className="text-muted-foreground italic">Untitled</span>
@@ -725,9 +681,7 @@ export default function OperatorDashboard() {
 
                       <div className="md:col-span-2 flex items-center gap-2">
                         <StatusChip status={status} />
-                        {stalled && (
-                          <span className="text-xs text-muted-foreground">stalled</span>
-                        )}
+                        {stalled && <span className="text-xs text-muted-foreground">stalled</span>}
                       </div>
 
                       <div className="md:col-span-4">
@@ -736,8 +690,7 @@ export default function OperatorDashboard() {
                           {done}/{total}
                           {isNew ? (
                             <>
-                              {" "}
-                              ({success} ✓, {failed} ✗)
+                              {" "}({success} ✓, {failed} ✗)
                             </>
                           ) : null}
                         </div>
@@ -772,26 +725,32 @@ export default function OperatorDashboard() {
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-lg font-semibold">AI Analysis Jobs</div>
-              <Button 
+              <Button
                 onClick={startBulkAnalysis}
-                disabled={loading || analysisJobs.filter(job => job.status === "pending" || job.status === "running").length === 0}
+                disabled={
+                  loading ||
+                  analysisJobs.filter((job) => job.status === "pending" || job.status === "running").length === 0
+                }
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 <Brain className="h-4 w-4 mr-2" />
-                Analyze All Pending ({analysisJobs.filter(job => job.status === "pending" || job.status === "running").length})
+                Analyze All Pending (
+                {analysisJobs.filter((job) => job.status === "pending" || job.status === "running").length})
               </Button>
             </div>
 
             <div className="space-y-3">
-              {analysisJobs.map((job) => (
-                <AnalysisJobCard
-                  key={job.id}
-                  job={job}
-                  onStart={() => startAnalysis(job.regulation_id)}
-                  onPause={() => pauseAnalysis(job.id)}
-                  onResume={() => resumeAnalysis(job.id)}
-                />
-              {analysisJobs.length === 0 && (
+              {analysisJobs.length > 0 ? (
+                analysisJobs.map((job) => (
+                  <AnalysisJobCard
+                    key={job.id}
+                    job={job}
+                    onStart={() => startAnalysis(job.regulation_id)}
+                    onPause={() => pauseAnalysis(job.id)}
+                    onResume={() => resumeAnalysis(job.id)}
+                  />
+                ))
+              ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   No analysis jobs yet. Complete an ingestion and start analysis.
                 </div>
