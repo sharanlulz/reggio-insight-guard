@@ -1,5 +1,19 @@
 // src/pages/OperatorDashboard.tsx
-// Operator Dashboard focused on AI Analysis (with Re-analyze)
+// Operator Dashboard — AI Analysis focus (Analyze / Re-analyze / Bulk)
+// Assumes DB view: public.analysis_jobs_v with columns:
+//   regulation_id, regulation_title, regulation_short_code,
+//   total_source_clauses, analyzed_clauses, last_analyzed_at
+//
+// Actions:
+// - Analyze: invokes edge function 'reggio-analyze' for a single regulation
+// - Re-analyze: calls RPC reggio.reset_clause_analysis(p_regulation_id, p_clear_generated)
+//               then immediately invokes 'reggio-analyze'
+// - Analyze All Pending: runs analyze for all regs not fully analyzed
+//
+// Notes:
+// - Uses a synthetic `id` built from regulation_id for React keys
+// - Shows stalling indicator when analyzed_clauses doesn’t move between polls
+// - Keeps ingestion links accessible but secondary
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -12,32 +26,27 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Brain, RefreshCw, RotateCw, Play } from "lucide-react";
 
-type AnalysisStatus = "pending" | "running" | "completed" | "failed";
+type AnalysisStatus = "pending" | "running" | "completed";
 
 type AnalysisJob = {
-  id: string;
+  id: string; // synthetic key: `analysis-${regulation_id}`
   regulation_id: string;
   regulation_title: string;
   regulation_short_code: string | null;
-  status: AnalysisStatus;
   total_clauses: number;
   processed_clauses: number;
-  error_message: string | null;
-  started_at: string | null;
-  updated_at: string | null;
-  finished_at: string | null;
+  last_analyzed_at: string | null;
+  status: AnalysisStatus;
 };
 
-// Small helper: consistent badge tone
 function StatusChip({ status }: { status: AnalysisStatus }) {
   const tone =
-    status === "failed"
-      ? "bg-red-100 text-red-800 border-red-200"
-      : status === "completed"
+    status === "completed"
       ? "bg-green-100 text-green-800 border-green-200"
       : status === "pending"
       ? "bg-yellow-100 text-yellow-800 border-yellow-200"
       : "bg-blue-100 text-blue-800 border-blue-200";
+
   return (
     <Badge variant="outline" className={tone}>
       {status}
@@ -49,112 +58,137 @@ export default function OperatorDashboard() {
   const [jobs, setJobs] = useState<AnalysisJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [lastError, setLastError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const lastProgress = useRef<Record<string, number>>({});
+  // Track movement to detect stalling
+  const lastProcessedRef = useRef<Record<string, number>>({});
+  const stalledRef = useRef<Record<string, boolean>>({});
 
-  // --- Load jobs ---
-  async function loadAnalysisJobs() {
-    try {
-      const { data, error } = await supabase
-        .from("analysis_jobs_v")
-        .select("*")
-        .order("regulation_title", { ascending: true });
+  // ------- Data Loader --------
+  async function loadJobs() {
+    setErrorMsg(null);
+    const { data, error } = await supabase
+      .from("analysis_jobs_v")
+      .select(
+        "regulation_id, regulation_title, regulation_short_code, total_source_clauses, analyzed_clauses, last_analyzed_at"
+      )
+      .order("regulation_title", { ascending: true });
 
-      if (error) throw error;
-
-      const jobs = (data || []).map((row: any) => ({
-        id: `analysis-${row.regulation_id}`,
-        regulation_id: row.regulation_id,
-        regulation_title: row.regulation_title,
-        regulation_short_code: row.regulation_short_code,
-        status:
-          row.total_source_clauses === 0
-            ? "pending"
-            : row.analyzed_clauses >= row.total_source_clauses
-            ? "completed"
-            : "running",
-        total_clauses: row.total_source_clauses,
-        processed_clauses: row.analyzed_clauses,
-        error_message: null,
-        started_at: row.last_analyzed_at,
-        updated_at: row.last_analyzed_at,
-        finished_at:
-          row.analyzed_clauses >= row.total_source_clauses
-            ? row.last_analyzed_at
-            : null,
-      }));
-
-      setJobs(jobs);
-    } catch (e: any) {
+    if (error) {
+      setErrorMsg(error.message || String(error));
       setJobs([]);
-      setLastError(e.message || String(e));
+      return;
     }
+
+    const list: AnalysisJob[] =
+      (data || []).map((row: any) => {
+        const total = row.total_source_clauses || 0;
+        const processed = row.analyzed_clauses || 0;
+        let status: AnalysisStatus = "pending";
+        if (total > 0 && processed < total) status = "running";
+        if (total > 0 && processed >= total) status = "completed";
+
+        return {
+          id: `analysis-${row.regulation_id}`,
+          regulation_id: row.regulation_id,
+          regulation_title: row.regulation_title || "Unknown Regulation",
+          regulation_short_code: row.regulation_short_code ?? null,
+          total_clauses: total,
+          processed_clauses: processed,
+          last_analyzed_at: row.last_analyzed_at ?? null,
+          status,
+        };
+      }) || [];
+
+    // update stall detection
+    list.forEach((job) => {
+      const prev = lastProcessedRef.current[job.regulation_id];
+      if (prev === undefined) {
+        // first observation
+        stalledRef.current[job.regulation_id] = false;
+      } else {
+        // mark stalled only if still pending/running and no progress
+        const isActive = job.status === "pending" || job.status === "running";
+        stalledRef.current[job.regulation_id] =
+          isActive && job.processed_clauses === prev && job.processed_clauses > 0;
+      }
+      lastProcessedRef.current[job.regulation_id] = job.processed_clauses;
+    });
+
+    setJobs(list);
   }
 
-  // --- Actions ---
+  // ------- Actions --------
   async function startAnalysis(regulationId: string) {
     try {
-      setLastError(null);
-      const { error } = await supabase.functions.invoke("reggio-analyze", {
+      setErrorMsg(null);
+      const { data, error } = await supabase.functions.invoke("reggio-analyze", {
         body: { regulation_id: regulationId, batch_size: 4 },
       });
       if (error) throw error;
-      await loadAnalysisJobs();
+      // Refresh immediately to reflect increments
+      await loadJobs();
+      return data;
     } catch (e: any) {
-      setLastError(`startAnalysis: ${e.message || String(e)}`);
+      setErrorMsg(`Analyze error: ${e.message || String(e)}`);
+      return null;
     }
   }
 
   async function reanalyze(regulationId: string) {
     try {
-      setLastError(null);
-
-      // Call our reset_clause_analysis RPC with correct param names
-      const { error: resetErr } = await supabase.rpc(
-        "reset_clause_analysis",
-        {
+      setErrorMsg(null);
+      // Clear analysis markers + existing generated clauses for this regulation
+      const { error: rpcError } = await supabase
+        .schema("reggio")
+        .rpc("reset_clause_analysis", {
           p_regulation_id: regulationId,
+          p_clear_generated: true, // remove existing AI-generated rows to avoid duplicates
           p_document_id: null,
-          p_clear_generated: true,
-        }
-      );
+        });
 
-      if (resetErr) throw resetErr;
+      if (rpcError) throw rpcError;
 
-      // Immediately trigger a new analysis run
+      // Kick a new batch right away
       await startAnalysis(regulationId);
     } catch (e: any) {
-      setLastError(`reanalyze: ${e.message || String(e)}`);
+      setErrorMsg(`Re-analyze error: ${e.message || String(e)}`);
     }
   }
 
-  async function loadAll() {
-    setLoading(true);
-    try {
-      await loadAnalysisJobs();
-    } finally {
-      setLoading(false);
+  async function analyzeAllPending() {
+    // process those not fully analyzed
+    const targets = jobs.filter(
+      (j) => j.status === "pending" || j.status === "running"
+    );
+    if (targets.length === 0) {
+      setErrorMsg("No pending/running regulations to analyze.");
+      return;
+    }
+    setErrorMsg(null);
+    for (const job of targets) {
+      await startAnalysis(job.regulation_id);
+      // small spacing to avoid bursts
+      await new Promise((r) => setTimeout(r, 1200));
     }
   }
 
-  // --- Effects ---
+  // ------- Effects --------
   useEffect(() => {
-    loadAll();
+    loadJobs();
   }, []);
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const hasRunning = jobs.some(
+    const anyActive = jobs.some(
       (j) => j.status === "pending" || j.status === "running"
     );
-    const interval = hasRunning ? 3000 : 15000;
-    const id = setInterval(loadAll, interval);
-    return () => clearInterval(id);
+    const intervalMs = anyActive ? 3000 : 15000;
+    const t = setInterval(loadJobs, intervalMs);
+    return () => clearInterval(t);
   }, [autoRefresh, jobs]);
 
-  // --- Render ---
-  const runningCount = useMemo(
+  const pendingCount = useMemo(
     () => jobs.filter((j) => j.status === "pending" || j.status === "running").length,
     [jobs]
   );
@@ -180,7 +214,7 @@ export default function OperatorDashboard() {
           <div>
             <div className="font-medium">AI Analysis</div>
             <div className="text-sm text-muted-foreground">
-              Works directly on your scraped source clauses.
+              Analyze scraped source clauses and track progress per regulation.
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -192,46 +226,36 @@ export default function OperatorDashboard() {
             </Button>
             <Button
               variant="outline"
-              onClick={loadAll}
+              onClick={loadJobs}
               disabled={loading}
               className="flex items-center gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
+            <Button
+              onClick={analyzeAllPending}
+              disabled={pendingCount === 0}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Brain className="h-4 w-4 mr-2" />
+              Analyze All Pending ({pendingCount})
+            </Button>
           </div>
         </div>
       </Card>
 
       {/* Errors */}
-      {lastError && (
+      {errorMsg && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="text-sm">{lastError}</AlertDescription>
+          <AlertDescription className="text-sm">{errorMsg}</AlertDescription>
         </Alert>
       )}
 
       {/* Jobs */}
       <Card className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-lg font-semibold">AI Analysis Jobs</div>
-          <Button
-            onClick={async () => {
-              for (const j of jobs) {
-                if (j.status === "pending" || j.status === "running") {
-                  await startAnalysis(j.regulation_id);
-                  await new Promise((r) => setTimeout(r, 1200));
-                }
-              }
-            }}
-            disabled={loading || runningCount === 0}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Brain className="h-4 w-4 mr-2" />
-            Analyze All Pending ({runningCount})
-          </Button>
-        </div>
-
+        <div className="text-lg font-semibold mb-3">AI Analysis Jobs</div>
         <div className="grid gap-3">
           {jobs.map((job) => {
             const pct =
@@ -239,16 +263,12 @@ export default function OperatorDashboard() {
                 ? Math.round((job.processed_clauses / job.total_clauses) * 100)
                 : 0;
 
-            const prev = lastProgress.current[job.id] ?? -1;
-            const stalled =
-              (job.status === "running" || job.status === "pending") &&
-              prev === job.processed_clauses &&
-              job.processed_clauses > 0;
-            lastProgress.current[job.id] = job.processed_clauses;
+            const stalled = stalledRef.current[job.regulation_id] === true;
 
             return (
               <div key={job.id} className="border rounded-lg p-4">
                 <div className="grid items-start gap-3 md:grid-cols-12">
+                  {/* Title + meta */}
                   <div className="md:col-span-5">
                     <div className="font-medium">
                       {job.regulation_title}{" "}
@@ -260,9 +280,15 @@ export default function OperatorDashboard() {
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {job.total_clauses} clauses
+                      {job.last_analyzed_at
+                        ? ` • Last analyzed: ${new Date(
+                            job.last_analyzed_at
+                          ).toLocaleString()}`
+                        : ""}
                     </div>
                   </div>
 
+                  {/* Status */}
                   <div className="md:col-span-2 flex items-center gap-2">
                     <StatusChip status={job.status} />
                     {stalled && (
@@ -270,6 +296,7 @@ export default function OperatorDashboard() {
                     )}
                   </div>
 
+                  {/* Progress */}
                   <div className="md:col-span-3">
                     <Progress value={pct} className="h-2 mb-1" />
                     <div className="text-xs text-muted-foreground">
@@ -277,11 +304,13 @@ export default function OperatorDashboard() {
                     </div>
                   </div>
 
+                  {/* Actions */}
                   <div className="md:col-span-2 flex gap-2 justify-end">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => startAnalysis(job.regulation_id)}
+                      title="Run a batch analysis for this regulation"
                     >
                       <Play className="h-4 w-4 mr-1" />
                       Analyze
@@ -290,24 +319,20 @@ export default function OperatorDashboard() {
                       size="sm"
                       variant="outline"
                       onClick={() => reanalyze(job.regulation_id)}
-                      title="Clear analysis markers and re-run"
+                      title="Clear analysis markers (and generated clauses) then re-run"
                     >
                       <RotateCw className="h-4 w-4 mr-1" />
                       Re-analyze
                     </Button>
                   </div>
                 </div>
-
-                {job.error_message && (
-                  <div className="mt-2 text-xs text-red-600">{job.error_message}</div>
-                )}
               </div>
             );
           })}
 
           {jobs.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
-              No analysis jobs yet. Ingest a regulation (Node scraper) and refresh.
+              No analysis jobs yet. Ingest a regulation with your Node scraper and refresh.
             </div>
           )}
         </div>
