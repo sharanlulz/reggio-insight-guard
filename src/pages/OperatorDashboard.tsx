@@ -83,20 +83,45 @@ export default function OperatorDashboard() {
   }
 
   async function loadAnalysisJobs() {
-    setLastError(null);
-
-    // Public view that lists regs which have source clauses
-    // (Create it with the SQL provided below if you haven’t already)
+  try {
     const { data, error } = await supabase
-      .from("analysis_regulations_v")
-      .select("regulation_id, regulation_title, regulation_short_code")
-      .limit(2000);
+      .from('analysis_jobs_v')
+      .select('*')
+      .order('regulation_title', { ascending: true });
 
-    if (error) {
-      setLastError(`loadAnalysisJobs: ${error.message}`);
-      setJobs([]);
-      return;
-    }
+    if (error) throw error;
+
+    const jobs = (data || []).map((row: any) => ({
+      id: `analysis-${row.regulation_id}`,
+      regulation_id: row.regulation_id,
+      regulation_title: row.regulation_title,
+      status:
+        row.total_source_clauses === 0
+          ? ('pending' as const)
+          : row.analyzed_clauses >= row.total_source_clauses
+          ? ('completed' as const)
+          : ('running' as const),
+      total_clauses: row.total_source_clauses,
+      processed_clauses: row.analyzed_clauses,
+      thresholds_extracted: 0,
+      obligations_extracted: 0,
+      stress_parameters_found: 0,
+      error_message: null,
+      started_at: row.last_analyzed_at || new Date(0).toISOString(),
+      updated_at: row.last_analyzed_at || new Date(0).toISOString(),
+      finished_at:
+        row.analyzed_clauses >= row.total_source_clauses
+          ? row.last_analyzed_at
+          : null,
+    }));
+
+    setAnalysisJobs(jobs);
+  } catch (e: any) {
+    console.error('Error loading analysis jobs:', e);
+    setAnalysisJobs([]);
+    setLastError(e.message || String(e));
+  }
+}
     const regs = data || [];
 
     // Build AnalysisJob rows
