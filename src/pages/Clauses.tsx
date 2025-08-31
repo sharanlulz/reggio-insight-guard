@@ -1,31 +1,29 @@
-// src/pages/Clauses.tsx
-// Hybrid-friendly Clauses page (source text + AI summary in one feed)
-// Expects public.clauses_v with columns described below.
-
+// src/pages/Clauses.tsx (hybrid-friendly)
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-type Regulation = { id: string; title: string; short_code: string | null };
+type Regulation = { id: string; title: string; short_code: string };
 
 type ClauseRow = {
-  source_id: string;                     // <- from view: sc.id as source_id
+  id: string; // we alias source_id -> id in the SELECT
   regulation_id: string | null;
   document_id: string | null;
-  path_hierarchy: string | null;         // sc.clause_number::text
-  number_label: string | null;           // sc.clause_number::text
-  text_raw: string;                      // source text (always present)
-  summary_plain: string | null;          // AI summary (nullable)
-  obligation_type: string | null;        // text-cast from enum (nullable)
-  risk_area: string | null;              // text-cast from enum (nullable)
-  themes: string[] | null;               // text[]
-  industries: string[] | null;           // text[]
+  path_hierarchy: string | null;
+  number_label: string | null;
+  text_raw: string;
+  summary_plain: string | null;
+  obligation_type: string | null;
+  risk_area: string | null;
+  themes: string[] | null;
+  industries: string[] | null;
   created_at: string;
-  regulation_title: string | null;       // joined
-  regulation_short_code: string | null;  // joined
+  regulation_title: string | null;
+  regulation_short_code: string | null;
 };
 
+// -------- UI helpers --------
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50];
 
 const OBLIGATION_TYPES = [
@@ -85,8 +83,9 @@ function makePreview(summary: string | null, text: string, q: string) {
   return highlightText(trimmed, q);
 }
 
+// -------- Page --------
 export default function Clauses() {
-  // Filters
+  // filters
   const [regs, setRegs] = useState<Regulation[]>([]);
   const [regId, setRegId] = useState("");
   const [risk, setRisk] = useState("");
@@ -94,18 +93,18 @@ export default function Clauses() {
   const [search, setSearch] = useState("");
   const [searchIn, setSearchIn] = useState<"both" | "summary" | "text">("both");
 
-  // Paging
+  // paging
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(30);
   const [total, setTotal] = useState(0);
 
-  // Data
+  // data
   const [rows, setRows] = useState<ClauseRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   const debouncedQ = useDebounced(search, 350);
 
-  // Load regulation dropdown
+  // Load regulation drop-down
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
@@ -116,7 +115,7 @@ export default function Clauses() {
     })();
   }, []);
 
-  // Reset page when filters/search change
+  // Reset to first page on filter/search changes
   useEffect(() => setPage(1), [regId, risk, obType, debouncedQ, searchIn]);
 
   const totalPages = useMemo(
@@ -124,7 +123,7 @@ export default function Clauses() {
     [total, pageSize]
   );
 
-  // Apply filters helper
+  // Build base filter for both count & data queries
   const applyFilters = useCallback(
     (q: any) => {
       if (regId) q = q.eq("regulation_id", regId);
@@ -148,23 +147,22 @@ export default function Clauses() {
     [regId, risk, obType, debouncedQ, searchIn]
   );
 
-  // Load data (count + page)
+  // Load (count + page)
   const fetchData = useCallback(async () => {
     setLoading(true);
 
     // Count
-    let countQ = supabase
-      .from("clauses_v")
-      .select("*", { count: "exact", head: true });
+    let countQ = supabase.from("clauses_v").select("*", { count: "exact", head: true });
     countQ = applyFilters(countQ);
     const countRes = await countQ;
     setTotal(Number(countRes.count || 0));
 
-    // Page data
+    // Page
     let dataQ = supabase
       .from("clauses_v")
+      // IMPORTANT: alias source_id -> id so the component can use row.id
       .select(
-        "source_id, regulation_id, document_id, path_hierarchy, number_label, text_raw, summary_plain, obligation_type, risk_area, themes, industries, created_at, regulation_title, regulation_short_code"
+        "id:source_id, regulation_id, document_id, path_hierarchy, number_label, text_raw, summary_plain, obligation_type, risk_area, themes, industries, created_at, regulation_title, regulation_short_code"
       )
       .order("created_at", { ascending: false });
 
@@ -188,7 +186,8 @@ export default function Clauses() {
       <div className="bg-card rounded-lg border p-4">
         <h1 className="text-2xl font-bold text-card-foreground mb-2">Clauses</h1>
         <p className="text-sm text-muted-foreground">
-          Unified feed of raw clauses (source) with AI summaries when available.
+          Showing scraped clauses (hybrid ingest). Summaries appear when AI analysis has been run;
+          otherwise you’ll see the raw clause text preview.
         </p>
       </div>
 
@@ -197,9 +196,7 @@ export default function Clauses() {
         <div className="grid gap-3 md:grid-cols-4">
           {/* Regulation */}
           <div>
-            <label className="block text-sm font-medium text-card-foreground">
-              Regulation
-            </label>
+            <label className="block text-sm font-medium text-card-foreground">Regulation</label>
             <select
               className="w-full border rounded-md px-3 py-2 bg-background"
               value={regId}
@@ -216,9 +213,7 @@ export default function Clauses() {
 
           {/* Risk Area */}
           <div>
-            <label className="block text-sm font-medium text-card-foreground">
-              Risk Area
-            </label>
+            <label className="block text-sm font-medium text-card-foreground">Risk Area</label>
             <select
               className="w-full border rounded-md px-3 py-2 bg-background"
               value={risk}
@@ -235,9 +230,7 @@ export default function Clauses() {
 
           {/* Obligation Type */}
           <div>
-            <label className="block text-sm font-medium text-card-foreground">
-              Obligation Type
-            </label>
+            <label className="block text-sm font-medium text-card-foreground">Obligation Type</label>
             <select
               className="w-full border rounded-md px-3 py-2 bg-background"
               value={obType}
@@ -254,9 +247,7 @@ export default function Clauses() {
 
           {/* Search */}
           <div>
-            <label className="block text-sm font-medium text-card-foreground">
-              Search
-            </label>
+            <label className="block text-sm font-medium text-card-foreground">Search</label>
             <input
               className="w-full border rounded-md px-3 py-2 bg-background"
               placeholder="Search summary/text/regulation title…"
@@ -321,69 +312,40 @@ export default function Clauses() {
 
       {/* Results */}
       <div className="space-y-3">
-        {rows.map((cl) => (
-          <Card
-            key={cl.source_id}
-            className="p-4 border bg-card hover:shadow-md transition-shadow"
-          >
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
-              {/* Regulation pill */}
-              {cl.regulation_title && (
-                <span className="px-2 py-1 rounded bg-primary/10 text-primary border border-primary/20">
-                  {cl.regulation_short_code || ""}{" "}
-                  {cl.regulation_short_code ? "· " : ""}
-                  {cl.regulation_title}
-                </span>
-              )}
-
-              {/* Path / number */}
-              {cl.path_hierarchy && (
-                <span className="px-2 py-1 rounded bg-muted text-muted-foreground border">
-                  {cl.path_hierarchy}
-                </span>
-              )}
-
-              {/* Risk / obligation */}
-              {cl.risk_area && (
-                <span className="px-2 py-1 rounded bg-secondary/10 text-secondary-foreground border border-secondary/20">
-                  {cl.risk_area}
-                </span>
-              )}
-              {cl.obligation_type && (
-                <span className="px-2 py-1 rounded bg-accent/10 text-accent-foreground border border-accent/20">
-                  {cl.obligation_type}
-                </span>
-              )}
-
-              {/* Created */}
-              <span className="ml-auto">
-                {new Date(cl.created_at).toLocaleString()}
-              </span>
-            </div>
-
-            {/* Summary (if present) */}
-            {cl.summary_plain && cl.summary_plain.trim().length > 0 && (
-              <div className="mb-2">
-                <div className="text-xs font-medium text-muted-foreground mb-1">
-                  AI Summary
-                </div>
-                <div className="leading-relaxed">
-                  {highlightText(cl.summary_plain, debouncedQ)}
-                </div>
+        {rows.map((cl) => {
+          return (
+            <Card key={cl.id} className="p-4 border bg-card hover:shadow-md transition-shadow">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
+                {cl.regulation_title && (
+                  <span className="px-2 py-1 rounded bg-primary/10 text-primary border border-primary/20">
+                    {cl.regulation_short_code || ""} {cl.regulation_short_code ? "·" : ""}
+                    {cl.regulation_title}
+                  </span>
+                )}
+                {cl.path_hierarchy && (
+                  <span className="px-2 py-1 rounded bg-muted text-muted-foreground border">
+                    {cl.path_hierarchy}
+                  </span>
+                )}
+                {cl.risk_area && (
+                  <span className="px-2 py-1 rounded bg-secondary/10 text-secondary-foreground border border-secondary/20">
+                    {cl.risk_area}
+                  </span>
+                )}
+                {cl.obligation_type && (
+                  <span className="px-2 py-1 rounded bg-accent/10 text-accent-foreground border border-accent/20">
+                    {cl.obligation_type}
+                  </span>
+                )}
+                <span className="ml-auto">{new Date(cl.created_at).toLocaleString()}</span>
               </div>
-            )}
 
-            {/* Raw text preview */}
-            <div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">
-                Clause text
-              </div>
               <div className="leading-relaxed">
-                {highlightText(cl.text_raw, debouncedQ)}
+                {makePreview(cl.summary_plain, cl.text_raw, debouncedQ)}
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
 
         {!loading && rows.length === 0 && (
           <Card className="p-6 text-sm text-muted-foreground border bg-card/50">
