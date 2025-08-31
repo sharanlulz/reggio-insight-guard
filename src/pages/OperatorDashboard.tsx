@@ -1,14 +1,9 @@
 // src/pages/OperatorDashboard.tsx
-// Operator Dashboard focused on AI Analysis (with re-analyze)
-// - Lists regs that have source_clauses (via a public view)
-// - Shows analysis progress
-// - One-click Analyze and Re-analyze
-// - Keeps ingestion tucked away (still accessible)
+// Operator Dashboard focused on AI Analysis (analyze & re-analyze)
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +27,6 @@ type AnalysisJob = {
   finished_at: string | null;
 };
 
-// Small helper: consistent badge tone
 function StatusChip({ status }: { status: AnalysisStatus }) {
   const tone =
     status === "failed"
@@ -57,149 +51,73 @@ export default function OperatorDashboard() {
 
   const lastProgress = useRef<Record<string, number>>({});
 
-  // --- Data loaders ---
-
-  // Count unanalyzed vs analyzed for a regulation
-  async function getRegAnalysisStatus(regId: string) {
-    // total source clauses
-    const totalQ = await supabase
-      .schema("reggio")
-      .from("source_clauses")
-      .select("id", { count: "exact", head: true })
-      .eq("regulation_id", regId);
-
-    // analyzed: we consider metadata->analyzed_at not null OR analysis_status='completed'
-    const analyzedQ = await supabase
-      .schema("reggio")
-      .from("source_clauses")
-      .select("id", { count: "exact", head: true })
-      .eq("regulation_id", regId)
-      .not("metadata->>analyzed_at", "is", null);
-
-    const total = Number(totalQ.count || 0);
-    const analyzed = Number(analyzedQ.count || 0);
-    const needs = analyzed < total;
-    return { total, analyzed, needs };
-  }
-
+  // ---- Load analysis jobs from the public view ----
   async function loadAnalysisJobs() {
-  try {
-    const { data, error } = await supabase
-      .from('analysis_jobs_v')
-      .select('*')
-      .order('regulation_title', { ascending: true });
+    try {
+      setLastError(null);
+      const { data, error } = await supabase
+        .from("analysis_jobs_v")
+        .select("*")
+        .order("regulation_title", { ascending: true });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    const jobs = (data || []).map((row: any) => ({
-      id: `analysis-${row.regulation_id}`,
-      regulation_id: row.regulation_id,
-      regulation_title: row.regulation_title,
-      status:
-        row.total_source_clauses === 0
-          ? ('pending' as const)
-          : row.analyzed_clauses >= row.total_source_clauses
-          ? ('completed' as const)
-          : ('running' as const),
-      total_clauses: row.total_source_clauses,
-      processed_clauses: row.analyzed_clauses,
-      thresholds_extracted: 0,
-      obligations_extracted: 0,
-      stress_parameters_found: 0,
-      error_message: null,
-      started_at: row.last_analyzed_at || new Date(0).toISOString(),
-      updated_at: row.last_analyzed_at || new Date(0).toISOString(),
-      finished_at:
-        row.analyzed_clauses >= row.total_source_clauses
-          ? row.last_analyzed_at
-          : null,
-    }));
+      const rows = (data || []).map((row: any): AnalysisJob => {
+        const status: AnalysisStatus =
+          row.total_source_clauses === 0
+            ? "pending"
+            : row.analyzed_clauses >= row.total_source_clauses
+            ? "completed"
+            : "running";
 
-    setAnalysisJobs(jobs);
-  } catch (e: any) {
-    console.error('Error loading analysis jobs:', e);
-    setAnalysisJobs([]);
-    setLastError(e.message || String(e));
-  }
-}
-    const regs = data || [];
-
-    // Build AnalysisJob rows
-    const list: AnalysisJob[] = [];
-    for (const r of regs) {
-      const { total, analyzed, needs } = await getRegAnalysisStatus(
-        r.regulation_id
-      );
-
-      const status: AnalysisStatus =
-        analyzed === 0 ? "pending" : needs ? "running" : "completed";
-
-      list.push({
-        id: `analysis-${r.regulation_id}`,
-        regulation_id: r.regulation_id,
-        regulation_title: r.regulation_title || "Unknown Regulation",
-        regulation_short_code: r.regulation_short_code || null,
-        status,
-        total_clauses: total,
-        processed_clauses: analyzed,
-        error_message: null,
-        started_at: null,
-        updated_at: null,
-        finished_at: !needs ? new Date().toISOString() : null,
+        return {
+          id: `analysis-${row.regulation_id}`,
+          regulation_id: row.regulation_id,
+          regulation_title: row.regulation_title,
+          regulation_short_code: row.regulation_short_code ?? null,
+          status,
+          total_clauses: row.total_source_clauses,
+          processed_clauses: row.analyzed_clauses,
+          error_message: null,
+          started_at: row.last_analyzed_at ?? null,
+          updated_at: row.last_analyzed_at ?? null,
+          finished_at:
+            status === "completed" ? row.last_analyzed_at ?? null : null,
+        };
       });
-    }
 
-    setJobs(list);
+      setJobs(rows);
+    } catch (e: any) {
+      setJobs([]);
+      setLastError(e.message || String(e));
+    }
   }
 
-  // --- Actions ---
-
-  // Start one regulation analysis (batch)
+  // ---- Actions ----
   async function startAnalysis(regulationId: string) {
     try {
       setLastError(null);
-      const { data, error } = await supabase.functions.invoke("reggio-analyze", {
+      const { error } = await supabase.functions.invoke("reggio-analyze", {
         body: { regulation_id: regulationId, batch_size: 4 },
       });
       if (error) throw error;
-      // update UI
       await loadAnalysisJobs();
     } catch (e: any) {
       setLastError(`startAnalysis: ${e.message || String(e)}`);
     }
   }
 
-  // Re-analyze = clear analysis markers for that regulation, then start
   async function reanalyze(regulationId: string) {
     try {
       setLastError(null);
-      // Clear analysis markers in source_clauses for this regulation
-      const { error: upErr } = await supabase
-        .schema("reggio")
-        .from("source_clauses")
-        .update({
-          // remove old flags but keep original text
-          metadata: supabase.rpc
-            ? undefined // (RPC not used; do below with jsonb_set pattern if needed)
-            : undefined,
-        })
-        .eq("regulation_id", regulationId);
+      // Clear analyzed markers on source_clauses via RPC (see SQL below)
+      const { error: rpcErr } = await supabase.rpc(
+        "reset_analysis_markers",
+        { p_reg_id: regulationId }
+      );
+      if (rpcErr) throw rpcErr;
 
-      // If you want a proper wipe of markers while preserving other metadata,
-      // do it with an RPC or multiple updates; simpler: set analyzed_at/status to null:
-      // Workaround: two updates to surgically remove keys if your DB policy allows:
-      await supabase
-        .schema("reggio")
-        .from("source_clauses")
-        .update({
-          // set specific keys to null-friendly state
-          // (if your DB uses computed metadata, replace with proper RPC)
-          metadata: null,
-        })
-        .eq("regulation_id", regulationId)
-        .is("metadata", null);
-
-      // Kick a batch right away
+      // Kick a fresh batch
       await startAnalysis(regulationId);
     } catch (e: any) {
       setLastError(`reanalyze: ${e.message || String(e)}`);
@@ -215,8 +133,7 @@ export default function OperatorDashboard() {
     }
   }
 
-  // --- Effects ---
-
+  // ---- Effects ----
   useEffect(() => {
     loadAll();
   }, []);
@@ -230,8 +147,6 @@ export default function OperatorDashboard() {
     const id = setInterval(loadAll, interval);
     return () => clearInterval(id);
   }, [autoRefresh, jobs]);
-
-  // --- Render ---
 
   const runningCount = useMemo(
     () => jobs.filter((j) => j.status === "pending" || j.status === "running").length,
@@ -318,7 +233,6 @@ export default function OperatorDashboard() {
                 ? Math.round((job.processed_clauses / job.total_clauses) * 100)
                 : 0;
 
-            // Stalling indicator
             const prev = lastProgress.current[job.id] ?? -1;
             const stalled =
               (job.status === "running" || job.status === "pending") &&
