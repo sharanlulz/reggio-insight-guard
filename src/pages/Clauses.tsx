@@ -1,4 +1,6 @@
-// src/pages/Clauses.tsx (hybrid-friendly)
+// src/pages/Clauses.tsx
+// Hybrid-friendly Clauses page with per-card Summary/Text toggle
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -7,13 +9,13 @@ import { Button } from "@/components/ui/button";
 type Regulation = { id: string; title: string; short_code: string };
 
 type ClauseRow = {
-  id: string; // we alias source_id -> id in the SELECT
+  id: string;
   regulation_id: string | null;
   document_id: string | null;
-  path_hierarchy: string | null;
-  number_label: string | null;
-  text_raw: string;
-  summary_plain: string | null;
+  path_hierarchy: string | null;   // from view
+  number_label: string | null;     // from view
+  text_raw: string;                // always present
+  summary_plain: string | null;    // present after AI analysis
   obligation_type: string | null;
   risk_area: string | null;
   themes: string[] | null;
@@ -77,10 +79,96 @@ function highlightText(text: string, q: string) {
   );
 }
 
-function makePreview(summary: string | null, text: string, q: string) {
-  const base = (summary && summary.trim().length > 0 ? summary : text).trim();
-  const trimmed = base.length > 600 ? base.slice(0, 600) + "…" : base;
+// Small helper to clamp length and highlight
+function makePreview(text: string, q: string, max = 600) {
+  const trimmed = text.length > max ? text.slice(0, max) + "…" : text;
   return highlightText(trimmed, q);
+}
+
+// ---- Per-card preview component with toggle ----
+type ViewMode = "auto" | "summary" | "text";
+
+function ClausePreview({
+  cl,
+  query,
+  initialMode,
+}: {
+  cl: ClauseRow;
+  query: string;
+  initialMode: ViewMode;
+}) {
+  const [mode, setMode] = useState<ViewMode>(initialMode);
+
+  // If there's no summary, force to text
+  const hasSummary = !!(cl.summary_plain && cl.summary_plain.trim().length > 0);
+
+  useEffect(() => {
+    if (!hasSummary && mode !== "text") setMode("text");
+  }, [hasSummary, mode]);
+
+  // Compute chosen text
+  const chosen =
+    mode === "summary"
+      ? (cl.summary_plain || "").trim()
+      : mode === "text"
+      ? cl.text_raw.trim()
+      : // auto
+        (cl.summary_plain && cl.summary_plain.trim().length > 0
+          ? cl.summary_plain.trim()
+          : cl.text_raw.trim());
+
+  return (
+    <div>
+      {/* Toggle (show only if summary exists) */}
+      {hasSummary && (
+        <div className="mb-2 inline-flex rounded-md border overflow-hidden">
+          <Button
+            type="button"
+            variant={mode === "summary" ? "default" : "outline"}
+            onClick={() => setMode("summary")}
+            className="rounded-none"
+            size="sm"
+          >
+            Summary
+          </Button>
+          <Button
+            type="button"
+            variant={mode === "text" ? "default" : "outline"}
+            onClick={() => setMode("text")}
+            className="rounded-none border-l-0"
+            size="sm"
+          >
+            Text
+          </Button>
+          <Button
+            type="button"
+            variant={mode === "auto" ? "default" : "outline"}
+            onClick={() => setMode("auto")}
+            className="rounded-none border-l-0"
+            size="sm"
+            title="Show summary when available; otherwise raw text"
+          >
+            Auto
+          </Button>
+        </div>
+      )}
+
+      {/* Label chip for clarity */}
+      <div className="text-xs font-medium text-muted-foreground mb-1">
+        {mode === "summary"
+          ? "AI Summary"
+          : mode === "text"
+          ? "Clause text"
+          : hasSummary
+          ? "Auto (summary preferred)"
+          : "Clause text"}
+      </div>
+
+      <div className="leading-relaxed">
+        {makePreview(chosen, query)}
+      </div>
+    </div>
+  );
 }
 
 // -------- Page --------
@@ -160,9 +248,8 @@ export default function Clauses() {
     // Page
     let dataQ = supabase
       .from("clauses_v")
-      // IMPORTANT: alias source_id -> id so the component can use row.id
       .select(
-        "id:source_id, regulation_id, document_id, path_hierarchy, number_label, text_raw, summary_plain, obligation_type, risk_area, themes, industries, created_at, regulation_title, regulation_short_code"
+        "id, regulation_id, document_id, path_hierarchy, number_label, text_raw, summary_plain, obligation_type, risk_area, themes, industries, created_at, regulation_title, regulation_short_code"
       )
       .order("created_at", { ascending: false });
 
@@ -181,13 +268,20 @@ export default function Clauses() {
     fetchData();
   }, [fetchData]);
 
+  // Set the default per-card mode from the search toggle:
+  // - "summary" -> start in summary
+  // - "text"    -> start in text
+  // - "both"    -> auto (summary preferred)
+  const defaultMode: ViewMode =
+    searchIn === "summary" ? "summary" : searchIn === "text" ? "text" : "auto";
+
   return (
     <div className="space-y-4">
       <div className="bg-card rounded-lg border p-4">
         <h1 className="text-2xl font-bold text-card-foreground mb-2">Clauses</h1>
         <p className="text-sm text-muted-foreground">
-          Showing scraped clauses (hybrid ingest). Summaries appear when AI analysis has been run;
-          otherwise you’ll see the raw clause text preview.
+          Showing scraped clauses (hybrid ingest). Toggle between <em>AI summary</em> and
+          <em> raw clause text</em> on each card. “Auto” prefers summary when available.
         </p>
       </div>
 
@@ -316,17 +410,20 @@ export default function Clauses() {
           return (
             <Card key={cl.id} className="p-4 border bg-card hover:shadow-md transition-shadow">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
+                {/* regulation pill */}
                 {cl.regulation_title && (
                   <span className="px-2 py-1 rounded bg-primary/10 text-primary border border-primary/20">
                     {cl.regulation_short_code || ""} {cl.regulation_short_code ? "·" : ""}
                     {cl.regulation_title}
                   </span>
                 )}
+                {/* path/number */}
                 {cl.path_hierarchy && (
                   <span className="px-2 py-1 rounded bg-muted text-muted-foreground border">
                     {cl.path_hierarchy}
                   </span>
                 )}
+                {/* risk + obligation */}
                 {cl.risk_area && (
                   <span className="px-2 py-1 rounded bg-secondary/10 text-secondary-foreground border border-secondary/20">
                     {cl.risk_area}
@@ -337,12 +434,12 @@ export default function Clauses() {
                     {cl.obligation_type}
                   </span>
                 )}
+                {/* created */}
                 <span className="ml-auto">{new Date(cl.created_at).toLocaleString()}</span>
               </div>
 
-              <div className="leading-relaxed">
-                {makePreview(cl.summary_plain, cl.text_raw, debouncedQ)}
-              </div>
+              {/* Preview with per-card toggle */}
+              <ClausePreview cl={cl} query={debouncedQ} initialMode={defaultMode} />
             </Card>
           );
         })}
