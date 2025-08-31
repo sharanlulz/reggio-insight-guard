@@ -1,21 +1,24 @@
 // src/pages/Clauses.tsx
-// Hybrid-friendly Clauses page with per-card Summary/Text toggle
+// Hybrid-friendly Clauses page reading from public.clauses_v
+// - Matches current view columns (source_id, regulation_id, ...)
+// - Shows Summary + Raw Text in the same card with a toggle
+// - Filters, search, paging
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-type Regulation = { id: string; title: string; short_code: string };
+type Regulation = { id: string; title: string; short_code: string | null };
 
 type ClauseRow = {
-  id: string;
+  source_id: string;                 // from view
   regulation_id: string | null;
   document_id: string | null;
-  path_hierarchy: string | null;   // from view
-  number_label: string | null;     // from view
-  text_raw: string;                // always present
-  summary_plain: string | null;    // present after AI analysis
+  path_hierarchy: string | null;
+  number_label: string | null;
+  text_raw: string;
+  summary_plain: string | null;
   obligation_type: string | null;
   risk_area: string | null;
   themes: string[] | null;
@@ -25,7 +28,6 @@ type ClauseRow = {
   regulation_short_code: string | null;
 };
 
-// -------- UI helpers --------
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50];
 
 const OBLIGATION_TYPES = [
@@ -79,99 +81,6 @@ function highlightText(text: string, q: string) {
   );
 }
 
-// Small helper to clamp length and highlight
-function makePreview(text: string, q: string, max = 600) {
-  const trimmed = text.length > max ? text.slice(0, max) + "…" : text;
-  return highlightText(trimmed, q);
-}
-
-// ---- Per-card preview component with toggle ----
-type ViewMode = "auto" | "summary" | "text";
-
-function ClausePreview({
-  cl,
-  query,
-  initialMode,
-}: {
-  cl: ClauseRow;
-  query: string;
-  initialMode: ViewMode;
-}) {
-  const [mode, setMode] = useState<ViewMode>(initialMode);
-
-  // If there's no summary, force to text
-  const hasSummary = !!(cl.summary_plain && cl.summary_plain.trim().length > 0);
-
-  useEffect(() => {
-    if (!hasSummary && mode !== "text") setMode("text");
-  }, [hasSummary, mode]);
-
-  // Compute chosen text
-  const chosen =
-    mode === "summary"
-      ? (cl.summary_plain || "").trim()
-      : mode === "text"
-      ? cl.text_raw.trim()
-      : // auto
-        (cl.summary_plain && cl.summary_plain.trim().length > 0
-          ? cl.summary_plain.trim()
-          : cl.text_raw.trim());
-
-  return (
-    <div>
-      {/* Toggle (show only if summary exists) */}
-      {hasSummary && (
-        <div className="mb-2 inline-flex rounded-md border overflow-hidden">
-          <Button
-            type="button"
-            variant={mode === "summary" ? "default" : "outline"}
-            onClick={() => setMode("summary")}
-            className="rounded-none"
-            size="sm"
-          >
-            Summary
-          </Button>
-          <Button
-            type="button"
-            variant={mode === "text" ? "default" : "outline"}
-            onClick={() => setMode("text")}
-            className="rounded-none border-l-0"
-            size="sm"
-          >
-            Text
-          </Button>
-          <Button
-            type="button"
-            variant={mode === "auto" ? "default" : "outline"}
-            onClick={() => setMode("auto")}
-            className="rounded-none border-l-0"
-            size="sm"
-            title="Show summary when available; otherwise raw text"
-          >
-            Auto
-          </Button>
-        </div>
-      )}
-
-      {/* Label chip for clarity */}
-      <div className="text-xs font-medium text-muted-foreground mb-1">
-        {mode === "summary"
-          ? "AI Summary"
-          : mode === "text"
-          ? "Clause text"
-          : hasSummary
-          ? "Auto (summary preferred)"
-          : "Clause text"}
-      </div>
-
-      <div className="leading-relaxed">
-        {makePreview(chosen, query)}
-      </div>
-    </div>
-  );
-}
-
-// -------- Page --------
 export default function Clauses() {
   // filters
   const [regs, setRegs] = useState<Regulation[]>([]);
@@ -180,6 +89,9 @@ export default function Clauses() {
   const [obType, setObType] = useState("");
   const [search, setSearch] = useState("");
   const [searchIn, setSearchIn] = useState<"both" | "summary" | "text">("both");
+
+  // show-mode per card
+  const [showMode, setShowMode] = useState<"both" | "summary" | "text">("both");
 
   // paging
   const [page, setPage] = useState(1);
@@ -192,7 +104,7 @@ export default function Clauses() {
 
   const debouncedQ = useDebounced(search, 350);
 
-  // Load regulation drop-down
+  // Load regs for dropdown
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
@@ -203,7 +115,7 @@ export default function Clauses() {
     })();
   }, []);
 
-  // Reset to first page on filter/search changes
+  // Reset to page 1 when filters change
   useEffect(() => setPage(1), [regId, risk, obType, debouncedQ, searchIn]);
 
   const totalPages = useMemo(
@@ -211,7 +123,6 @@ export default function Clauses() {
     [total, pageSize]
   );
 
-  // Build base filter for both count & data queries
   const applyFilters = useCallback(
     (q: any) => {
       if (regId) q = q.eq("regulation_id", regId);
@@ -235,21 +146,35 @@ export default function Clauses() {
     [regId, risk, obType, debouncedQ, searchIn]
   );
 
-  // Load (count + page)
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    // Count
+    // COUNT
     let countQ = supabase.from("clauses_v").select("*", { count: "exact", head: true });
     countQ = applyFilters(countQ);
     const countRes = await countQ;
     setTotal(Number(countRes.count || 0));
 
-    // Page
+    // PAGE
     let dataQ = supabase
       .from("clauses_v")
       .select(
-        "id, regulation_id, document_id, path_hierarchy, number_label, text_raw, summary_plain, obligation_type, risk_area, themes, industries, created_at, regulation_title, regulation_short_code"
+        [
+          "source_id",
+          "regulation_id",
+          "document_id",
+          "path_hierarchy",
+          "number_label",
+          "text_raw",
+          "summary_plain",
+          "obligation_type",
+          "risk_area",
+          "themes",
+          "industries",
+          "created_at",
+          "regulation_title",
+          "regulation_short_code",
+        ].join(",")
       )
       .order("created_at", { ascending: false });
 
@@ -268,26 +193,19 @@ export default function Clauses() {
     fetchData();
   }, [fetchData]);
 
-  // Set the default per-card mode from the search toggle:
-  // - "summary" -> start in summary
-  // - "text"    -> start in text
-  // - "both"    -> auto (summary preferred)
-  const defaultMode: ViewMode =
-    searchIn === "summary" ? "summary" : searchIn === "text" ? "text" : "auto";
-
   return (
     <div className="space-y-4">
       <div className="bg-card rounded-lg border p-4">
         <h1 className="text-2xl font-bold text-card-foreground mb-2">Clauses</h1>
         <p className="text-sm text-muted-foreground">
-          Showing scraped clauses (hybrid ingest). Toggle between <em>AI summary</em> and
-          <em> raw clause text</em> on each card. “Auto” prefers summary when available.
+          Showing scraped clauses (hybrid ingest) from <code>public.clauses_v</code>. 
+          Summaries appear when AI analysis has been run; otherwise you’ll see the raw clause text.
         </p>
       </div>
 
       {/* Filters */}
       <Card className="p-4 space-y-3 border bg-card">
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-5">
           {/* Regulation */}
           <div>
             <label className="block text-sm font-medium text-card-foreground">Regulation</label>
@@ -381,8 +299,23 @@ export default function Clauses() {
               </label>
             </div>
           </div>
+
+          {/* Show mode */}
+          <div>
+            <label className="block text-sm font-medium text-card-foreground">Display</label>
+            <select
+              className="w-full border rounded-md px-3 py-2 bg-background"
+              value={showMode}
+              onChange={(e) => setShowMode(e.target.value as typeof showMode)}
+            >
+              <option value="both">Summary + Text</option>
+              <option value="summary">Summary only</option>
+              <option value="text">Text only</option>
+            </select>
+          </div>
         </div>
 
+        {/* Pager controls (top right) */}
         <div className="flex items-center justify-between pt-2">
           <div className="text-sm text-muted-foreground">
             {loading ? "Loading…" : `${total} result${total === 1 ? "" : "s"}`}
@@ -407,8 +340,12 @@ export default function Clauses() {
       {/* Results */}
       <div className="space-y-3">
         {rows.map((cl) => {
+          const showSummary = showMode !== "text" && !!cl.summary_plain?.trim();
+          const showText = showMode !== "summary";
+
           return (
-            <Card key={cl.id} className="p-4 border bg-card hover:shadow-md transition-shadow">
+            <Card key={cl.source_id} className="p-4 border bg-card hover:shadow-md transition-shadow">
+              {/* meta row */}
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
                 {/* regulation pill */}
                 {cl.regulation_title && (
@@ -438,8 +375,28 @@ export default function Clauses() {
                 <span className="ml-auto">{new Date(cl.created_at).toLocaleString()}</span>
               </div>
 
-              {/* Preview with per-card toggle */}
-              <ClausePreview cl={cl} query={debouncedQ} initialMode={defaultMode} />
+              {/* content */}
+              <div className="space-y-3 leading-relaxed">
+                {showSummary && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">
+                      Summary
+                    </div>
+                    <div>{highlightText(cl.summary_plain!, debouncedQ)}</div>
+                  </div>
+                )}
+
+                {showText && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">
+                      Clause text
+                    </div>
+                    <div className="whitespace-pre-wrap">
+                      {highlightText(cl.text_raw, debouncedQ)}
+                    </div>
+                  </div>
+                )}
+              </div>
             </Card>
           );
         })}
