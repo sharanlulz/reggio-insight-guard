@@ -1,9 +1,5 @@
 // src/pages/OperatorDashboard.tsx
-// Operator Dashboard — AI Analysis–focused
-// - Lists regs that have source_clauses (from analysis_jobs_v if available, else fallback)
-// - Shows analysis progress
-// - Analyze and Re-analyze (clears markers via RPC then runs edge function)
-// - Auto-refresh while jobs pending/running
+// Operator Dashboard focused on AI Analysis (with Re-analyze)
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -18,20 +14,21 @@ import { AlertCircle, Brain, RefreshCw, RotateCw, Play } from "lucide-react";
 
 type AnalysisStatus = "pending" | "running" | "completed" | "failed";
 
-type JobRow = {
-  id: string;                     // synthetic "analysis-<reg_id>"
+type AnalysisJob = {
+  id: string;
   regulation_id: string;
   regulation_title: string;
   regulation_short_code: string | null;
   status: AnalysisStatus;
-  total_clauses: number;          // total source clauses
-  processed_clauses: number;      // analyzed so far (count in reggio.clauses or metadata analyzed_at)
-  error_message: string | null;   // reserved for future
-  started_at: string | null;      // last analyzed timestamp (if any)
+  total_clauses: number;
+  processed_clauses: number;
+  error_message: string | null;
+  started_at: string | null;
   updated_at: string | null;
-  finished_at: string | null;     // set when completed
+  finished_at: string | null;
 };
 
+// Small helper: consistent badge tone
 function StatusChip({ status }: { status: AnalysisStatus }) {
   const tone =
     status === "failed"
@@ -49,175 +46,99 @@ function StatusChip({ status }: { status: AnalysisStatus }) {
 }
 
 export default function OperatorDashboard() {
-  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const [jobs, setJobs] = useState<AnalysisJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastError, setLastError] = useState<string | null>(null);
 
   const lastProgress = useRef<Record<string, number>>({});
 
-  // -------- Data loading --------
-
-  // Try the view first; if missing, fallback to manual aggregation
+  // --- Load jobs ---
   async function loadAnalysisJobs() {
-    setLastError(null);
+    try {
+      const { data, error } = await supabase
+        .from("analysis_jobs_v")
+        .select("*")
+        .order("regulation_title", { ascending: true });
 
-    // 1) Attempt to read from public.analysis_jobs_v (preferred)
-    const tryView = await supabase
-      .from("analysis_jobs_v")
-      .select(
-        "regulation_id, regulation_title, regulation_short_code, total_source_clauses, analyzed_clauses, last_analyzed_at"
-      )
-      .order("regulation_title", { ascending: true });
+      if (error) throw error;
 
-    if (!tryView.error && tryView.data) {
-      const rows: JobRow[] = (tryView.data as any[]).map((r) => {
-        const total = Number(r.total_source_clauses || 0);
-        const analyzed = Number(r.analyzed_clauses || 0);
-        const needs = analyzed < total;
-        const status: AnalysisStatus =
-          total === 0 ? "pending" : needs ? "running" : "completed";
-
-        return {
-          id: `analysis-${r.regulation_id}`,
-          regulation_id: r.regulation_id,
-          regulation_title: r.regulation_title || "Unknown Regulation",
-          regulation_short_code: r.regulation_short_code ?? null,
-          status,
-          total_clauses: total,
-          processed_clauses: analyzed,
-          error_message: null,
-          started_at: r.last_analyzed_at ?? null,
-          updated_at: r.last_analyzed_at ?? null,
-          finished_at: !needs ? r.last_analyzed_at ?? null : null,
-        };
-      });
-
-      setJobs(rows);
-      return;
-    }
-
-    // 2) Fallback: derive from reggio.source_clauses + regulations
-    // Get regs that have ANY source_clauses
-    const regsQ = await supabase
-      .schema("reggio")
-      .from("source_clauses")
-      .select("regulation_id, regulations!inner(id, title, short_code)");
-
-    if (regsQ.error) {
-      setJobs([]);
-      setLastError(`Failed to load analysis jobs: ${regsQ.error.message}`);
-      return;
-    }
-
-    const regMap = new Map<
-      string,
-      { title: string; short_code: string | null }
-    >();
-
-    (regsQ.data || []).forEach((row: any) => {
-      const id = row.regulation_id as string;
-      if (id && !regMap.has(id)) {
-        regMap.set(id, {
-          title: row.regulations?.title ?? "Unknown Regulation",
-          short_code: row.regulations?.short_code ?? null,
-        });
-      }
-    });
-
-    const resultRows: JobRow[] = [];
-
-    for (const [regId, meta] of regMap) {
-      // total source
-      const totalQ = await supabase
-        .schema("reggio")
-        .from("source_clauses")
-        .select("id", { count: "exact", head: true })
-        .eq("regulation_id", regId);
-
-      // analyzed: use metadata->>analyzed_at not null (your analyze function writes this)
-      const analyzedQ = await supabase
-        .schema("reggio")
-        .from("source_clauses")
-        .select("id", { count: "exact", head: true })
-        .eq("regulation_id", regId)
-        .not("metadata->>analyzed_at", "is", null);
-
-      const total = Number(totalQ.count || 0);
-      const analyzed = Number(analyzedQ.count || 0);
-      const needs = analyzed < total;
-      const status: AnalysisStatus =
-        total === 0 ? "pending" : needs ? "running" : "completed";
-
-      resultRows.push({
-        id: `analysis-${regId}`,
-        regulation_id: regId,
-        regulation_title: meta.title,
-        regulation_short_code: meta.short_code,
-        status,
-        total_clauses: total,
-        processed_clauses: analyzed,
+      const jobs = (data || []).map((row: any) => ({
+        id: `analysis-${row.regulation_id}`,
+        regulation_id: row.regulation_id,
+        regulation_title: row.regulation_title,
+        regulation_short_code: row.regulation_short_code,
+        status:
+          row.total_source_clauses === 0
+            ? "pending"
+            : row.analyzed_clauses >= row.total_source_clauses
+            ? "completed"
+            : "running",
+        total_clauses: row.total_source_clauses,
+        processed_clauses: row.analyzed_clauses,
         error_message: null,
-        started_at: null,
-        updated_at: null,
-        finished_at: !needs ? new Date().toISOString() : null,
-      });
+        started_at: row.last_analyzed_at,
+        updated_at: row.last_analyzed_at,
+        finished_at:
+          row.analyzed_clauses >= row.total_source_clauses
+            ? row.last_analyzed_at
+            : null,
+      }));
+
+      setJobs(jobs);
+    } catch (e: any) {
+      setJobs([]);
+      setLastError(e.message || String(e));
     }
+  }
 
-    resultRows.sort((a, b) =>
-      a.regulation_title.localeCompare(b.regulation_title)
-    );
+  // --- Actions ---
+  async function startAnalysis(regulationId: string) {
+    try {
+      setLastError(null);
+      const { error } = await supabase.functions.invoke("reggio-analyze", {
+        body: { regulation_id: regulationId, batch_size: 4 },
+      });
+      if (error) throw error;
+      await loadAnalysisJobs();
+    } catch (e: any) {
+      setLastError(`startAnalysis: ${e.message || String(e)}`);
+    }
+  }
 
-    setJobs(resultRows);
+  async function reanalyze(regulationId: string) {
+    try {
+      setLastError(null);
+
+      // Call our reset_clause_analysis RPC with correct param names
+      const { error: resetErr } = await supabase.rpc(
+        "reset_clause_analysis",
+        {
+          p_regulation_id: regulationId,
+          p_document_id: null,
+          p_clear_generated: true,
+        }
+      );
+
+      if (resetErr) throw resetErr;
+
+      // Immediately trigger a new analysis run
+      await startAnalysis(regulationId);
+    } catch (e: any) {
+      setLastError(`reanalyze: ${e.message || String(e)}`);
+    }
   }
 
   async function loadAll() {
     setLoading(true);
     try {
       await loadAnalysisJobs();
-    } catch (e: any) {
-      setLastError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
   }
 
-  // -------- Actions --------
-
-  async function startAnalysis(regulationId: string) {
-    setLastError(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("reggio-analyze", {
-        body: { regulation_id: regulationId, batch_size: 4 },
-      });
-      if (error) throw error;
-      // Refresh immediately to reflect progress
-      await loadAnalysisJobs();
-    } catch (e: any) {
-      setLastError(`Analyze error: ${e.message || String(e)}`);
-    }
-  }
-
-  async function reanalyze(regulationId: string) {
-    setLastError(null);
-    try {
-      // Clear markers & generated clauses via the RPC you installed
-      const { error: rpcErr } = await supabase.rpc("reset_clause_analysis", {
-        reg_id: regulationId,
-        doc_id: null,
-        p_clear_generated: true,
-      });
-      if (rpcErr) throw rpcErr;
-
-      // Start a fresh batch
-      await startAnalysis(regulationId);
-    } catch (e: any) {
-      setLastError(`Re-analyze error: ${e.message || String(e)}`);
-    }
-  }
-
-  // -------- Effects --------
-
+  // --- Effects ---
   useEffect(() => {
     loadAll();
   }, []);
@@ -232,14 +153,11 @@ export default function OperatorDashboard() {
     return () => clearInterval(id);
   }, [autoRefresh, jobs]);
 
-  // -------- Derived --------
-
-  const pendingCount = useMemo(
+  // --- Render ---
+  const runningCount = useMemo(
     () => jobs.filter((j) => j.status === "pending" || j.status === "running").length,
     [jobs]
   );
-
-  // -------- Render --------
 
   return (
     <div className="p-6 space-y-6">
@@ -247,7 +165,6 @@ export default function OperatorDashboard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">Operator Dashboard</h1>
         <div className="flex gap-2">
-          {/* Keep ingestion tucked away */}
           <Link to="/operator-ingestions">
             <Button variant="outline">Ingestion Logs</Button>
           </Link>
@@ -263,7 +180,7 @@ export default function OperatorDashboard() {
           <div>
             <div className="font-medium">AI Analysis</div>
             <div className="text-sm text-muted-foreground">
-              Analyze scraped source clauses; re-run safely without touching raw data.
+              Works directly on your scraped source clauses.
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -294,7 +211,7 @@ export default function OperatorDashboard() {
         </Alert>
       )}
 
-      {/* Analysis Jobs */}
+      {/* Jobs */}
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-lg font-semibold">AI Analysis Jobs</div>
@@ -303,17 +220,15 @@ export default function OperatorDashboard() {
               for (const j of jobs) {
                 if (j.status === "pending" || j.status === "running") {
                   await startAnalysis(j.regulation_id);
-                  // small spacing to avoid burst
-                  // eslint-disable-next-line no-await-in-loop
                   await new Promise((r) => setTimeout(r, 1200));
                 }
               }
             }}
-            disabled={loading || pendingCount === 0}
+            disabled={loading || runningCount === 0}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <Brain className="h-4 w-4 mr-2" />
-            Analyze All Pending ({pendingCount})
+            Analyze All Pending ({runningCount})
           </Button>
         </div>
 
@@ -324,7 +239,6 @@ export default function OperatorDashboard() {
                 ? Math.round((job.processed_clauses / job.total_clauses) * 100)
                 : 0;
 
-            // Stall hint
             const prev = lastProgress.current[job.id] ?? -1;
             const stalled =
               (job.status === "running" || job.status === "pending") &&
@@ -352,9 +266,7 @@ export default function OperatorDashboard() {
                   <div className="md:col-span-2 flex items-center gap-2">
                     <StatusChip status={job.status} />
                     {stalled && (
-                      <span className="text-xs text-muted-foreground">
-                        stalled
-                      </span>
+                      <span className="text-xs text-muted-foreground">stalled</span>
                     )}
                   </div>
 
@@ -387,9 +299,7 @@ export default function OperatorDashboard() {
                 </div>
 
                 {job.error_message && (
-                  <div className="mt-2 text-xs text-red-600">
-                    {job.error_message}
-                  </div>
+                  <div className="mt-2 text-xs text-red-600">{job.error_message}</div>
                 )}
               </div>
             );
@@ -401,13 +311,6 @@ export default function OperatorDashboard() {
             </div>
           )}
         </div>
-
-        {autoRefresh && (pendingCount > 0) && (
-          <div className="mt-4 text-xs text-muted-foreground flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            Auto-refreshing every 3–15 seconds…
-          </div>
-        )}
       </Card>
     </div>
   );
