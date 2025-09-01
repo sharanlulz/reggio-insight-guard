@@ -1,5 +1,5 @@
 // src/pages/Clauses.tsx
-// Hybrid-friendly Clauses page reading from public.clauses_v
+// Hybrid-friendly Clauses page reading from public.clauses_hybrid_v
 // - Matches current view columns (source_id, regulation_id, ...)
 // - Shows Summary + Raw Text in the same card with a toggle
 // - Filters, search, paging
@@ -149,15 +149,17 @@ export default function Clauses() {
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    // COUNT
-    let countQ = supabase.from("clauses_v").select("*", { count: "exact", head: true });
+    // COUNT — from hybrid view
+    let countQ = supabase
+      .from("clauses_hybrid_v")
+      .select("*", { count: "exact", head: true });
     countQ = applyFilters(countQ);
     const countRes = await countQ;
     setTotal(Number(countRes.count || 0));
 
-    // PAGE
+    // PAGE — from hybrid view
     let dataQ = supabase
-      .from("clauses_v")
+      .from("clauses_hybrid_v")
       .select(
         [
           "source_id",
@@ -198,7 +200,7 @@ export default function Clauses() {
       <div className="bg-card rounded-lg border p-4">
         <h1 className="text-2xl font-bold text-card-foreground mb-2">Clauses</h1>
         <p className="text-sm text-muted-foreground">
-          Showing scraped clauses (hybrid ingest) from <code>public.clauses_v</code>. 
+          Showing scraped clauses (hybrid ingest) from <code>public.clauses_hybrid_v</code>.{" "}
           Summaries appear when AI analysis has been run; otherwise you’ll see the raw clause text.
         </p>
       </div>
