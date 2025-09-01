@@ -1,9 +1,11 @@
 // src/pages/OperatorDashboard.tsx
-// Operator Dashboard — AI Analysis lifecycle with "ready → running → completed" + stalled detection.
+// Operator Dashboard focused on AI Analysis with status aliasing
+// New UX statuses: ready → running → completed → failed (+ stalled overlay)
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,146 +13,198 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Brain, RefreshCw, RotateCw, Play } from "lucide-react";
 
-type AnalysisStatus = "ready" | "running" | "completed" | "failed";
+// --- Types (kept broad so we don't break if the view/schema varies) ---
+type RawJobRow = {
+  regulation_id: string;
+  regulation_title: string;
+  regulation_short_code?: string | null;
+  // counts from view
+  total_source_clauses?: number | null;
+  analyzed_clauses?: number | null;
+  last_analyzed_at?: string | null;
+  // optional backend/legacy status we may get from somewhere
+  status?: string | null;
+};
 
-type JobRow = {
+type UiStatus = "ready" | "running" | "completed" | "failed";
+
+type AnalysisJob = {
   id: string;
   regulation_id: string;
   regulation_title: string;
   regulation_short_code: string | null;
-  status: AnalysisStatus;
-  totals: {
-    total: number;
-    analyzed: number;
-    failed: number;
-  };
-  progressPct: number;
+  status: UiStatus;
   stalled: boolean;
+  total_clauses: number;
+  processed_clauses: number;
+  last_analyzed_at: string | null;
 };
 
-function StatusChip({ status }: { status: AnalysisStatus }) {
+function StatusChip({ status, stalled }: { status: UiStatus; stalled?: boolean }) {
   const tone =
     status === "failed"
       ? "bg-red-100 text-red-800 border-red-200"
       : status === "completed"
       ? "bg-green-100 text-green-800 border-green-200"
       : status === "ready"
-      ? "bg-gray-100 text-gray-800 border-gray-200"
-      : "bg-blue-100 text-blue-800 border-blue-200";
+      ? "bg-yellow-100 text-yellow-800 border-yellow-200"
+      : "bg-blue-100 text-blue-800 border-blue-200"; // running
+
   return (
-    <Badge variant="outline" className={tone}>
-      {status}
-    </Badge>
+    <div className="flex items-center gap-2">
+      <Badge variant="outline" className={tone}>
+        {status}
+      </Badge>
+      {stalled && status === "running" && (
+        <span className="text-xs text-muted-foreground">stalled</span>
+      )}
+    </div>
   );
 }
 
+// --- Normalize to ready/running/completed/failed without changing backend ---
+function normalizeStatus(raw: RawJobRow): UiStatus {
+  const total = Number(raw.total_source_clauses ?? 0);
+  const analyzed = Number(raw.analyzed_clauses ?? 0);
+  const backend = (raw.status || "").toLowerCase();
+
+  // Completed when analyzed >= total (and there is something to analyze)
+  if (total > 0 && analyzed >= total) return "completed";
+
+  // If nothing analyzed yet but content exists → ready
+  if (total > 0 && analyzed === 0) return "ready";
+
+  // If some analyzed but not all → running
+  if (total > 0 && analyzed > 0 && analyzed < total) return "running";
+
+  // If backend says failed, surface it
+  if (backend === "failed") return "failed";
+
+  // Default to ready (safe)
+  return "ready";
+}
+
 export default function OperatorDashboard() {
-  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const [jobs, setJobs] = useState<AnalysisJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastError, setLastError] = useState<string | null>(null);
+
+  // track progress across refreshes → detect "stalled"
   const lastProgress = useRef<Record<string, number>>({});
 
-  // --- Data loader ---
-  async function loadJobs() {
-    try {
-      setLastError(null);
+  // --- Load from public view (no backend changes required) ---
+  async function loadAnalysisJobs() {
+    setLastError(null);
+    const { data, error } = await supabase
+      .from("analysis_jobs_v") // your view
+      .select("*")
+      .order("regulation_title", { ascending: true });
 
-      const { data, error } = await supabase
-        .from("analysis_jobs_v")
-        .select("*")
-        .order("regulation_title", { ascending: true });
-
-      if (error) throw error;
-
-      const jobs: JobRow[] = (data || []).map((row: any) => {
-        const total = row.total_source_clauses || 0;
-        const analyzed = row.analyzed_clauses || 0;
-        const failed = row.failed_clauses || 0;
-
-        let status: AnalysisStatus = "ready";
-        if (total === 0) {
-          status = "ready";
-        } else if (analyzed >= total) {
-          status = "completed";
-        } else if (analyzed > 0 && analyzed < total) {
-          status = "running";
-        }
-
-        const pct = total > 0 ? Math.round((analyzed / total) * 100) : 0;
-
-        // stalled check
-        const prev = lastProgress.current[row.regulation_id] ?? -1;
-        const stalled = status === "running" && prev === analyzed && analyzed > 0;
-        lastProgress.current[row.regulation_id] = analyzed;
-
-        return {
-          id: `job-${row.regulation_id}`,
-          regulation_id: row.regulation_id,
-          regulation_title: row.regulation_title,
-          regulation_short_code: row.regulation_short_code,
-          status,
-          totals: { total, analyzed, failed },
-          progressPct: pct,
-          stalled,
-        };
-      });
-
-      setJobs(jobs);
-    } catch (e: any) {
-      console.error("loadJobs error:", e);
-      setLastError(e.message || String(e));
+    if (error) {
       setJobs([]);
+      setLastError(error.message || String(error));
+      return;
     }
+
+    const rows = (data || []) as RawJobRow[];
+
+    const mapped: AnalysisJob[] = rows.map((r) => {
+      const total = Number(r.total_source_clauses ?? 0);
+      const processed = Number(r.analyzed_clauses ?? 0);
+      const status = normalizeStatus(r);
+
+      // compute stalled: if status is running and processed hasn't moved since last refresh
+      const id = `analysis-${r.regulation_id}`;
+      const prev = lastProgress.current[id] ?? -1;
+      const stalled = status === "running" && prev === processed && processed > 0;
+      lastProgress.current[id] = processed;
+
+      return {
+        id,
+        regulation_id: r.regulation_id,
+        regulation_title: r.regulation_title || "Unknown Regulation",
+        regulation_short_code: r.regulation_short_code || null,
+        total_clauses: total,
+        processed_clauses: processed,
+        status,
+        stalled,
+        last_analyzed_at: r.last_analyzed_at || null,
+      };
+    });
+
+    setJobs(mapped);
   }
 
   // --- Actions ---
-  async function startAnalysis(regId: string) {
+  async function startAnalysis(regulationId: string) {
     try {
-      const { error } = await supabase.functions.invoke("reggio-analyze", {
-        body: { regulation_id: regId, batch_size: 4 },
+      setLastError(null);
+      const { data, error } = await supabase.functions.invoke("reggio-analyze", {
+        body: { regulation_id: regulationId, batch_size: 4 },
       });
       if (error) throw error;
-      await loadJobs();
+      // refresh view immediately after triggering
+      await loadAnalysisJobs();
     } catch (e: any) {
       setLastError(`startAnalysis: ${e.message || String(e)}`);
     }
   }
 
-  async function reanalyze(regId: string) {
+  // Optional: Re-analyze (only if you already installed the RPC; otherwise this will no-op)
+  async function reanalyze(regulationId: string) {
     try {
-      const { error } = await supabase.rpc("reggio.reset_clause_analysis", {
-        p_regulation_id: regId,
-        p_clear_generated: true,
+      setLastError(null);
+      // Try named-arg call first (if your function exists)
+      const { error: rpcErr } = await supabase.rpc("reset_clause_analysis", {
+        p_regulation_id: regulationId,
+        p_document_id: null,
+        p_clear_generated: false,
       });
-      if (error) throw error;
-      await startAnalysis(regId);
+      if (rpcErr) {
+        // Soft-fail: show message but keep the page working
+        setLastError(
+          `reanalyze (rpc): ${rpcErr.message || String(rpcErr)} — You can still run “Analyze” to continue.`
+        );
+      }
+      // kick analysis
+      await startAnalysis(regulationId);
     } catch (e: any) {
       setLastError(`reanalyze: ${e.message || String(e)}`);
     }
   }
 
+  async function loadAll() {
+    setLoading(true);
+    try {
+      await loadAnalysisJobs();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // --- Effects ---
   useEffect(() => {
-    loadJobs();
+    loadAll();
   }, []);
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const hasRunning = jobs.some((j) => j.status === "running");
-    const interval = hasRunning ? 4000 : 15000;
-    const id = setInterval(loadJobs, interval);
+    const hasRunning = jobs.some((j) => j.status === "running" || j.status === "ready");
+    const interval = hasRunning ? 3000 : 15000;
+    const id = setInterval(loadAll, interval);
     return () => clearInterval(id);
   }, [autoRefresh, jobs]);
 
-  const runningCount = useMemo(
+  // --- Derived ---
+  const runnableCount = useMemo(
     () => jobs.filter((j) => j.status === "ready" || j.status === "running").length,
     [jobs]
   );
 
-  // --- Render ---
   return (
     <div className="p-6 space-y-6">
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">Operator Dashboard</h1>
         <div className="flex gap-2">
@@ -163,13 +217,13 @@ export default function OperatorDashboard() {
         </div>
       </div>
 
+      {/* Controls */}
       <Card className="p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="font-medium">AI Analysis</div>
             <div className="text-sm text-muted-foreground">
-              Lifecycle: <b>ready → running → completed</b>. Stalled = no progress despite being
-              running.
+              Statuses are normalized to: <b>ready</b> → <b>running</b> → <b>completed</b> → <b>failed</b> (with stalled overlay).
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -181,7 +235,7 @@ export default function OperatorDashboard() {
             </Button>
             <Button
               variant="outline"
-              onClick={loadJobs}
+              onClick={loadAll}
               disabled={loading}
               className="flex items-center gap-2"
             >
@@ -192,13 +246,15 @@ export default function OperatorDashboard() {
         </div>
       </Card>
 
+      {/* Errors */}
       {lastError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{lastError}</AlertDescription>
+          <AlertDescription className="text-sm">{lastError}</AlertDescription>
         </Alert>
       )}
 
+      {/* Jobs */}
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-lg font-semibold">AI Analysis Jobs</div>
@@ -207,67 +263,78 @@ export default function OperatorDashboard() {
               for (const j of jobs) {
                 if (j.status === "ready" || j.status === "running") {
                   await startAnalysis(j.regulation_id);
-                  await new Promise((r) => setTimeout(r, 1000));
+                  await new Promise((r) => setTimeout(r, 1200)); // gentle pacing
                 }
               }
             }}
-            disabled={loading || runningCount === 0}
+            disabled={loading || runnableCount === 0}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <Brain className="h-4 w-4 mr-2" />
-            Analyze All ({runningCount})
+            Analyze All ({runnableCount})
           </Button>
         </div>
 
         <div className="grid gap-3">
-          {jobs.map((j) => (
-            <div key={j.id} className="border rounded-lg p-4">
-              <div className="grid items-start gap-3 md:grid-cols-12">
-                <div className="md:col-span-5">
-                  <div className="font-medium">
-                    {j.regulation_title}{" "}
-                    {j.regulation_short_code && (
-                      <span className="text-muted-foreground">({j.regulation_short_code})</span>
-                    )}
+          {jobs.map((job) => {
+            const pct =
+              job.total_clauses > 0
+                ? Math.round((job.processed_clauses / job.total_clauses) * 100)
+                : 0;
+
+            return (
+              <div key={job.id} className="border rounded-lg p-4">
+                <div className="grid items-start gap-3 md:grid-cols-12">
+                  <div className="md:col-span-5">
+                    <div className="font-medium">
+                      {job.regulation_title}{" "}
+                      {job.regulation_short_code ? (
+                        <span className="text-muted-foreground">({job.regulation_short_code})</span>
+                      ) : null}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {job.total_clauses} clauses
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">{j.totals.total} clauses</div>
-                </div>
 
-                <div className="md:col-span-2 flex items-center gap-2">
-                  <StatusChip status={j.status} />
-                  {j.stalled && (
-                    <span className="text-xs text-muted-foreground">stalled</span>
-                  )}
-                </div>
-
-                <div className="md:col-span-3">
-                  <Progress value={j.progressPct} className="h-2 mb-1" />
-                  <div className="text-xs text-muted-foreground">
-                    {j.totals.analyzed}/{j.totals.total}
+                  <div className="md:col-span-2">
+                    <StatusChip status={job.status} stalled={job.stalled} />
                   </div>
-                </div>
 
-                <div className="md:col-span-2 flex gap-2 justify-end">
-                  <Button size="sm" variant="outline" onClick={() => startAnalysis(j.regulation_id)}>
-                    <Play className="h-4 w-4 mr-1" />
-                    Analyze
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => reanalyze(j.regulation_id)}
-                  >
-                    <RotateCw className="h-4 w-4 mr-1" />
-                    Re-analyze
-                  </Button>
+                  <div className="md:col-span-3">
+                    <Progress value={pct} className="h-2 mb-1" />
+                    <div className="text-xs text-muted-foreground">
+                      {job.processed_clauses}/{job.total_clauses}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2 flex gap-2 justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => startAnalysis(job.regulation_id)}
+                    >
+                      <Play className="h-4 w-4 mr-1" />
+                      Analyze
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => reanalyze(job.regulation_id)}
+                      title="Clear analysis markers (if RPC exists) and re-run"
+                    >
+                      <RotateCw className="h-4 w-4 mr-1" />
+                      Re-analyze
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {jobs.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
-              No jobs yet. Ingest a regulation and refresh.
+              No analysis jobs yet. Ingest a regulation (Node scraper) and refresh.
             </div>
           )}
         </div>
