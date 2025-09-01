@@ -1,6 +1,6 @@
 // src/pages/OperatorDashboard.tsx
 // Operator Dashboard focused on AI Analysis with status aliasing
-// New UX statuses: ready → running → completed → failed (+ stalled overlay)
+// UX statuses: ready → running → completed → failed (+ stalled overlay)
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -13,17 +13,15 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Brain, RefreshCw, RotateCw, Play } from "lucide-react";
 
-// --- Types (kept broad so we don't break if the view/schema varies) ---
+// --- Types from public.analysis_jobs_v (kept broad) ---
 type RawJobRow = {
   regulation_id: string;
   regulation_title: string;
   regulation_short_code?: string | null;
-  // counts from view
   total_source_clauses?: number | null;
   analyzed_clauses?: number | null;
   last_analyzed_at?: string | null;
-  // optional backend/legacy status we may get from somewhere
-  status?: string | null;
+  status?: string | null; // optional legacy/backend status (ignored for UI map)
 };
 
 type UiStatus = "ready" | "running" | "completed" | "failed";
@@ -40,6 +38,7 @@ type AnalysisJob = {
   last_analyzed_at: string | null;
 };
 
+// --- Status chip ---
 function StatusChip({ status, stalled }: { status: UiStatus; stalled?: boolean }) {
   const tone =
     status === "failed"
@@ -62,25 +61,16 @@ function StatusChip({ status, stalled }: { status: UiStatus; stalled?: boolean }
   );
 }
 
-// --- Normalize to ready/running/completed/failed without changing backend ---
+// --- Map raw counts to UI status (non-breaking) ---
 function normalizeStatus(raw: RawJobRow): UiStatus {
   const total = Number(raw.total_source_clauses ?? 0);
   const analyzed = Number(raw.analyzed_clauses ?? 0);
   const backend = (raw.status || "").toLowerCase();
 
-  // Completed when analyzed >= total (and there is something to analyze)
   if (total > 0 && analyzed >= total) return "completed";
-
-  // If nothing analyzed yet but content exists → ready
   if (total > 0 && analyzed === 0) return "ready";
-
-  // If some analyzed but not all → running
   if (total > 0 && analyzed > 0 && analyzed < total) return "running";
-
-  // If backend says failed, surface it
   if (backend === "failed") return "failed";
-
-  // Default to ready (safe)
   return "ready";
 }
 
@@ -90,14 +80,15 @@ export default function OperatorDashboard() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastError, setLastError] = useState<string | null>(null);
 
-  // track progress across refreshes → detect "stalled"
+  // remember last processed count to detect "stalled"
   const lastProgress = useRef<Record<string, number>>({});
 
-  // --- Load from public view (no backend changes required) ---
+  // --- Load from public view (hybrid-friendly; analyzed regs keep showing) ---
   async function loadAnalysisJobs() {
     setLastError(null);
+
     const { data, error } = await supabase
-      .from("analysis_jobs_v") // your view
+      .from("analysis_jobs_v")
       .select("*")
       .order("regulation_title", { ascending: true });
 
@@ -114,7 +105,6 @@ export default function OperatorDashboard() {
       const processed = Number(r.analyzed_clauses ?? 0);
       const status = normalizeStatus(r);
 
-      // compute stalled: if status is running and processed hasn't moved since last refresh
       const id = `analysis-${r.regulation_id}`;
       const prev = lastProgress.current[id] ?? -1;
       const stalled = status === "running" && prev === processed && processed > 0;
@@ -140,34 +130,48 @@ export default function OperatorDashboard() {
   async function startAnalysis(regulationId: string) {
     try {
       setLastError(null);
-      const { data, error } = await supabase.functions.invoke("reggio-analyze", {
+
+      // optimistic: mark job running immediately
+      setJobs((prev) =>
+        prev.map((j) =>
+          j.regulation_id === regulationId && j.total_clauses > 0
+            ? { ...j, status: j.processed_clauses > 0 ? "running" : "running" }
+            : j
+        )
+      );
+
+      const { error } = await supabase.functions.invoke("reggio-analyze", {
         body: { regulation_id: regulationId, batch_size: 4 },
       });
       if (error) throw error;
-      // refresh view immediately after triggering
+
+      // refresh after trigger
       await loadAnalysisJobs();
     } catch (e: any) {
       setLastError(`startAnalysis: ${e.message || String(e)}`);
     }
   }
 
-  // Optional: Re-analyze (only if you already installed the RPC; otherwise this will no-op)
+  // Re-analyze (uses RPC if present, otherwise just starts analysis)
   async function reanalyze(regulationId: string) {
     try {
       setLastError(null);
-      // Try named-arg call first (if your function exists)
+
+      // Try RPC (if you installed it). Soft-fail if missing/ambiguous.
       const { error: rpcErr } = await supabase.rpc("reset_clause_analysis", {
         p_regulation_id: regulationId,
         p_document_id: null,
         p_clear_generated: false,
       });
       if (rpcErr) {
-        // Soft-fail: show message but keep the page working
+        // Don’t block the flow — just surface info and carry on.
         setLastError(
-          `reanalyze (rpc): ${rpcErr.message || String(rpcErr)} — You can still run “Analyze” to continue.`
+          `reanalyze (rpc): ${rpcErr.message || String(
+            rpcErr
+          )} — continuing with a fresh analyze run.`
         );
       }
-      // kick analysis
+
       await startAnalysis(regulationId);
     } catch (e: any) {
       setLastError(`reanalyze: ${e.message || String(e)}`);
@@ -190,8 +194,8 @@ export default function OperatorDashboard() {
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const hasRunning = jobs.some((j) => j.status === "running" || j.status === "ready");
-    const interval = hasRunning ? 3000 : 15000;
+    const needsFast = jobs.some((j) => j.status === "running" || j.status === "ready");
+    const interval = needsFast ? 3000 : 15000;
     const id = setInterval(loadAll, interval);
     return () => clearInterval(id);
   }, [autoRefresh, jobs]);
@@ -223,7 +227,8 @@ export default function OperatorDashboard() {
           <div>
             <div className="font-medium">AI Analysis</div>
             <div className="text-sm text-muted-foreground">
-              Statuses are normalized to: <b>ready</b> → <b>running</b> → <b>completed</b> → <b>failed</b> (with stalled overlay).
+              Statuses are normalized to: <b>ready</b> → <b>running</b> → <b>completed</b> →{" "}
+              <b>failed</b> (with a <b>stalled</b> overlay when progress doesn’t move).
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -260,10 +265,11 @@ export default function OperatorDashboard() {
           <div className="text-lg font-semibold">AI Analysis Jobs</div>
           <Button
             onClick={async () => {
+              // run all ready/running regs one by one with gentle pacing
               for (const j of jobs) {
                 if (j.status === "ready" || j.status === "running") {
                   await startAnalysis(j.regulation_id);
-                  await new Promise((r) => setTimeout(r, 1200)); // gentle pacing
+                  await new Promise((r) => setTimeout(r, 1200));
                 }
               }
             }}
@@ -289,11 +295,18 @@ export default function OperatorDashboard() {
                     <div className="font-medium">
                       {job.regulation_title}{" "}
                       {job.regulation_short_code ? (
-                        <span className="text-muted-foreground">({job.regulation_short_code})</span>
+                        <span className="text-muted-foreground">
+                          ({job.regulation_short_code})
+                        </span>
                       ) : null}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {job.total_clauses} clauses
+                      {job.last_analyzed_at
+                        ? ` • Last analyzed: ${new Date(
+                            job.last_analyzed_at
+                          ).toLocaleString()}`
+                        : ""}
                     </div>
                   </div>
 
