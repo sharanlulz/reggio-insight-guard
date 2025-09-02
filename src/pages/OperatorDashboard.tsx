@@ -11,7 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Brain, RefreshCw, RotateCw, Play } from "lucide-react";
+import {
+  AlertCircle,
+  Brain,
+  RefreshCw,
+  RotateCw,
+  Play,
+  Repeat,
+  PauseCircle,
+} from "lucide-react";
 
 // --- Types from public.analysis_jobs_v (kept broad) ---
 type RawJobRow = {
@@ -135,7 +143,7 @@ export default function OperatorDashboard() {
       setJobs((prev) =>
         prev.map((j) =>
           j.regulation_id === regulationId && j.total_clauses > 0
-            ? { ...j, status: j.processed_clauses > 0 ? "running" : "running" }
+            ? { ...j, status: "running", stalled: false }
             : j
         )
       );
@@ -178,6 +186,52 @@ export default function OperatorDashboard() {
     }
   }
 
+  // NEW: Explicit resume — clears stale leases and continues immediately
+  async function resumeAnalysis(regulationId: string) {
+    try {
+      setLastError(null);
+
+      // optimistic: mark job running, clear stalled flag
+      setJobs((prev) =>
+        prev.map((j) =>
+          j.regulation_id === regulationId ? { ...j, status: "running", stalled: false } : j
+        )
+      );
+
+      const { error } = await supabase.functions.invoke("reggio-analyze", {
+        body: { regulation_id: regulationId, batch_size: 4, resume: true },
+      });
+      if (error) throw error;
+
+      await loadAnalysisJobs();
+    } catch (e: any) {
+      setLastError(`resumeAnalysis: ${e.message || String(e)}`);
+    }
+  }
+
+  // NEW: Retry rows previously marked failed, then resume
+  async function retryFailed(regulationId: string) {
+    try {
+      setLastError(null);
+
+      // optimistic: show running
+      setJobs((prev) =>
+        prev.map((j) =>
+          j.regulation_id === regulationId ? { ...j, status: "running", stalled: false } : j
+        )
+      );
+
+      const { error } = await supabase.functions.invoke("reggio-analyze", {
+        body: { regulation_id: regulationId, batch_size: 4, retry_failed: true, resume: true },
+      });
+      if (error) throw error;
+
+      await loadAnalysisJobs();
+    } catch (e: any) {
+      setLastError(`retryFailed: ${e.message || String(e)}`);
+    }
+  }
+
   async function loadAll() {
     setLoading(true);
     try {
@@ -203,6 +257,10 @@ export default function OperatorDashboard() {
   // --- Derived ---
   const runnableCount = useMemo(
     () => jobs.filter((j) => j.status === "ready" || j.status === "running").length,
+    [jobs]
+  );
+  const stalledCount = useMemo(
+    () => jobs.filter((j) => j.status === "running" && j.stalled).length,
     [jobs]
   );
 
@@ -263,22 +321,62 @@ export default function OperatorDashboard() {
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-lg font-semibold">AI Analysis Jobs</div>
-          <Button
-            onClick={async () => {
-              // run all ready/running regs one by one with gentle pacing
-              for (const j of jobs) {
-                if (j.status === "ready" || j.status === "running") {
-                  await startAnalysis(j.regulation_id);
-                  await new Promise((r) => setTimeout(r, 1200));
+          <div className="flex gap-2">
+            <Button
+              onClick={async () => {
+                // run all ready/running regs one by one with gentle pacing
+                for (const j of jobs) {
+                  if (j.status === "ready" || j.status === "running") {
+                    await startAnalysis(j.regulation_id);
+                    await new Promise((r) => setTimeout(r, 1200));
+                  }
                 }
-              }
-            }}
-            disabled={loading || runnableCount === 0}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Brain className="h-4 w-4 mr-2" />
-            Analyze All ({runnableCount})
-          </Button>
+              }}
+              disabled={loading || runnableCount === 0}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Brain className="h-4 w-4 mr-2" />
+              Analyze All ({runnableCount})
+            </Button>
+
+            {/* NEW: Resume all stalled */}
+            <Button
+              variant="outline"
+              onClick={async () => {
+                for (const j of jobs) {
+                  if (j.status === "running" && j.stalled) {
+                    await resumeAnalysis(j.regulation_id);
+                    await new Promise((r) => setTimeout(r, 800));
+                  }
+                }
+              }}
+              disabled={loading || stalledCount === 0}
+              title="Clear stale leases and continue"
+              className="flex items-center gap-2"
+            >
+              <Repeat className="h-4 w-4" />
+              Resume Stalled ({stalledCount})
+            </Button>
+
+            {/* NEW: Retry all failed */}
+            <Button
+              variant="outline"
+              onClick={async () => {
+                for (const j of jobs) {
+                  if (j.status === "failed") {
+                    await retryFailed(j.regulation_id);
+                    await new Promise((r) => setTimeout(r, 800));
+                  }
+                }
+              }}
+              disabled={loading || jobs.every((j) => j.status !== "failed")}
+              title="Re-queue failed clauses and continue"
+              className="flex items-center gap-2"
+            >
+              <RotateCw className="h-4 w-4" />
+              Retry Failed
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-3">
@@ -321,7 +419,7 @@ export default function OperatorDashboard() {
                     </div>
                   </div>
 
-                  <div className="md:col-span-2 flex gap-2 justify-end">
+                  <div className="md:col-span-2 flex flex-wrap gap-2 justify-end">
                     <Button
                       size="sm"
                       variant="outline"
@@ -338,6 +436,27 @@ export default function OperatorDashboard() {
                     >
                       <RotateCw className="h-4 w-4 mr-1" />
                       Re-analyze
+                    </Button>
+                    {/* NEW: Per-row Resume */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => resumeAnalysis(job.regulation_id)}
+                      title="Clear stale leases and continue"
+                      disabled={job.status === "completed"}
+                    >
+                      <Repeat className="h-4 w-4 mr-1" />
+                      Resume
+                    </Button>
+                    {/* Optional: visual pause (no backend pause — just stops auto-refresh) */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAutoRefresh(false)}
+                      title="Pause UI auto-refresh"
+                    >
+                      <PauseCircle className="h-4 w-4 mr-1" />
+                      Pause UI
                     </Button>
                   </div>
                 </div>
